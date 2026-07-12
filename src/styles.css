@@ -174,3 +174,19 @@
 @utility gradient-bg {
   background: var(--gradient-primary);
 }
+
+@keyframes wc-pop {
+  0% { opacity: 0; transform: scale(0.3) translateY(8px); filter: blur(6px); }
+  60% { opacity: 1; transform: scale(1.15) translateY(-2px); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+@keyframes wc-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-0.4deg); }
+}
+
+@keyframes wc-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.4); }
+}
