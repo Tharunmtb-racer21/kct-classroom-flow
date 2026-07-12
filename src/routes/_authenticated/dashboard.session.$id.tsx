@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { joinUrl } from "@/lib/session-utils";
+import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 
@@ -98,6 +98,7 @@ function SessionControl() {
   }
 
   const joinLink = joinUrl(session.code);
+  const previewWarning = isPrivatePreviewHost() && !(import.meta as any).env?.VITE_PUBLIC_APP_URL;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
@@ -150,6 +151,11 @@ function SessionControl() {
           >
             Copy join link
           </button>
+          {previewWarning && (
+            <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
+              This is a private preview URL — students on other devices cannot open it. Publish the app (top-right) or set <span className="font-mono">VITE_PUBLIC_APP_URL</span> so the QR points to your live site.
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 space-y-6">
