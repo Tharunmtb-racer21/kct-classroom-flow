@@ -77,14 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "KCT PULSE — Real-time Classroom Engagement" },
+      { name: "description", content: "KCT PULSE turns classrooms into interactive experiences with live polls, word clouds, and quizzes for Kumaraguru College of Technology." },
+      { name: "author", content: "KCT PULSE" },
+      { property: "og:title", content: "KCT PULSE — Real-time Classroom Engagement" },
+      { property: "og:description", content: "Live polls, word clouds & quizzes for KCT classrooms." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
