@@ -309,7 +309,7 @@ function LivePanel({ current, responses, participants }: { current: Question | n
       <div className="mt-6">
         {current.type === "poll" && <PollResults options={current.options} responses={responses} />}
         {current.type === "quiz" && <QuizResults options={current.options} correct={current.correct_answer} responses={responses} participants={participants} />}
-        {current.type === "wordcloud" && <WordCloudResults responses={responses} />}
+        {current.type === "wordcloud" && <WordCloudResults responses={responses} participants={participants} />}
       </div>
     </div>
   );
@@ -369,27 +369,99 @@ function QuizResults({ options, correct, responses, participants }: { options: s
   );
 }
 
-function WordCloudResults({ responses }: { responses: Response[] }) {
-  const counts = new Map<string, number>();
-  responses.forEach((r) => {
-    r.answer.split(/[\s,]+/).map((w) => w.trim().toLowerCase()).filter(Boolean).forEach((w) => {
-      counts.set(w, (counts.get(w) ?? 0) + 1);
+function WordCloudResults({ responses, participants }: { responses: Response[]; participants: Participant[] }) {
+  const words = useMemo(() => {
+    const counts = new Map<string, number>();
+    responses.forEach((r) => {
+      r.answer.split(/[\s,]+/).map((w) => w.trim().toLowerCase()).filter(Boolean).forEach((w) => {
+        counts.set(w, (counts.get(w) ?? 0) + 1);
+      });
     });
-  });
-  const arr = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const max = arr[0]?.[1] ?? 1;
+    // Sort by count desc; cap to 200 for performance
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
+  }, [responses]);
+
+  const max = words[0]?.[1] ?? 1;
+  const palette = [
+    "#60a5fa", "#38bdf8", "#22d3ee", "#5eead4",
+    "#34d399", "#a78bfa", "#c4b5fd", "#e0f2fe",
+    "#7dd3fc", "#93c5fd", "#67e8f9", "#f0f9ff",
+  ];
+  const hash = (s: string) => {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  };
+
   return (
-    <div className="flex min-h-[200px] flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-xl bg-accent/30 p-6">
-      {arr.length === 0 && <div className="text-sm text-muted-foreground">Waiting for responses...</div>}
-      {arr.map(([w, c]) => {
-        const size = 0.9 + (c / max) * 2.2;
-        const hue = (w.charCodeAt(0) * 13) % 360;
-        return (
-          <span key={w} style={{ fontSize: `${size}rem`, color: `oklch(0.75 0.15 ${hue})` }} className="font-semibold leading-tight transition-all">
-            {w}
-          </span>
-        );
-      })}
+    <div
+      className="relative overflow-hidden rounded-2xl border border-white/5 p-8"
+      style={{
+        minHeight: 380,
+        background:
+          "radial-gradient(ellipse at 20% 20%, oklch(0.3 0.15 240 / 0.35), transparent 55%), radial-gradient(ellipse at 80% 80%, oklch(0.35 0.14 165 / 0.28), transparent 55%), oklch(0.15 0.04 260)",
+      }}
+    >
+      {/* Live stats */}
+      <div className="pointer-events-none absolute inset-x-4 top-4 flex justify-between text-xs">
+        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 backdrop-blur">
+          <span
+            className="inline-block h-2 w-2 rounded-full bg-[color:var(--accent-emerald)]"
+            style={{ animation: "wc-pulse-dot 1.6s ease-in-out infinite" }}
+          />
+          <span className="font-semibold">{participants.length}</span>
+          <span className="text-muted-foreground">participants</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 backdrop-blur">
+          <span className="font-semibold">{responses.length}</span>
+          <span className="text-muted-foreground">responses</span>
+        </div>
+      </div>
+
+      {words.length === 0 ? (
+        <div className="flex min-h-[320px] items-center justify-center">
+          <div className="text-center">
+            <div className="relative mx-auto h-20 w-20">
+              <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+              <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-primary" />
+              <div
+                className="absolute inset-3 rounded-full gradient-bg opacity-60"
+                style={{ animation: "wc-pulse-dot 1.8s ease-in-out infinite" }}
+              />
+            </div>
+            <div className="mt-5 text-sm font-medium text-foreground/80">Waiting for responses…</div>
+            <div className="mt-1 text-xs text-muted-foreground">Your word cloud will appear here in real time.</div>
+          </div>
+        </div>
+      ) : (
+        <div className="relative flex min-h-[320px] flex-wrap items-center justify-center gap-x-5 gap-y-3 px-2 pt-8">
+          {words.map(([w, c], i) => {
+            // Log-ish scale: rare words stay readable, common words dominate.
+            const t = Math.pow(c / max, 0.55);
+            const size = 0.95 + t * 3.4; // rem
+            const color = palette[hash(w) % palette.length];
+            const opacity = 0.65 + t * 0.35;
+            const floatDur = 4 + (hash(w + "d") % 5); // 4-8s
+            const floatDelay = ((hash(w + "x") % 20) / 10).toFixed(2); // 0-2s
+            return (
+              <span
+                key={w}
+                className="inline-block font-extrabold leading-none tracking-tight will-change-transform"
+                style={{
+                  fontSize: `${size}rem`,
+                  color,
+                  opacity,
+                  textShadow: `0 0 18px ${color}66, 0 0 44px ${color}33`,
+                  transition: "font-size 700ms cubic-bezier(0.22,1,0.36,1), opacity 500ms ease",
+                  animation: `wc-pop 0.55s cubic-bezier(0.34,1.56,0.64,1) both, wc-float ${floatDur}s ease-in-out ${floatDelay}s infinite`,
+                }}
+              >
+                {w}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
