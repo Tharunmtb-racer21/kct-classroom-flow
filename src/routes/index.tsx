@@ -1,24 +1,92 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Activity, BarChart3, Cloud, Sparkles, Users, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const [code, setCode] = useState("");
+  const navigate = Route.useNavigate();
+
+  const handleJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim()) return;
+    navigate({ to: "/join/$code", params: { code: code.trim().toUpperCase() } });
+  };
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen">
+      <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="grid h-9 w-9 place-items-center rounded-xl gradient-bg shadow-[var(--shadow-glow)]">
+            <Activity className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/auth">
+            <Button variant="ghost">Faculty Login</Button>
+          </Link>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-7xl px-6 pt-12 pb-20 text-center">
+        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur">
+          <Sparkles className="h-3.5 w-3.5 text-[color:var(--primary-glow)]" />
+          Built for Kumaraguru College of Technology
+        </div>
+        <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
+          Transform classrooms into <br />
+          <span className="gradient-text">interactive experiences</span>
+        </h1>
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+          Real-time polls, live word clouds, and instant quizzes. Students join with a QR — no accounts, no friction.
+        </p>
+
+        <div className="mx-auto mt-10 flex max-w-md flex-col gap-3">
+          <form onSubmit={handleJoin} className="glass flex items-center gap-2 rounded-2xl p-2">
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="Enter session code (e.g. KCT821)"
+              className="border-0 bg-transparent text-center text-lg font-mono tracking-[0.2em] focus-visible:ring-0"
+            />
+            <Button type="submit" className="gradient-bg font-semibold">Join</Button>
+          </form>
+          <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground">
+            Faculty? Sign in to launch a session →
+          </Link>
+        </div>
+
+        <div className="mx-auto mt-24 grid max-w-5xl gap-5 md:grid-cols-3">
+          {[
+            { icon: BarChart3, title: "Live Polls", desc: "MCQ voting with instant percentage bars.", color: "text-[color:var(--primary)]" },
+            { icon: Cloud, title: "Word Clouds", desc: "Watch student thinking form in real-time.", color: "text-[color:var(--accent-emerald)]" },
+            { icon: Zap, title: "Quizzes", desc: "Timed questions with a live leaderboard.", color: "text-[color:var(--primary-glow)]" },
+          ].map((f) => (
+            <div key={f.title} className="glass rounded-2xl p-6 text-left transition hover:-translate-y-1">
+              <f.icon className={`mb-4 h-8 w-8 ${f.color}`} />
+              <h3 className="text-lg font-semibold">{f.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mx-auto mt-16 flex max-w-4xl flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2"><Users className="h-4 w-4" /> Unlimited participants</div>
+          <div className="flex items-center gap-2"><Zap className="h-4 w-4" /> Instant realtime updates</div>
+          <div className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Zero-signup for students</div>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground">
+        © {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology
+      </footer>
     </div>
   );
 }
