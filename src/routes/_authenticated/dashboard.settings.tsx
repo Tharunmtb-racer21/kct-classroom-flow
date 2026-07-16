@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 
 export const Route = createFileRoute("/_authenticated/dashboard/settings")({
   component: SettingsPage,
@@ -18,26 +19,26 @@ function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) return;
-      setEmail(user.user.email ?? "");
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", user.user.id).maybeSingle();
+      const user = auth.currentUser;
+      if (!user) return;
+      setEmail(user.email ?? "");
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", user.uid).maybeSingle();
       setFullName(data?.full_name ?? "");
     })();
   }, []);
 
   const save = async () => {
     setSaving(true);
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
-    const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", user.user.id);
+    const user = auth.currentUser;
+    if (!user) return;
+    const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", user.uid);
     setSaving(false);
     if (error) toast.error(error.message);
     else toast.success("Profile updated");
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await auth.signOut();
     navigate({ to: "/", replace: true });
   };
 

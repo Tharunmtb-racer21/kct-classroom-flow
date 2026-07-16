@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { generateSessionCode } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
+import { auth } from "@/lib/firebase";
 
 type Row = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; created_at: string; participants: { count: number }[] };
 
@@ -24,12 +25,12 @@ function SessionsPage() {
   const navigate = Route.useNavigate();
 
   const load = async () => {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
+    const user = auth.currentUser;
+    if (!user) return;
     const { data } = await supabase
       .from("sessions")
       .select("id,title,code,status,created_at,participants(count)")
-      .eq("creator_id", user.user.id)
+      .eq("creator_id", user.uid)
       .order("created_at", { ascending: false });
     setRows((data as unknown as Row[]) ?? []);
   };
@@ -47,8 +48,8 @@ function SessionsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error("Not signed in");
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not signed in");
       let code = generateSessionCode();
       // simple retry on collision
       for (let i = 0; i < 5; i++) {
@@ -58,7 +59,7 @@ function SessionsPage() {
       }
       const { data: inserted, error } = await supabase
         .from("sessions")
-        .insert({ title, code, creator_id: user.user.id, status: "draft" })
+        .insert({ title, code, creator_id: user.uid, status: "draft" })
         .select("id")
         .single();
       if (error) throw error;

@@ -51,6 +51,17 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+    },
+    accessToken: async () => {
+      if (typeof window === 'undefined') return null;
+      try {
+        const { auth } = await import('@/lib/firebase');
+        const token = await auth.currentUser?.getIdToken();
+        return token ?? null;
+      } catch (e) {
+        console.error('[Supabase] Failed to retrieve Firebase ID Token:', e);
+        return null;
+      }
     }
   });
 }

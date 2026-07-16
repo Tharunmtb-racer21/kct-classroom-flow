@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Activity, BarChart3, LayoutDashboard, LogOut, PresentationIcon, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { auth } from "@/lib/firebase";
 
 const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/settings"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
@@ -15,7 +16,7 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await auth.signOut();
     navigate({ to: "/", replace: true });
   };
 

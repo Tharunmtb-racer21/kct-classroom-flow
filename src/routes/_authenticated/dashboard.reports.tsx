@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusPill } from "./dashboard.index";
+import { auth } from "@/lib/firebase";
 
 type Row = {
   id: string;
@@ -22,12 +23,12 @@ function ReportsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) return;
+      const user = auth.currentUser;
+      if (!user) return;
       const { data } = await supabase
         .from("sessions")
         .select("id,title,code,status,created_at,participants(count),questions(count)")
-        .eq("creator_id", user.user.id)
+        .eq("creator_id", user.uid)
         .order("created_at", { ascending: false });
       setRows((data as unknown as Row[]) ?? []);
     })();

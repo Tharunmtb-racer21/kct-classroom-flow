@@ -4,6 +4,7 @@ import { Plus, Radio, CheckCircle2, Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { auth } from "@/lib/firebase";
 
 type Session = {
   id: string;
@@ -23,12 +24,12 @@ function DashboardHome() {
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
+    const user = auth.currentUser;
+    if (!user) return;
     const { data } = await supabase
       .from("sessions")
       .select("id,title,code,status,created_at,participants(count)")
-      .eq("creator_id", user.user.id)
+      .eq("creator_id", user.uid)
       .order("created_at", { ascending: false });
     setSessions((data as unknown as Session[]) ?? []);
     setLoading(false);
