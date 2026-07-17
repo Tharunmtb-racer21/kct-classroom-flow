@@ -126,7 +126,7 @@ function AuthPage() {
       <div className="w-full max-w-md relative z-10">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
           <div className="grid h-10 w-10 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
-            <img src="/kct-logo.png" alt="KCT Logo" className="h-10 w-10 object-cover" />
+            <img src="/kct-logo.jpg" alt="KCT Logo" className="h-10 w-10 object-cover" />
           </div>
           <span className="text-xl font-bold">KCT <span className="gradient-text">PULSE</span></span>
         </Link>

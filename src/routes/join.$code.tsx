@@ -207,7 +207,7 @@ function Wrap({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
         <div className="grid h-8 w-8 place-items-center rounded-lg overflow-hidden">
-          <img src="/kct-logo.png" alt="KCT Logo" className="h-8 w-8 object-cover" />
+          <img src="/kct-logo.jpg" alt="KCT Logo" className="h-8 w-8 object-cover" />
         </div>
         <span className="font-bold text-sm">KCT <span className="gradient-text">PULSE</span></span>
       </header>
