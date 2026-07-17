@@ -69,7 +69,13 @@ function SessionsPage() {
       navigate({ to: "/dashboard/session/$id", params: { id: inserted.id } });
     } catch (err) {
       console.error("Create session error:", err);
-      toast.error(err instanceof Error ? err.message : (typeof err === "object" && err ? (err as any).message || JSON.stringify(err) : String(err)));
+      // Show full error details for debugging
+      try {
+        const errDetails = typeof err === "object" && err !== null ? JSON.stringify(err, null, 2) : String(err);
+        toast.error(errDetails);
+      } catch {
+        toast.error(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setSaving(false);
     }

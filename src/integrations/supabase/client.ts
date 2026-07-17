@@ -7,7 +7,7 @@ function isNewSupabaseApiKey(value: string): boolean {
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
+  return async (input, init) => {
     const headers = new Headers(
       typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
     );
@@ -22,6 +22,17 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     }
 
     headers.set('apikey', supabaseKey);
+
+    // Bypass PostgREST JWT decode error by sending the Firebase UID directly in a header
+    try {
+      const { auth } = await import('@/lib/firebase');
+      if (auth.currentUser?.uid) {
+        headers.set('x-firebase-uid', auth.currentUser.uid);
+      }
+    } catch (e) {
+      console.warn('Failed to inject x-firebase-uid:', e);
+    }
+
     return fetch(input, { ...init, headers });
   };
 }
@@ -51,17 +62,6 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
-    },
-    accessToken: async () => {
-      if (typeof window === 'undefined') return null;
-      try {
-        const { auth } = await import('@/lib/firebase');
-        const token = await auth.currentUser?.getIdToken();
-        return token ?? null;
-      } catch (e) {
-        console.error('[Supabase] Failed to retrieve Firebase ID Token:', e);
-        return null;
-      }
     }
   });
 }
