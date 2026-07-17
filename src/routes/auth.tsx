@@ -121,7 +121,7 @@ function AuthPage() {
   return (
     <div 
       className="min-h-screen flex items-center justify-center px-4 py-10 bg-cover bg-center bg-fixed bg-no-repeat relative before:absolute before:inset-0 before:bg-background/80"
-      style={{ backgroundImage: "url('/kct-bg.png')" }}
+      style={{ backgroundImage: "url('/kct-bg.jpg')" }}
     >
       <div className="w-full max-w-md relative z-10">
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
