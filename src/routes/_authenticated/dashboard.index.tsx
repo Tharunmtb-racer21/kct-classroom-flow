@@ -59,8 +59,8 @@ function DashboardHome() {
           <p className="mt-1 text-sm text-muted-foreground">Manage your live classroom sessions.</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="bg-white px-3 py-1.5 rounded shadow-sm">
-            <img src="/kumaraguru-logo.jpg" alt="Kumaraguru Institutions" className="h-8 object-contain" />
+          <div className="bg-white h-10 px-4 flex items-center justify-center rounded-md shadow-sm">
+            <img src="/kumaraguru-logo.jpg" alt="Kumaraguru Institutions" className="h-6 object-contain" />
           </div>
           <Link to="/dashboard/sessions">
             <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" /> New Session</Button>
