@@ -60,7 +60,7 @@ function DashboardHome() {
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-white px-3 py-1.5 rounded shadow-sm">
-            <img src="/kumaraguru-logo.png" alt="Kumaraguru Institutions" className="h-8 object-contain" />
+            <img src="/kumaraguru-logo.jpg" alt="Kumaraguru Institutions" className="h-8 object-contain" />
           </div>
           <Link to="/dashboard/sessions">
             <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" /> New Session</Button>
