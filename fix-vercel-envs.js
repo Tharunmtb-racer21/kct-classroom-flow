@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 const pushEnv = (key, val) => {
   try { execSync(`npx vercel env rm ${key} production -y`, { stdio: 'ignore' }); } catch(e){}
   execSync(`npx vercel env add ${key} production`, { input: val });
