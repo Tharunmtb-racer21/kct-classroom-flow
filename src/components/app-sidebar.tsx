@@ -24,7 +24,7 @@ export function AppSidebar() {
     <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border/60 bg-sidebar/60 backdrop-blur-xl">
       <div className="flex h-16 items-center gap-3 px-6 border-b border-border/60">
         <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
-          <img src="/kct-logo.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
+          <img src="/kct-logo88.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
         </div>
         <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
       </div>
