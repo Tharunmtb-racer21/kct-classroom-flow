@@ -41,6 +41,9 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   const syncUserProfile = async (user: any) => {
+    if (!user.email || !isKctEmail(user.email)) {
+      return;
+    }
     const { error } = await supabase.from("profiles").upsert({
       id: user.uid,
       email: user.email,
@@ -64,8 +67,14 @@ function AuthPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
+        if (!user.email || !isKctEmail(user.email)) {
+          await signOut(auth);
+          toast.error(KCT_DOMAIN_ERROR);
+          setLoading(false);
+          return;
+        }
         syncUserProfile(user).then(() => {
           navigate({ to: "/dashboard" });
         });
@@ -80,16 +89,8 @@ function AuthPage() {
       const provider = new GoogleAuthProvider();
       // Hint the account picker to show only @kct.ac.in accounts
       provider.setCustomParameters({ hd: "kct.ac.in" });
-      const result = await signInWithPopup(auth, provider);
-      // hd is a UI hint only — enforce the domain restriction server-side too
-      if (!isKctEmail(result.user.email ?? "")) {
-        await signOut(auth);
-        toast.error(KCT_DOMAIN_ERROR);
-        setLoading(false);
-        return;
-      }
-      await syncUserProfile(result.user);
-      navigate({ to: "/dashboard" });
+      await signInWithPopup(auth, provider);
+      // Global listener (onAuthStateChanged) handles post-auth validation & navigation
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setLoading(false);
@@ -102,16 +103,8 @@ function AuthPage() {
       const provider = new OAuthProvider("microsoft.com");
       // Hint Microsoft to show only @kct.ac.in accounts
       provider.setCustomParameters({ domain_hint: "kct.ac.in" });
-      const result = await signInWithPopup(auth, provider);
-      // Enforce the domain restriction after sign-in completes
-      if (!isKctEmail(result.user.email ?? "")) {
-        await signOut(auth);
-        toast.error(KCT_DOMAIN_ERROR);
-        setLoading(false);
-        return;
-      }
-      await syncUserProfile(result.user);
-      navigate({ to: "/dashboard" });
+      await signInWithPopup(auth, provider);
+      // Global listener (onAuthStateChanged) handles post-auth validation & navigation
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Microsoft sign-in failed");
       setLoading(false);

@@ -1,5 +1,8 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { toast } from "sonner";
 
 const getFirebaseUser = (): Promise<any> => {
   return new Promise((resolve) => {
@@ -17,5 +20,52 @@ export const Route = createFileRoute("/_authenticated")({
     if (!user) throw redirect({ to: "/auth" });
     return { user };
   },
-  component: () => <Outlet />,
+  component: AuthenticatedLayout,
 });
+
+function AuthenticatedLayout() {
+  const navigate = useNavigate();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 30 minutes in milliseconds
+  const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast.info("Session expired due to inactivity. Please sign in again.");
+      navigate({ to: "/auth" });
+    } catch (err) {
+      console.error("Failed to sign out after inactivity:", err);
+    }
+  };
+
+  const resetTimer = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(handleLogout, INACTIVITY_TIMEOUT);
+  };
+
+  useEffect(() => {
+    resetTimer();
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    const handleActivity = () => resetTimer();
+
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+    };
+  }, []);
+
+  return <Outlet />;
+}
