@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null };
+type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; image_url?: string | null };
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
 
 export const Route = createFileRoute("/join/$code")({
@@ -37,7 +37,7 @@ function JoinPage() {
   // load session by code
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("sessions").select("id,title,code,status,current_question_id").eq("code", upperCode).maybeSingle();
+      const { data } = await supabase.from("sessions").select("id,title,code,status,current_question_id,image_url").eq("code", upperCode).maybeSingle();
       if (!data) setNotFound(true);
       else setSession(data as Session);
     })();
@@ -149,11 +149,18 @@ function JoinPage() {
   if (!question) {
     return (
       <Wrap>
-        <div className="text-center">
-          <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">You're in</div>
-          <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Hi {name}! Waiting for the next question…</p>
-          <div className="mt-8 flex justify-center">
+        <div className="text-center space-y-6">
+          {session.image_url && (
+            <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
+              <img src={session.image_url} alt="Session announcement" className="w-full h-full object-contain" />
+            </div>
+          )}
+          <div>
+            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">You're in</div>
+            <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Hi {name}! Waiting for the next question…</p>
+          </div>
+          <div className="flex justify-center">
             <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
               <div className="h-full w-1/2 gradient-bg animate-pulse" />
             </div>

@@ -17,7 +17,7 @@ import { auth } from "@/lib/firebase";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null };
+type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; image_url?: string | null };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string };
 
@@ -33,7 +33,7 @@ function SessionControl() {
   const [responses, setResponses] = useState<Response[]>([]);
 
   const loadAll = async () => {
-    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id").eq("id", id).maybeSingle();
+    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,image_url").eq("id", id).maybeSingle();
     setSession(s as Session | null);
     const { data: qs } = await supabase.from("questions").select("*").eq("session_id", id).order("order_index");
     setQuestions(((qs ?? []) as unknown) as Question[]);
@@ -160,7 +160,7 @@ function SessionControl() {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          <QuestionsPanel sessionId={id} questions={questions} currentId={session.current_question_id} onActivate={goToQuestion} />
+          <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} onActivate={goToQuestion} onReload={loadAll} />
           <LivePanel current={currentQ} responses={responses} participants={participants} />
         </div>
       </div>
@@ -169,8 +169,8 @@ function SessionControl() {
 }
 
 function QuestionsPanel({
-  sessionId, questions, currentId, onActivate,
-}: { sessionId: string; questions: Question[]; currentId: string | null; onActivate: (id: string) => void }) {
+  session, sessionId, questions, currentId, onActivate, onReload,
+}: { session: Session; sessionId: string; questions: Question[]; currentId: string | null; onActivate: (id: string) => void; onReload: () => void }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<QType>("poll");
   const [title, setTitle] = useState("");
@@ -243,14 +243,70 @@ function QuestionsPanel({
     if (error) toast.error(error.message);
   };
 
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  const handleSessionImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    try {
+      const url = await uploadImage(file);
+      const { error } = await supabase.from("sessions").update({ image_url: url }).eq("id", sessionId);
+      if (error) throw error;
+      toast.success("Session banner uploaded");
+      onReload();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Upload failed");
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  const handleRemoveSessionImage = async () => {
+    try {
+      const { error } = await supabase.from("sessions").update({ image_url: null }).eq("id", sessionId);
+      if (error) throw error;
+      toast.success("Session banner removed");
+      onReload();
+    } catch (err: any) {
+      toast.error(err.message || "Remove failed");
+    }
+  };
+
   return (
-    <div className="glass rounded-2xl p-6">
+    <div className="glass rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Questions</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          {/* Session Banner Image Upload Button */}
+          <div className="relative">
+            <input
+              type="file"
+              id="session-banner-upload"
+              accept="image/*"
+              className="hidden"
+              onChange={handleSessionImageUpload}
+              disabled={uploadingBanner}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              disabled={uploadingBanner}
+              className="cursor-pointer"
+            >
+              <label htmlFor="session-banner-upload" className="flex items-center gap-2 m-0 cursor-pointer">
+                <Upload className="h-4 w-4" />
+                {uploadingBanner ? "Uploading..." : "Upload Banner"}
+              </label>
+            </Button>
+          </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>New Question</DialogTitle></DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
@@ -310,6 +366,20 @@ function QuestionsPanel({
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Preview of current Session-wide Banner Image */}
+      {session.image_url && (
+        <div className="relative rounded-xl border border-border overflow-hidden bg-muted max-h-48 flex items-center justify-center group shadow-sm">
+          <img src={session.image_url} alt="Session banner preview" className="w-full h-full object-contain max-h-48" />
+          <button
+            onClick={handleRemoveSessionImage}
+            className="absolute top-2 right-2 rounded-lg bg-black/75 p-1.5 text-white opacity-0 group-hover:opacity-100 transition hover:bg-destructive"
+            title="Remove Banner"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {questions.length === 0 && (
