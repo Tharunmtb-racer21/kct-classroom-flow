@@ -17,14 +17,17 @@ import {
   signOut,
 } from "firebase/auth";
 
-// Toggle to turn domain verification on/off
-const ENFORCE_DOMAINS = false;
+// Helper to check if a user signed in using Google
+const isGoogleUser = (user: any): boolean => {
+  return user.providerData?.some((p: any) => p.providerId === "google.com") || false;
+};
 
-// Allowed institutional email domains — enforced on ALL sign-in paths when enabled
+// Allowed institutional email domains — enforced ONLY for Google sign-in path
 const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
-const isKctEmail = (addr: string) => {
-  if (!ENFORCE_DOMAINS) return true; // Validation bypassed
-  return KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+const isKctEmail = (emailStr: string, user?: any) => {
+  // If the login type isn't Google, allow any personal account email
+  if (user && !isGoogleUser(user)) return true;
+  return KCT_DOMAINS.some((d) => emailStr.toLowerCase().endsWith(d));
 };
 const KCT_DOMAIN_ERROR = "Access restricted to KCT institutional accounts (@kct.ac.in). Please use your college email.";
 
@@ -47,7 +50,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   const syncUserProfile = async (user: any) => {
-    if (!user.email || !isKctEmail(user.email)) {
+    if (!user.email || !isKctEmail(user.email, user)) {
       return;
     }
     const { error } = await supabase.from("profiles").upsert({
@@ -75,7 +78,7 @@ function AuthPage() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        if (!user.email || !isKctEmail(user.email)) {
+        if (!user.email || !isKctEmail(user.email, user)) {
           await signOut(auth);
           toast.error(KCT_DOMAIN_ERROR);
           setLoading(false);
@@ -222,9 +225,7 @@ function AuthPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder={ENFORCE_DOMAINS ? "name@kct.ac.in" : "name@example.com"}
-                pattern={ENFORCE_DOMAINS ? ".+@(kct\\.ac\\.in|kongu\\.edu)$" : undefined}
-                title={ENFORCE_DOMAINS ? "Use your KCT institutional email (e.g. name@kct.ac.in)" : undefined}
+                placeholder="name@example.com"
               />
             </div>
             <div className="space-y-2">
