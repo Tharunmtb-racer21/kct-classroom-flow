@@ -14,10 +14,10 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[^\x00-\xFF]/g, '').trim();
 }
 
-// Custom fetch that ensures the apikey header is always present and
-// header values are sanitized. The x-firebase-uid header has been REMOVED —
-// identity is now established via a cryptographically verified Firebase JWT
-// supplied through the accessToken callback below.
+// Custom fetch that ensures the apikey header is always present,
+// header values are sanitized, and the Firebase ID token is attached as
+// Authorization: Bearer so Supabase can verify it via the Firebase JWKS
+// (configured in Dashboard → Auth → Third-Party Auth).
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return async (input, init) => {
     const headers = new Headers(
@@ -35,6 +35,23 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     }
 
     headers.set('apikey', sanitizeHeaderValue(supabaseKey));
+
+    // Inject the Firebase ID token as the Authorization header so Supabase
+    // can cryptographically verify the caller's identity via Firebase JWKS.
+    // We do this here (at fetch time) rather than in the accessToken callback
+    // to avoid the timing race where auth.currentUser is briefly null right
+    // after signInWithPopup resolves.
+    if (typeof window !== 'undefined') {
+      try {
+        const { auth } = await import('@/lib/firebase');
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          headers.set('Authorization', `Bearer ${sanitizeHeaderValue(token)}`);
+        }
+      } catch (e) {
+        console.warn('[Supabase] Failed to attach Firebase ID token:', e);
+      }
+    }
 
     return fetch(input, { ...init, headers });
   };
@@ -60,20 +77,6 @@ function createSupabaseClient() {
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
       fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
-    },
-    // accessToken supplies the Firebase ID token as the Authorization header on
-    // every Supabase request. Supabase verifies it against Firebase's JWKS
-    // (configured in Dashboard → Auth → Third-Party Auth) before trusting any
-    // identity claim — closing the x-firebase-uid header spoofing vulnerability.
-    accessToken: async () => {
-      if (typeof window === 'undefined') return null; // SSR: no Firebase auth
-      try {
-        const { auth } = await import('@/lib/firebase');
-        return (await auth.currentUser?.getIdToken()) ?? null;
-      } catch (e) {
-        console.warn('[Supabase] Failed to retrieve Firebase ID token:', e);
-        return null;
-      }
     },
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
