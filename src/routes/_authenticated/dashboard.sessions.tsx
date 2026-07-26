@@ -78,8 +78,12 @@ function SessionsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this session and all its data?")) return;
     const { error } = await supabase.from("sessions").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else toast.success("Session deleted");
+    if (error) {
+      console.error("Delete session error:", error);
+      toast.error("Failed to delete session. Please try again.");
+    } else {
+      toast.success("Session deleted");
+    }
   };
 
   return (

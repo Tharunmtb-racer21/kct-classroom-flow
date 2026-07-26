@@ -14,7 +14,13 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
+  signOut,
 } from "firebase/auth";
+
+// Allowed institutional email domains — enforced on ALL sign-in paths
+const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
+const isKctEmail = (addr: string) => KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+const KCT_DOMAIN_ERROR = "Access restricted to KCT institutional accounts (@kct.ac.in). Please use your college email.";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -72,7 +78,16 @@ function AuthPage() {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      // Hint the account picker to show only @kct.ac.in accounts
+      provider.setCustomParameters({ hd: "kct.ac.in" });
       const result = await signInWithPopup(auth, provider);
+      // hd is a UI hint only — enforce the domain restriction server-side too
+      if (!isKctEmail(result.user.email ?? "")) {
+        await signOut(auth);
+        toast.error(KCT_DOMAIN_ERROR);
+        setLoading(false);
+        return;
+      }
       await syncUserProfile(result.user);
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -85,7 +100,16 @@ function AuthPage() {
     setLoading(true);
     try {
       const provider = new OAuthProvider("microsoft.com");
+      // Hint Microsoft to show only @kct.ac.in accounts
+      provider.setCustomParameters({ domain_hint: "kct.ac.in" });
       const result = await signInWithPopup(auth, provider);
+      // Enforce the domain restriction after sign-in completes
+      if (!isKctEmail(result.user.email ?? "")) {
+        await signOut(auth);
+        toast.error(KCT_DOMAIN_ERROR);
+        setLoading(false);
+        return;
+      }
       await syncUserProfile(result.user);
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -94,8 +118,7 @@ function AuthPage() {
     }
   };
 
-  const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
-  const isKctEmail = (addr: string) => KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+  // KCT_DOMAINS / isKctEmail are defined at module level above
 
   const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
