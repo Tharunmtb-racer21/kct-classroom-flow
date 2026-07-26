@@ -87,8 +87,11 @@ function AuthPage() {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      // Hint the account picker to show only @kct.ac.in accounts
-      provider.setCustomParameters({ hd: "kct.ac.in" });
+      // Hint the account picker to show only @kct.ac.in accounts and force account selection
+      provider.setCustomParameters({
+        hd: "kct.ac.in",
+        prompt: "select_account"
+      });
       await signInWithPopup(auth, provider);
       // Global listener (onAuthStateChanged) handles post-auth validation & navigation
     } catch (err) {
@@ -101,8 +104,11 @@ function AuthPage() {
     setLoading(true);
     try {
       const provider = new OAuthProvider("microsoft.com");
-      // Hint Microsoft to show only @kct.ac.in accounts
-      provider.setCustomParameters({ domain_hint: "kct.ac.in" });
+      // Hint Microsoft to show only @kct.ac.in accounts and force account selection
+      provider.setCustomParameters({
+        domain_hint: "kct.ac.in",
+        prompt: "select_account"
+      });
       await signInWithPopup(auth, provider);
       // Global listener (onAuthStateChanged) handles post-auth validation & navigation
     } catch (err) {
