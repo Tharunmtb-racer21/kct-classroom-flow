@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -93,16 +94,53 @@ function JoinPage() {
     localStorage.setItem(`kctpulse-${session.id}`, JSON.stringify({ id: data.id, name: name.trim() }));
   };
 
+  const [responseFile, setResponseFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const uploadResponseImage = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `responses/${crypto.randomUUID()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('question-images')
+      .upload(fileName, file);
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  };
+
   const handleSubmit = async () => {
-    if (!question || !participantId || !answer.trim()) return;
-    const { error } = await supabase.from("responses").insert({
-      question_id: question.id,
-      participant_id: participantId,
-      answer: answer.trim(),
-    });
-    if (error) return toast.error(error.message);
-    setSubmittedFor(question.id);
-    toast.success("Response submitted");
+    if (!question || !participantId || (!answer.trim() && !responseFile)) return;
+    setSubmitting(true);
+    try {
+      let image_url = null;
+      if (responseFile) {
+        image_url = await uploadResponseImage(responseFile);
+      }
+
+      const { error } = await supabase.from("responses").insert({
+        question_id: question.id,
+        participant_id: participantId,
+        answer: answer.trim(),
+        image_url,
+      });
+
+      if (error) throw error;
+
+      setSubmittedFor(question.id);
+      toast.success("Response submitted");
+      setResponseFile(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to submit response");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (notFound) {
@@ -191,23 +229,61 @@ function JoinPage() {
       ) : question.type === "wordcloud" ? (
         <div className="mt-6 space-y-4">
           <Textarea value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Type your thoughts..." rows={4} maxLength={200} />
-          <Button onClick={handleSubmit} disabled={!answer.trim()} className="w-full h-14 gradient-bg font-semibold">Submit</Button>
+          
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> Attach Image (Optional)</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setResponseFile(e.target.files?.[0] ?? null)}
+                className="cursor-pointer h-11 bg-card/40 border-border"
+              />
+              {responseFile && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setResponseFile(null)} className="text-destructive">Clear</Button>
+              )}
+            </div>
+          </div>
+
+          <Button onClick={handleSubmit} disabled={submitting || !answer.trim()} className="w-full h-14 gradient-bg font-semibold">
+            {submitting ? "Submitting..." : "Submit"}
+          </Button>
         </div>
       ) : (
-        <div className="mt-6 space-y-3">
-          {question.options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => setAnswer(opt)}
-              className={cn(
-                "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",
-                answer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40",
+        <div className="mt-6 space-y-4">
+          <div className="space-y-3">
+            {question.options.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setAnswer(opt)}
+                className={cn(
+                  "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",
+                  answer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40",
+                )}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> Attach Image (Optional)</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setResponseFile(e.target.files?.[0] ?? null)}
+                className="cursor-pointer h-11 bg-card/40 border-border"
+              />
+              {responseFile && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setResponseFile(null)} className="text-destructive">Clear</Button>
               )}
-            >
-              {opt}
-            </button>
-          ))}
-          <Button onClick={handleSubmit} disabled={!answer} className="w-full h-14 gradient-bg font-semibold">Submit Answer</Button>
+            </div>
+          </div>
+
+          <Button onClick={handleSubmit} disabled={submitting || !answer} className="w-full h-14 gradient-bg font-semibold">
+            {submitting ? "Submitting..." : "Submit Answer"}
+          </Button>
         </div>
       )}
     </Wrap>

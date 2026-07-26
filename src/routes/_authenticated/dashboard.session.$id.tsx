@@ -19,7 +19,7 @@ type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; image_url?: string | null };
 type Participant = { id: string; name: string; joined_at: string };
-type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string };
+type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
 
 export const Route = createFileRoute("/_authenticated/dashboard/session/$id")({
   component: SessionControl,
@@ -442,8 +442,11 @@ function LivePanel({ current, responses, participants }: { current: Question | n
       </div>
     );
   }
+  const nameById = new Map(participants.map((p) => [p.id, p.name]));
+  const responsesWithImages = responses.filter(r => r.image_url);
+
   return (
-    <div className="glass rounded-2xl p-6">
+    <div className="glass rounded-2xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">Live · {current.type}</div>
@@ -451,11 +454,30 @@ function LivePanel({ current, responses, participants }: { current: Question | n
         </div>
         <div className="text-sm text-muted-foreground">{responses.length} responses</div>
       </div>
+      
       <div className="mt-6">
         {current.type === "poll" && <PollResults options={current.options} responses={responses} />}
         {current.type === "quiz" && <QuizResults options={current.options} correct={current.correct_answer} responses={responses} participants={participants} />}
         {current.type === "wordcloud" && <WordCloudResults responses={responses} participants={participants} />}
       </div>
+
+      {responsesWithImages.length > 0 && (
+        <div className="border-t border-border/50 pt-4">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Student Uploaded Images ({responsesWithImages.length})</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {responsesWithImages.map((r) => (
+              <div key={r.id} className="relative rounded-lg border border-border overflow-hidden bg-muted group flex flex-col">
+                <a href={r.image_url!} target="_blank" rel="noopener noreferrer" className="block relative aspect-video flex-1 bg-black flex items-center justify-center">
+                  <img src={r.image_url!} alt="Student response upload" className="max-h-24 w-full object-contain" />
+                </a>
+                <div className="p-2 text-xs truncate border-t border-border bg-card">
+                  <span className="font-semibold">{nameById.get(r.participant_id) || "Student"}</span>: {r.answer || "Uploaded image"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
