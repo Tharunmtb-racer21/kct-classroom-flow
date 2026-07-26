@@ -32,3 +32,6 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+
+# Deployment helper scripts with hardcoded secrets — never commit
+fix-vercel-envs.js

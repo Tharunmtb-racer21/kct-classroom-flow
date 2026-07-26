@@ -94,11 +94,20 @@ function AuthPage() {
     }
   };
 
+  const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
+  const isKctEmail = (addr: string) => KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+
   const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (mode === "signup") {
+        // Only allow institutional KCT email addresses for faculty accounts
+        if (!isKctEmail(email)) {
+          toast.error("Please use your KCT institutional email (e.g. name@kct.ac.in).");
+          setLoading(false);
+          return;
+        }
         const result = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(result.user, { displayName: fullName });
         await syncUserProfile({
@@ -180,7 +189,7 @@ function AuthPage() {
             )}
             <div className="space-y-2">
               <Label>College Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="name@kct.ac.in" />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="name@kct.ac.in" pattern=".+@(kct\.ac\.in|kongu\.edu)$" title="Use your KCT institutional email (e.g. name@kct.ac.in)" />
             </div>
             <div className="space-y-2">
               <Label>Password</Label>

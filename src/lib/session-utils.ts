@@ -1,8 +1,12 @@
 export function generateSessionCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  // Use cryptographically secure random values — Math.random() only gives 32k
+  // combinations with 3 chars, which is brute-forceable. 5 chars = ~33M combinations.
+  const randomBytes = new Uint8Array(5);
+  crypto.getRandomValues(randomBytes);
   let out = "KCT";
-  for (let i = 0; i < 3; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 5; i++) {
+    out += chars[randomBytes[i] % chars.length];
   }
   return out;
 }
