@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, Pause, Play, Plus, Square, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Pause, Play, Plus, Square, Trash2, Users, Upload, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils";
 import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
+import { auth } from "@/lib/firebase";
 
 type QType = "wordcloud" | "poll" | "quiz";
-type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number };
+type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string };
@@ -175,26 +176,66 @@ function QuestionsPanel({
   const [title, setTitle] = useState("");
   const [optionsText, setOptionsText] = useState("");
   const [correct, setCorrect] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Authentication required");
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.uid}/${crypto.randomUUID()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('question-images')
+      .upload(fileName, file);
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const options = type === "wordcloud"
-      ? []
-      : optionsText.split("\n").map((o) => o.trim()).filter(Boolean);
-    const { error } = await supabase.from("questions").insert({
-      session_id: sessionId,
-      type,
-      title,
-      options,
-      correct_answer: type === "quiz" ? correct : null,
-      order_index: questions.length,
-    });
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Question added");
-    setOpen(false); setTitle(""); setOptionsText(""); setCorrect("");
+    try {
+      let image_url = null;
+      if (imageFile) {
+        image_url = await uploadImage(imageFile);
+      }
+
+      const options = type === "wordcloud"
+        ? []
+        : optionsText.split("\n").map((o) => o.trim()).filter(Boolean);
+      
+      const { error } = await supabase.from("questions").insert({
+        session_id: sessionId,
+        type,
+        title,
+        options,
+        correct_answer: type === "quiz" ? correct : null,
+        order_index: questions.length,
+        image_url,
+      });
+
+      if (error) throw error;
+      
+      toast.success("Question added");
+      setOpen(false); 
+      setTitle(""); 
+      setOptionsText(""); 
+      setCorrect("");
+      setImageFile(null);
+    } catch (error: any) {
+      console.error("Create question error:", error);
+      toast.error(error.message || "Failed to create question");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: string) => {
@@ -240,6 +281,28 @@ function QuestionsPanel({
                   <Input value={correct} onChange={(e) => setCorrect(e.target.value)} required />
                 </div>
               )}
+              <div className="space-y-2">
+                <Label>Question Image (Optional)</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    className="cursor-pointer"
+                  />
+                  {imageFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setImageFile(null)}
+                      className="text-destructive"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
               <Button type="submit" disabled={saving} className="w-full gradient-bg">
                 {saving ? "Saving..." : "Create question"}
               </Button>
@@ -259,9 +322,21 @@ function QuestionsPanel({
           return (
             <div key={q.id} className={cn("flex items-center gap-3 rounded-xl border p-3 transition", active ? "border-primary bg-primary/10" : "border-border bg-card/40")}>
               <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-sm font-semibold">{i + 1}</div>
+              {q.image_url && (
+                <div className="h-10 w-10 overflow-hidden rounded-lg border border-border bg-muted flex items-center justify-center shrink-0">
+                  <img src={q.image_url} alt="Question preview" className="h-full w-full object-cover" />
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{q.title}</div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  {q.type}
+                  {q.image_url && (
+                    <span className="flex items-center gap-0.5 text-primary text-[10px] lowercase font-normal">
+                      <ImageIcon className="h-3 w-3" /> with image
+                    </span>
+                  )}
+                </div>
               </div>
               <Button size="sm" variant={active ? "default" : "outline"} onClick={() => onActivate(q.id)}>
                 {active ? "Live" : "Activate"}

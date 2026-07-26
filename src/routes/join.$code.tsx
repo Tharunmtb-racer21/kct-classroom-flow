@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null };
-type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[] };
+type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
 
 export const Route = createFileRoute("/join/$code")({
   head: () => ({
@@ -59,7 +59,7 @@ function JoinPage() {
   useEffect(() => {
     if (!session?.current_question_id) { setQuestion(null); return; }
     (async () => {
-      const { data } = await supabase.from("questions").select("id,type,title,options").eq("id", session.current_question_id!).maybeSingle();
+      const { data } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", session.current_question_id!).maybeSingle();
       if (data) {
         setQuestion(data as unknown as Question);
         setAnswer("");
@@ -167,6 +167,11 @@ function JoinPage() {
 
   return (
     <Wrap>
+      {question.image_url && (
+        <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
+          <img src={question.image_url} alt="Question visual" className="w-full h-full object-contain" />
+        </div>
+      )}
       <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">{question.type}</div>
       <h1 className="mt-1 text-2xl font-bold leading-tight">{question.title}</h1>
 
