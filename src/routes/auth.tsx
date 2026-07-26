@@ -17,9 +17,15 @@ import {
   signOut,
 } from "firebase/auth";
 
-// Allowed institutional email domains — enforced on ALL sign-in paths
+// Toggle to turn domain verification on/off
+const ENFORCE_DOMAINS = false;
+
+// Allowed institutional email domains — enforced on ALL sign-in paths when enabled
 const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
-const isKctEmail = (addr: string) => KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+const isKctEmail = (addr: string) => {
+  if (!ENFORCE_DOMAINS) return true; // Validation bypassed
+  return KCT_DOMAINS.some((d) => addr.toLowerCase().endsWith(d));
+};
 const KCT_DOMAIN_ERROR = "Access restricted to KCT institutional accounts (@kct.ac.in). Please use your college email.";
 
 export const Route = createFileRoute("/auth")({
@@ -210,8 +216,16 @@ function AuthPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>College Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="name@kct.ac.in" pattern=".+@(kct\.ac\.in|kongu\.edu)$" title="Use your KCT institutional email (e.g. name@kct.ac.in)" />
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder={ENFORCE_DOMAINS ? "name@kct.ac.in" : "name@example.com"}
+                pattern={ENFORCE_DOMAINS ? ".+@(kct\\.ac\\.in|kongu\\.edu)$" : undefined}
+                title={ENFORCE_DOMAINS ? "Use your KCT institutional email (e.g. name@kct.ac.in)" : undefined}
+              />
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
