@@ -81,7 +81,7 @@ function ReportsPage() {
               name,
               joined_at
             ),
-            questions (
+            questions!session_id (
               id,
               title,
               type,
