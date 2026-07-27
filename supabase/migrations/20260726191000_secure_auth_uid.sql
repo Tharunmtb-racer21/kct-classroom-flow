@@ -5,7 +5,7 @@
 -- Third-Party Auth provider (Dashboard -> Auth -> Third-Party Auth), it
 -- cryptographically verifies every Firebase ID token via Firebase's JWKS endpoint
 -- before populating request.jwt.claims. This function now trusts ONLY that
--- verified claim — the header fallback is gone entirely.
+-- verified claim ï¿½ the header fallback is gone entirely.
 --
 -- PREREQUISITE: Firebase must be added as a Third-Party Auth provider in the
 -- Supabase dashboard BEFORE deploying this migration, otherwise all RLS
