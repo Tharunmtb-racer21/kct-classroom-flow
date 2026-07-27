@@ -119,13 +119,8 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const theme = savedTheme === "light" ? "light" : "dark";
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Temporarily force dark mode globally
+    document.documentElement.classList.add("dark");
   }, []);
 
   return (

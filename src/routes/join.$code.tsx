@@ -320,40 +320,13 @@ function JoinPage() {
 }
 
 function Wrap({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-
-  useEffect(() => {
-    const current = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    setTheme(current);
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    if (next === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("theme", next);
-    setTheme(next);
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
-            <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
-          </div>
-          <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+      <header className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
+        <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
+          <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
         </div>
-        <button
-          onClick={toggleTheme}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground hover:text-foreground hover:bg-accent transition"
-          title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          {theme === "dark" ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-indigo-400" />}
-        </button>
+        <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
       </header>
       <main className="flex-1 px-5 py-8 flex items-start justify-center">
         <div className="w-full max-w-md">{children}</div>
