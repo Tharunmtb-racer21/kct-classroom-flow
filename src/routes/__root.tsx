@@ -118,6 +118,16 @@ import { Toaster } from "@/components/ui/sonner";
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    const theme = savedTheme === "light" ? "light" : "dark";
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

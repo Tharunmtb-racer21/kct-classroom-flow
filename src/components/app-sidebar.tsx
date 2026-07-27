@@ -1,8 +1,9 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, LogOut, PresentationIcon, Settings } from "lucide-react";
+import { BarChart3, LayoutDashboard, LogOut, PresentationIcon, Settings, Sun, Moon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
+import { useState, useEffect } from "react";
 
 const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/settings"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
@@ -14,6 +15,23 @@ const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dash
 export function AppSidebar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    const current = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    setTheme(current);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    if (next === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", next);
+    setTheme(next);
+  };
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -48,6 +66,24 @@ export function AppSidebar() {
           );
         })}
       </nav>
+      <div className="px-4 py-2 border-t border-border/60">
+        <button
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition"
+        >
+          {theme === "dark" ? (
+            <>
+              <Sun className="h-4 w-4 text-amber-400" />
+              <span>Light Mode</span>
+            </>
+          ) : (
+            <>
+              <Moon className="h-4 w-4 text-indigo-400" />
+              <span>Dark Mode</span>
+            </>
+          )}
+        </button>
+      </div>
       <button
         onClick={handleLogout}
         className="m-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
