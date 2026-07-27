@@ -365,6 +365,7 @@ function QuestionsPanel({
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Preview of current Session-wide Banner Image */}
