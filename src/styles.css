@@ -108,6 +108,8 @@
   --gradient-bg-1: oklch(0.92 0.06 245 / 0.45);
   --gradient-bg-2: oklch(0.94 0.07 165 / 0.35);
   --dashboard-overlay: linear-gradient(90deg, rgba(250, 250, 250, 0.9) 0%, rgba(250, 250, 250, 0.72) 45%, rgba(250, 250, 250, 0.55) 100%);
+  --bg-img-opacity: 0.18;
+  --bg-img-blend: multiply;
 }
 
 .dark {
@@ -156,6 +158,8 @@
   --gradient-bg-1: oklch(0.35 0.15 240 / 0.25);
   --gradient-bg-2: oklch(0.4 0.15 165 / 0.18);
   --dashboard-overlay: linear-gradient(90deg, rgba(2, 8, 23, 0.9) 0%, rgba(2, 8, 23, 0.72) 45%, rgba(2, 8, 23, 0.55) 100%);
+  --bg-img-opacity: 0.45;
+  --bg-img-blend: normal;
 }
 
 @layer base {
