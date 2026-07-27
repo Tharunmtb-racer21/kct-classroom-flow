@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 function DashboardLayout() {
   return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-[#020817]">
+    <div className="relative flex min-h-screen w-full overflow-hidden bg-background">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-cover bg-center bg-fixed bg-no-repeat opacity-[0.45]"
@@ -15,7 +15,8 @@ function DashboardLayout() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(2,8,23,0.97)_0%,rgba(2,8,23,0.91)_38%,rgba(2,8,23,0.86)_100%)]"
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "var(--dashboard-overlay)" }}
       />
       <div className="relative z-10 flex min-h-screen w-full">
         <AppSidebar />
