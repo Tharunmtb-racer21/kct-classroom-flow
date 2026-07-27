@@ -110,6 +110,7 @@
   --dashboard-overlay: linear-gradient(90deg, rgba(250, 250, 250, 0.9) 0%, rgba(250, 250, 250, 0.72) 45%, rgba(250, 250, 250, 0.55) 100%);
   --bg-img-opacity: 0.18;
   --bg-img-blend: multiply;
+  --landing-overlay: oklch(0.98 0.01 250 / 0.55);
 }
 
 .dark {
@@ -160,6 +161,7 @@
   --dashboard-overlay: linear-gradient(90deg, rgba(2, 8, 23, 0.9) 0%, rgba(2, 8, 23, 0.72) 45%, rgba(2, 8, 23, 0.55) 100%);
   --bg-img-opacity: 0.45;
   --bg-img-blend: normal;
+  --landing-overlay: oklch(0.14 0.03 260 / 0.85);
 }
 
 @layer base {

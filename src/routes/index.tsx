@@ -21,9 +21,14 @@ function Index() {
 
   return (
     <div 
-      className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative before:absolute before:inset-0 before:bg-background/85"
+      className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative"
       style={{ backgroundImage: "url('/kct-landing-bg.jpg')" }}
     >
+      <div 
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundColor: "var(--landing-overlay)" }}
+      />
       <div className="relative z-10 flex flex-col min-h-screen">
         <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6">
         <Link to="/" className="flex items-center gap-3">
