@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, Pause, Play, Plus, Square, Trash2, Users, Upload, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Pause, Play, Plus, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,6 +238,70 @@ function QuestionsPanel({
     }
   };
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [editType, setEditType] = useState<QType>("poll");
+  const [editTitle, setEditTitle] = useState("");
+  const [editOptionsText, setEditOptionsText] = useState("");
+  const [editCorrect, setEditCorrect] = useState("");
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  const startEdit = (q: Question) => {
+    setEditingQuestion(q);
+    setEditType(q.type);
+    setEditTitle(q.title);
+    setEditOptionsText(q.options?.join("\n") ?? "");
+    setEditCorrect(q.correct_answer ?? "");
+    setEditImageUrl(q.image_url ?? null);
+    setEditImageFile(null);
+    setRemoveExistingImage(false);
+    setEditOpen(true);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestion) return;
+    setEditSaving(true);
+    try {
+      let finalImageUrl = editImageUrl;
+      if (removeExistingImage) {
+        finalImageUrl = null;
+      }
+      if (editImageFile) {
+        finalImageUrl = await uploadImage(editImageFile);
+      }
+
+      const options = editType === "wordcloud"
+        ? []
+        : editOptionsText.split("\n").map((o) => o.trim()).filter(Boolean);
+
+      const { error } = await supabase
+        .from("questions")
+        .update({
+          type: editType,
+          title: editTitle,
+          options,
+          correct_answer: editType === "quiz" ? editCorrect : null,
+          image_url: finalImageUrl,
+        })
+        .eq("id", editingQuestion.id);
+
+      if (error) throw error;
+
+      toast.success("Question updated");
+      setEditOpen(false);
+      onReload();
+    } catch (error: any) {
+      console.error("Edit question error:", error);
+      toast.error(error.message || "Failed to update question");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const remove = async (id: string) => {
     const { error } = await supabase.from("questions").delete().eq("id", id);
     if (error) toast.error(error.message);
@@ -365,6 +429,83 @@ function QuestionsPanel({
             </form>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Question</DialogTitle></DialogHeader>
+            <form onSubmit={handleEditSave} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={editType} onValueChange={(v) => setEditType(v as QType)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="poll">Poll (MCQ)</SelectItem>
+                    <SelectItem value="wordcloud">Word Cloud</SelectItem>
+                    <SelectItem value="quiz">Quiz</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Question</Label>
+                <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required placeholder="What is..." />
+              </div>
+              {editType !== "wordcloud" && (
+                <div className="space-y-2">
+                  <Label>Options (one per line)</Label>
+                  <Textarea value={editOptionsText} onChange={(e) => setEditOptionsText(e.target.value)} rows={4} required placeholder={"Option A\nOption B\nOption C"} />
+                </div>
+              )}
+              {editType === "quiz" && (
+                <div className="space-y-2">
+                  <Label>Correct answer (must match option exactly)</Label>
+                  <Input value={editCorrect} onChange={(e) => setEditCorrect(e.target.value)} required />
+                </div>
+              )}
+              
+              {editImageUrl && !removeExistingImage && (
+                <div className="space-y-2">
+                  <Label>Current Image</Label>
+                  <div className="relative rounded-lg border border-border overflow-hidden bg-muted max-h-32 flex items-center justify-center group shadow-sm">
+                    <img src={editImageUrl} alt="Question visual" className="max-h-32 object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setRemoveExistingImage(true)}
+                      className="absolute top-2 right-2 rounded bg-black/70 p-1 text-xs text-destructive hover:bg-destructive hover:text-white transition"
+                    >
+                      Remove Image
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>{editImageUrl && !removeExistingImage ? "Replace Image (Optional)" : "Question Image (Optional)"}</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEditImageFile(e.target.files?.[0] ?? null)}
+                    className="cursor-pointer"
+                  />
+                  {editImageFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditImageFile(null)}
+                      className="text-destructive"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <Button type="submit" disabled={editSaving} className="w-full gradient-bg">
+                {editSaving ? "Saving..." : "Save changes"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
         </div>
       </div>
 
@@ -412,7 +553,10 @@ function QuestionsPanel({
               <Button size="sm" variant={active ? "default" : "outline"} onClick={() => onActivate(q.id)}>
                 {active ? "Live" : "Activate"}
               </Button>
-              <button onClick={() => remove(q.id)} className="text-muted-foreground hover:text-destructive">
+              <button onClick={() => startEdit(q)} className="text-muted-foreground hover:text-foreground" title="Edit Question">
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button onClick={() => remove(q.id)} className="text-muted-foreground hover:text-destructive" title="Delete Question">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

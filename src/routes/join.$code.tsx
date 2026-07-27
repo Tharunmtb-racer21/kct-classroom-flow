@@ -68,6 +68,18 @@ function JoinPage() {
     })();
   }, [session?.current_question_id]);
 
+  // realtime question updates
+  useEffect(() => {
+    if (!question?.id) return;
+    const ch = supabase
+      .channel(`join-question-${question.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "questions", filter: `id=eq.${question.id}` }, (payload) => {
+        setQuestion((q) => (q ? { ...q, ...(payload.new as Partial<Question>) } : q));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [question?.id]);
+
   // restore prior participant in this browser
   useEffect(() => {
     if (!session) return;
