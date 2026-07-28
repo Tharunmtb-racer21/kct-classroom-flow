@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /join/
+Disallow: /dashboard/
+Sitemap: https://kct-classroom-flow.vercel.app/sitemap.xml
