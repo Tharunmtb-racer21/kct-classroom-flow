@@ -23,8 +23,12 @@
 
 *   📊 **Instant Audience Polls** — Launch multi-choice polls with live, animating bar charts.
 *   ☁️ **Real-time Word Clouds** — Watch student inputs dynamically form interactive, sizing word clusters.
-*   ⚡ **Instant Student Access** — No signups, no logins. Students join in seconds using a auto-generated QR code or short session pin.
-*   🔒 **Secure Faculty Control** — Simple sign-in portal via Google, Microsoft, or college credentials powered by Firebase Auth.
+*   🤖 **Multi-Provider AI Engine** — Generates questions instantly using an automated fallback list (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) ensuring high-availability (16,000+ free queries/day) scale for up to **600+ faculty members**.
+*   ⚡ **One-Click Activate & Deactivate All** — Simple controls to make all session questions active at once or shut down the active state instantly.
+*   ⏱️ **Live Countdown Timer Sync** — Syncs Auto Play timers in real-time to student screens with active seconds-left countdown headers.
+*   🛡️ **Anti-Repetition Check** — Browser validation checks Supabase responses on reload, locking student inputs to prevent double submissions.
+*   📈 **Rich Reports Breakdown** — Expanded analytical reports displaying student names alongside their exact answered text values for audits.
+*   🔒 **Secure Faculty Control** — Simple sign-in portal via Microsoft OAuth or institutional credentials powered by Firebase Auth.
 
 ---
 
@@ -36,12 +40,14 @@ Our platform is engineered for high performance, sub-second latency, and scale.
 graph TD
     A[React Front-end] -->|Supabase Realtime| B[Database Subscriptions]
     A -->|Firebase Auth| C[User Verification]
-    A -->|Vercel edge| D[Serverless Functions]
+    A -->|NVIDIA NIM / Groq / Google AI| D[Multi-Provider AI Layer]
+    A -->|Vercel Edge| E[Serverless Functions]
 ```
 
 *   **Framework:** React 19 + [Vite](https://vite.dev) + [TanStack Router & Start](https://tanstack.com/router)
 *   **Database & Subscriptions:** [Supabase](https://supabase.com) (PostgreSQL + Realtime Channel Engines)
-*   **Authentication:** [Firebase Authentication](https://firebase.google.com) (Faculty accounts, Google & Microsoft OAuth)
+*   **Authentication:** [Firebase Authentication](https://firebase.google.com) (Faculty accounts, Microsoft OAuth SSO)
+*   **AI API Switching:** Dynamic runtime provider failover implementation (`src/lib/ai-service.ts`)
 *   **Styling & Components:** Tailwind CSS + Radix UI + Lucide Icons
 *   **Hosting:** [Vercel](https://vercel.com) (Edge Network)
 
@@ -71,13 +77,20 @@ VITE_FIREBASE_PROJECT_ID="your-project-id"
 VITE_FIREBASE_STORAGE_BUCKET="your-storage-bucket"
 VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
 VITE_FIREBASE_APP_ID="your-app-id"
+
+# AI Multi-Provider API keys
+VITE_AI_PROVIDER="nvidia" # Primary fallback driver
+VITE_NVIDIA_API_KEY="nvapi-..."
+VITE_GROQ_API_KEY="gsk_..."
+VITE_GOOGLE_AI_KEY="AIzaSy..."
+VITE_TOGETHER_API_KEY="together_..."
 ```
 
 #### 4. Run Dev Server
 ```bash
 npm run dev
 ```
-Open [http://localhost:8080](http://localhost:8080) to test the app locally.
+Open [http://localhost:8081](http://localhost:8081) to test the app locally.
 
 ---
 
