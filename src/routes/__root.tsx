@@ -83,7 +83,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "KCT PULSE — Real-time Classroom Engagement" },
       { property: "og:description", content: "Live polls, word clouds & quizzes for KCT classrooms." },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://kct-classroom-flow.vercel.app/" },
+      { property: "og:image", content: "https://kct-classroom-flow.vercel.app/kct-logo-opt.jpg" },
+      { property: "og:site_name", content: "KCT PULSE" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "KCT PULSE — Real-time Classroom Engagement" },
+      { name: "twitter:description", content: "Live polls, word clouds & quizzes for KCT classrooms." },
+      { name: "twitter:image", content: "https://kct-classroom-flow.vercel.app/kct-logo-opt.jpg" },
     ],
     links: [
       {
