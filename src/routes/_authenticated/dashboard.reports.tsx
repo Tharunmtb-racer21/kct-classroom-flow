@@ -264,6 +264,33 @@ function QuestionAnalyticsCard({ index, question, participants }: { index: numbe
           <WordCloudAnalytics responses={responses} />
         )}
       </div>
+
+      {/* ── Student Responses breakdown list ── */}
+      <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" /> Student Submissions ({responses.length})
+        </div>
+        {responses.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-1">No responses captured for this question.</div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {responses.map((r) => {
+              const studentName = participants.find((p) => p.id === r.participant_id)?.name || "Anonymous Student";
+              return (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2 text-xs hover:bg-white/[0.03] transition"
+                >
+                  <span className="font-semibold text-foreground/80 truncate max-w-[150px]">{studentName}</span>
+                  <span className="rounded bg-black/40 border border-white/5 px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate max-w-[180px] select-all">
+                    {r.answer}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, Pause, Play, Plus, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,12 @@ import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
+import { extractTextFromDocument } from "@/lib/document-parser";
+import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType } from "@/lib/ai-service";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; image_url?: string | null };
+type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
 
@@ -33,7 +35,7 @@ function SessionControl() {
   const [responses, setResponses] = useState<Response[]>([]);
 
   const loadAll = async () => {
-    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,image_url").eq("id", id).maybeSingle();
+    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url").eq("id", id).maybeSingle();
     setSession(s as Session | null);
     const { data: qs } = await supabase.from("questions").select("*").eq("session_id", id).order("order_index");
     setQuestions(((qs ?? []) as unknown) as Question[]);
@@ -52,8 +54,12 @@ function SessionControl() {
     return () => { supabase.removeChannel(ch); };
   }, [id]);
 
-  // Listen for responses of current question
-  const currentQ = questions.find((q) => q.id === session?.current_question_id) ?? null;
+  // When all_active is true, show every question as live
+  const isAllMode = !!session?.all_active;
+  const activeIdsSet = new Set(session?.active_question_ids ?? []);
+  const currentQ = isAllMode
+    ? null
+    : (questions.find((q) => q.id === session?.current_question_id) ?? null);
   useEffect(() => {
     if (!currentQ) { setResponses([]); return; }
     let active = true;
@@ -77,7 +83,7 @@ function SessionControl() {
 
   const startSession = () => updateSession({ status: "live" });
   const pauseSession = () => updateSession({ status: "draft" });
-  const endSession = () => updateSession({ status: "ended", current_question_id: null });
+  const endSession = () => updateSession({ status: "ended", current_question_id: null, all_active: false });
 
   const goToQuestion = async (qid: string | null) => {
     if (session?.status !== "live") await updateSession({ status: "live", current_question_id: qid });
@@ -93,6 +99,85 @@ function SessionControl() {
     const next = questions[idx + 1];
     goToQuestion(next?.id ?? null);
   };
+
+  // ── Auto Play ─────────────────────────────────────────────────────────────
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [autoPlayInterval, setAutoPlayInterval] = useState(30); // seconds
+  const [autoPlayCountdown, setAutoPlayCountdown] = useState(0);
+  const [showTimerPicker, setShowTimerPicker] = useState(false);
+  const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const TIMER_OPTIONS = [
+    { label: "30s", value: 30 },
+    { label: "1 min", value: 60 },
+    { label: "2 min", value: 120 },
+    { label: "3 min", value: 180 },
+    { label: "5 min", value: 300 },
+  ];
+
+  const stopAutoPlay = async () => {
+    setAutoPlay(false);
+    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    autoPlayRef.current = null;
+    countdownRef.current = null;
+    setAutoPlayCountdown(0);
+    // Clear expires_at and current_question_id in db
+    await supabase.from("sessions").update({ expires_at: null, current_question_id: null } as any).eq("id", id);
+  };
+
+  const startAutoPlay = async () => {
+    if (questions.length === 0) {
+      toast.error("Add questions before using Auto Play.");
+      return;
+    }
+    setShowTimerPicker(false);
+    setAutoPlay(true);
+
+    const updateExpiresAtInDb = async (secondsAhead: number) => {
+      const expDate = new Date(Date.now() + secondsAhead * 1000).toISOString();
+      await supabase.from("sessions").update({ expires_at: expDate } as any).eq("id", id);
+    };
+
+    // Activate the first question immediately
+    const firstQ = questions[0];
+    goToQuestion(firstQ.id);
+    setAutoPlayCountdown(autoPlayInterval);
+    updateExpiresAtInDb(autoPlayInterval);
+
+    // Countdown tick every second
+    let remaining = autoPlayInterval;
+    let currentIndex = 0;
+
+    countdownRef.current = setInterval(() => {
+      remaining -= 1;
+      setAutoPlayCountdown(remaining);
+    }, 1000);
+
+    // Advance question every `autoPlayInterval` seconds
+    autoPlayRef.current = setInterval(async () => {
+      currentIndex += 1;
+      if (currentIndex >= questions.length) {
+        // All questions done
+        stopAutoPlay();
+        toast.success("Auto Play finished! All questions completed. 🎉");
+        return;
+      }
+      goToQuestion(questions[currentIndex].id);
+      remaining = autoPlayInterval;
+      setAutoPlayCountdown(autoPlayInterval);
+      await updateExpiresAtInDb(autoPlayInterval);
+    }, autoPlayInterval * 1000);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
 
   if (!session) {
     return <div className="p-10 text-muted-foreground">Loading session...</div>;
@@ -115,11 +200,11 @@ function SessionControl() {
             <span className="text-sm text-muted-foreground flex items-center gap-1.5"><Users className="h-4 w-4" /> {participants.length}</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           {session.status !== "live" && session.status !== "ended" && (
             <Button onClick={startSession} className="gradient-bg"><Play className="mr-2 h-4 w-4" /> Start</Button>
           )}
-          {session.status === "live" && (
+          {session.status === "live" && !autoPlay && (
             <>
               <Button onClick={nextQuestion} variant="secondary"><ChevronRight className="mr-2 h-4 w-4" /> Next Question</Button>
               <Button onClick={pauseSession} variant="outline"><Pause className="mr-2 h-4 w-4" /> Pause</Button>
@@ -127,6 +212,69 @@ function SessionControl() {
           )}
           {session.status !== "ended" && (
             <Button onClick={endSession} variant="destructive"><Square className="mr-2 h-4 w-4" /> End</Button>
+          )}
+
+          {/* ── Auto Play Button ── */}
+          {session.status !== "ended" && !autoPlay && (
+            <div className="relative">
+              <Button
+                onClick={() => setShowTimerPicker((v) => !v)}
+                variant="outline"
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60"
+              >
+                <Zap className="h-4 w-4" />
+                Auto Play
+              </Button>
+              {showTimerPicker && (
+                <div className="absolute right-0 top-full mt-2 z-50 glass rounded-xl border border-border p-3 min-w-[180px] shadow-xl">
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">Time per question:</div>
+                  <div className="flex flex-col gap-1">
+                    {TIMER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setAutoPlayInterval(opt.value); }}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-sm text-left transition-all",
+                          autoPlayInterval === opt.value
+                            ? "bg-primary/20 text-primary font-semibold"
+                            : "hover:bg-accent text-muted-foreground"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={startAutoPlay}
+                    className="mt-3 w-full bg-primary hover:bg-primary/80 text-primary-foreground font-semibold gap-2"
+                    size="sm"
+                  >
+                    <Zap className="h-3.5 w-3.5" /> Start Auto Play
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Auto Play Active Indicator ── */}
+          {autoPlay && (
+            <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md transition-all active:scale-[0.98]">
+              <Zap className="h-4 w-4 animate-pulse text-primary-foreground" />
+              <span className="font-semibold">Auto</span>
+              <div className="flex items-center gap-1">
+                <div className="h-5 w-5 rounded-full border border-primary-foreground/40 flex items-center justify-center bg-black/10">
+                  <span className="text-[10px] font-bold text-primary-foreground">{autoPlayCountdown}</span>
+                </div>
+                <span className="text-xs text-primary-foreground/75">s</span>
+              </div>
+              <button
+                onClick={stopAutoPlay}
+                className="ml-2 text-primary-foreground/70 hover:text-primary-foreground transition-colors p-0.5 hover:bg-black/15 rounded"
+                title="Stop Auto Play"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -160,7 +308,7 @@ function SessionControl() {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} onActivate={goToQuestion} onReload={loadAll} />
+          <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} isAllMode={isAllMode} activeQuestionIds={session.active_question_ids || []} onActivate={goToQuestion} onReload={loadAll} />
           <LivePanel current={currentQ} responses={responses} participants={participants} />
         </div>
       </div>
@@ -169,8 +317,8 @@ function SessionControl() {
 }
 
 function QuestionsPanel({
-  session, sessionId, questions, currentId, onActivate, onReload,
-}: { session: Session; sessionId: string; questions: Question[]; currentId: string | null; onActivate: (id: string) => void; onReload: () => void }) {
+  session, sessionId, questions, currentId, isAllMode, activeQuestionIds, onActivate, onReload,
+}: { session: Session; sessionId: string; questions: Question[]; currentId: string | null; isAllMode: boolean; activeQuestionIds: string[]; onActivate: (id: string) => void; onReload: () => void }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<QType>("poll");
   const [title, setTitle] = useState("");
@@ -367,6 +515,9 @@ function QuestionsPanel({
             </Button>
           </div>
 
+          {/* AI Generate from Document */}
+          <AIGenerateDialog sessionId={sessionId} questionsCount={questions.length} onReload={onReload} />
+
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
@@ -524,6 +675,44 @@ function QuestionsPanel({
       )}
 
       <div className="mt-4 space-y-2">
+        {/* ── ONE-CLICK Activate / Deactivate All ── */}
+        {questions.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const allIds = questions.map(q => q.id);
+                  const patch: any = { all_active: true, active_question_ids: allIds };
+                  if (session.status !== "live") patch.status = "live";
+                  const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
+                  if (error) throw error;
+                } catch (e: any) {
+                  toast.error(e.message || "Failed to activate all questions");
+                }
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary/50 bg-primary/10 hover:bg-primary/20 hover:border-primary/80 text-primary font-semibold py-2.5 text-sm transition-all active:scale-[0.98]"
+            >
+              <Play className="h-4 w-4" />
+              Activate All
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const { error } = await supabase.from("sessions").update({ all_active: false, current_question_id: null, active_question_ids: [] } as any).eq("id", sessionId);
+                  if (error) throw error;
+                  toast.success("All questions deactivated");
+                } catch (e: any) {
+                  toast.error(e.message || "Failed to deactivate questions");
+                }
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-destructive/50 bg-destructive/10 hover:bg-destructive/20 hover:border-destructive/80 text-destructive font-semibold py-2.5 text-sm transition-all active:scale-[0.98]"
+            >
+              <Square className="h-4 w-4" />
+              Deactivate All
+            </button>
+          </div>
+        )}
+
         {questions.length === 0 && (
           <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No questions yet. Add polls, word clouds, or quiz questions to activate live.
@@ -531,9 +720,23 @@ function QuestionsPanel({
         )}
         {questions.map((q, i) => {
           const active = q.id === currentId;
+          const isQuestionLive = activeQuestionIds.includes(q.id);
+          const isLive = session.status === "live" && (active || isAllMode || isQuestionLive);
+
           return (
-            <div key={q.id} className={cn("flex items-center gap-3 rounded-xl border p-3 transition", active ? "border-primary bg-primary/10" : "border-border bg-card/40")}>
-              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-sm font-semibold">{i + 1}</div>
+            <div 
+              key={q.id} 
+              className={cn(
+                "flex items-center gap-3 rounded-xl border p-3 transition shadow-sm", 
+                isLive 
+                  ? "border-primary/80 bg-primary/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] ring-1 ring-primary/30" 
+                  : "border-border bg-card/40 hover:bg-card/60"
+              )}
+            >
+              <div className={cn(
+                "grid h-8 w-8 place-items-center rounded-lg text-sm font-semibold transition-colors shrink-0",
+                isLive ? "bg-primary text-primary-foreground" : "bg-accent"
+              )}>{i + 1}</div>
               {q.image_url && (
                 <div className="h-10 w-10 overflow-hidden rounded-lg border border-border bg-muted flex items-center justify-center shrink-0">
                   <img src={q.image_url} alt="Question preview" className="h-full w-full object-cover" />
@@ -548,10 +751,25 @@ function QuestionsPanel({
                       <ImageIcon className="h-3 w-3" /> with image
                     </span>
                   )}
+                  {isLive && (
+                    <span className="flex items-center gap-1 rounded-full bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] text-primary font-semibold uppercase tracking-wide">
+                      ● Live
+                    </span>
+                  )}
                 </div>
               </div>
-              <Button size="sm" variant={active ? "default" : "outline"} onClick={() => onActivate(q.id)}>
-                {active ? "Live" : "Activate"}
+              <Button 
+                size="sm" 
+                variant={isLive ? "default" : "outline"} 
+                className={cn(isLive && "bg-primary hover:bg-primary/80")}
+                onClick={async () => {
+                  // If teacher manually activates single question, set active ids to just this one
+                  const patch: any = { all_active: false, current_question_id: q.id, active_question_ids: [q.id] };
+                  if (session.status !== "live") patch.status = "live";
+                  await supabase.from("sessions").update(patch as any).eq("id", sessionId);
+                }}
+              >
+                {isLive ? "Live" : "Activate"}
               </Button>
               <button onClick={() => startEdit(q)} className="text-muted-foreground hover:text-foreground" title="Edit Question">
                 <Pencil className="h-4 w-4" />
@@ -567,7 +785,447 @@ function QuestionsPanel({
   );
 }
 
+// ─── AI Generate Dialog ──────────────────────────────────────────────────────
+
+type AIStep = "upload" | "generating" | "preview";
+
+function AIGenerateDialog({
+  sessionId,
+  questionsCount,
+  onReload,
+}: {
+  sessionId: string;
+  questionsCount: number;
+  onReload: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<AIStep>("upload");
+
+  // Step 1 — upload state
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [apiKey, setApiKey] = useState(
+    () => (import.meta as any).env?.VITE_NVIDIA_API_KEY ?? ""
+  );
+  const [numQuestions, setNumQuestions] = useState(5);
+  const [selectedTypes, setSelectedTypes] = useState<AIQType[]>([
+    "quiz",
+    "poll",
+    "wordcloud",
+  ]);
+
+  // Step 2/3 — results state
+  const [generatedQuestions, setGeneratedQuestions] = useState<
+    GeneratedQuestion[]
+  >([]);
+  const [savingAll, setSavingAll] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleType = (t: AIQType) => {
+    setSelectedTypes((prev) =>
+      prev.includes(t)
+        ? prev.length === 1
+          ? prev // must keep at least one
+          : prev.filter((x) => x !== t)
+        : [...prev, t]
+    );
+  };
+
+  const resetDialog = () => {
+    setStep("upload");
+    setDocFile(null);
+    setGeneratedQuestions([]);
+    setSavingAll(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleOpenChange = (val: boolean) => {
+    setOpen(val);
+    if (!val) resetDialog();
+  };
+
+  // ── Step 1 → 2: Extract text & call AI ─────────────────────────────────────
+  const handleGenerate = async () => {
+    if (!docFile) {
+      toast.error("Please select a document file.");
+      return;
+    }
+    if (!apiKey.trim()) {
+      toast.error("Please enter your NVIDIA NIM API key.");
+      return;
+    }
+    if (selectedTypes.length === 0) {
+      toast.error("Select at least one question type.");
+      return;
+    }
+
+    setStep("generating");
+    try {
+      const text = await extractTextFromDocument(docFile);
+      const questions = await generateQuestionsFromText({
+        text,
+        count: numQuestions,
+        types: selectedTypes,
+        apiKey: apiKey.trim(),
+      });
+      setGeneratedQuestions(questions);
+      setStep("preview");
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to generate questions.");
+      setStep("upload");
+    }
+  };
+
+  // ── Step 3: Bulk save to Supabase ───────────────────────────────────────────
+  const handleSaveAll = async () => {
+    if (generatedQuestions.length === 0) return;
+    setSavingAll(true);
+    try {
+      const rows = generatedQuestions.map((q, i) => ({
+        session_id: sessionId,
+        type: q.type as "quiz" | "poll" | "wordcloud",
+        title: q.title,
+        options: q.options as any,
+        correct_answer: q.correct_answer,
+        order_index: questionsCount + i,
+      }));
+      const { error } = await supabase.from("questions").insert(rows);
+      if (error) throw error;
+      toast.success(`${rows.length} questions added to session! 🎉`);
+      onReload();
+      handleOpenChange(false);
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to save questions.");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  const removeQuestion = (idx: number) => {
+    setGeneratedQuestions((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateQuestion = (
+    idx: number,
+    patch: Partial<GeneratedQuestion>
+  ) => {
+    setGeneratedQuestions((prev) =>
+      prev.map((q, i) => (i === idx ? { ...q, ...patch } : q))
+    );
+  };
+
+  const TYPE_LABELS: Record<AIQType, string> = {
+    quiz: "Quiz",
+    poll: "Poll",
+    wordcloud: "Word Cloud",
+  };
+
+  const TYPE_COLORS: Record<AIQType, string> = {
+    quiz: "text-emerald-400 border-emerald-500/40 bg-emerald-500/10",
+    poll: "text-blue-400 border-blue-500/40 bg-blue-500/10",
+    wordcloud: "text-purple-400 border-purple-500/40 bg-purple-500/10",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all"
+        >
+          <Sparkles className="h-4 w-4" />
+          AI Generate
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Generate Questions from Document
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
+        {step === "upload" && (
+          <div className="space-y-5 mt-2">
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                NVIDIA NIM API Key
+                <span className="text-xs text-muted-foreground font-normal">
+                  (get free key at build.nvidia.com)
+                </span>
+              </Label>
+              <Input
+                type="password"
+                placeholder="nvapi-..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Upload Document</Label>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 cursor-pointer transition-all",
+                  docFile
+                    ? "border-primary/60 bg-primary/5"
+                    : "border-border hover:border-primary/40 hover:bg-accent/30"
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md"
+                  className="hidden"
+                  onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                />
+                {docFile ? (
+                  <>
+                    <FileText className="h-10 w-10 text-primary" />
+                    <div className="text-center">
+                      <div className="font-medium text-sm">{docFile.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {(docFile.size / 1024).toFixed(1)} KB · Click to change
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 text-muted-foreground" />
+                    <div className="text-center">
+                      <div className="font-medium text-sm">
+                        Click to upload a document
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        PDF, DOCX, or TXT — max 5 MB
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Question Types */}
+            <div className="space-y-2">
+              <Label>Question Types to Generate</Label>
+              <div className="flex gap-2 flex-wrap">
+                {(["quiz", "poll", "wordcloud"] as AIQType[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => toggleType(t)}
+                    className={cn(
+                      "rounded-full border px-4 py-1.5 text-sm font-medium transition-all",
+                      selectedTypes.includes(t)
+                        ? TYPE_COLORS[t]
+                        : "border-border text-muted-foreground hover:border-border/80"
+                    )}
+                  >
+                    {TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Number of Questions */}
+            <div className="space-y-2">
+              <Label>
+                Number of Questions:{" "}
+                <span className="font-bold text-primary">{numQuestions}</span>
+              </Label>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-4">1</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={15}
+                  value={numQuestions}
+                  onChange={(e) => setNumQuestions(Number(e.target.value))}
+                  className="flex-1 accent-primary cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground w-5">15</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleGenerate}
+              disabled={!docFile || !apiKey.trim()}
+              className="w-full gradient-bg gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Generate {numQuestions} Questions with AI
+            </Button>
+          </div>
+        )}
+
+        {/* ── STEP 2: Generating ─────────────────────────────────────────── */}
+        {step === "generating" && (
+          <div className="flex flex-col items-center justify-center gap-6 py-16">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full border-2 border-primary/20" />
+              <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-primary" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Sparkles className="h-8 w-8 text-primary opacity-80" />
+              </div>
+            </div>
+            <div className="text-center space-y-1">
+              <div className="font-semibold text-lg">
+                AI is reading your document...
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Generating {numQuestions} questions using{" "}
+                <span className="text-primary font-mono">
+                  meta/llama-3.3-70b-instruct
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">
+                This may take 10–30 seconds
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: Preview ────────────────────────────────────────────── */}
+        {step === "preview" && (
+          <div className="space-y-4 mt-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {generatedQuestions.length} questions generated — review &
+                edit before saving
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setStep("upload")}
+                className="gap-1 text-xs"
+              >
+                ↩ Regenerate
+              </Button>
+            </div>
+
+            <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+              {generatedQuestions.map((q, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-border bg-card/50 p-4 space-y-3 relative group"
+                >
+                  {/* Remove button */}
+                  <button
+                    onClick={() => removeQuestion(idx)}
+                    className="absolute top-3 right-3 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+                    title="Remove this question"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+
+                  {/* Type badge */}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                        TYPE_COLORS[q.type]
+                      )}
+                    >
+                      {TYPE_LABELS[q.type]}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      #{idx + 1}
+                    </span>
+                  </div>
+
+                  {/* Question title */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Question</Label>
+                    <Input
+                      value={q.title}
+                      onChange={(e) =>
+                        updateQuestion(idx, { title: e.target.value })
+                      }
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {/* Options */}
+                  {q.type !== "wordcloud" && q.options.length > 0 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Options (one per line)</Label>
+                      <Textarea
+                        value={q.options.join("\n")}
+                        onChange={(e) =>
+                          updateQuestion(idx, {
+                            options: e.target.value
+                              .split("\n")
+                              .map((o) => o.trim())
+                              .filter(Boolean),
+                          })
+                        }
+                        rows={q.options.length}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Correct answer for quiz */}
+                  {q.type === "quiz" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-emerald-400">
+                        ✓ Correct Answer
+                      </Label>
+                      <Input
+                        value={q.correct_answer ?? ""}
+                        onChange={(e) =>
+                          updateQuestion(idx, {
+                            correct_answer: e.target.value,
+                          })
+                        }
+                        className="text-sm border-emerald-500/30 focus:border-emerald-500/60"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {generatedQuestions.length === 0 && (
+                <div className="text-center text-sm text-muted-foreground py-8">
+                  All questions removed. Click "Regenerate" to start over.
+                </div>
+              )}
+            </div>
+
+            <Button
+              onClick={handleSaveAll}
+              disabled={savingAll || generatedQuestions.length === 0}
+              className="w-full gradient-bg gap-2"
+            >
+              {savingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Add {generatedQuestions.length} Questions to Session
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function LivePanel({ current, responses, participants }: { current: Question | null; responses: Response[]; participants: Participant[] }) {
+
   if (!current) {
     return (
       <div className="glass rounded-2xl p-6">
@@ -623,6 +1281,31 @@ function LivePanel({ current, responses, participants }: { current: Question | n
           </div>
         </div>
       )}
+
+      {/* ── Student Responses Name List ── */}
+      <div className="border-t border-border/50 pt-4">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Student Answers ({responses.length})</div>
+        {responses.length === 0 ? (
+          <div className="text-sm text-muted-foreground italic">No answers submitted yet...</div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {responses.map((r) => {
+              const studentName = nameById.get(r.participant_id) || "Anonymous Student";
+              return (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between rounded-xl border border-border/40 bg-accent/20 px-4 py-2.5 text-sm transition hover:bg-accent/40"
+                >
+                  <span className="font-semibold text-foreground/90">{studentName}</span>
+                  <span className="rounded-lg bg-background/50 border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground select-all">
+                    {r.answer}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

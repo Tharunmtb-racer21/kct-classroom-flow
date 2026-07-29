@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Upload, Sun, Moon } from "lucide-react";
+import { CheckCircle2, Loader2, Upload, Sun, Moon, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; image_url?: string | null };
+type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
 
 export const Route = createFileRoute("/join/$code")({
@@ -32,8 +32,10 @@ function JoinPage() {
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [question, setQuestion] = useState<Question | null>(null);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [answer, setAnswer] = useState("");
-  const [submittedFor, setSubmittedFor] = useState<string | null>(null);
+  const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
+  const [answerMap, setAnswerMap] = useState<Record<string, string>>({});
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
@@ -55,7 +57,7 @@ function JoinPage() {
   // load session by code
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("sessions").select("id,title,code,status,current_question_id,image_url").eq("code", upperCode).maybeSingle();
+      const { data } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url") as any).eq("code", upperCode).maybeSingle();
       if (!data) setNotFound(true);
       else setSession(data as Session);
     })();
@@ -73,9 +75,33 @@ function JoinPage() {
     return () => { supabase.removeChannel(ch); };
   }, [session?.id]);
 
-  // load current question
+  // load current question OR all questions in ALL mode OR multi-selected active questions
   useEffect(() => {
-    if (!session?.current_question_id) { setQuestion(null); return; }
+    const activeIds = session?.active_question_ids || [];
+    
+    // Check if we are in ALL mode
+    if (session?.all_active) {
+      setQuestion(null);
+      (async () => {
+        const { data } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+        if (data) setAllQuestions(data as unknown as Question[]);
+      })();
+      return;
+    }
+
+    // Check if we have multiple custom active question IDs
+    if (activeIds.length > 0) {
+      setQuestion(null);
+      (async () => {
+        const { data } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+        if (data) setAllQuestions(data as unknown as Question[]);
+      })();
+      return;
+    }
+
+    // Fallback to single current_question_id mode
+    if (!session?.current_question_id) { setQuestion(null); setAllQuestions([]); return; }
+    setAllQuestions([]);
     (async () => {
       const { data } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", session.current_question_id!).maybeSingle();
       if (data) {
@@ -83,7 +109,7 @@ function JoinPage() {
         setAnswer("");
       }
     })();
-  }, [session?.current_question_id]);
+  }, [session?.current_question_id, session?.all_active, session?.active_question_ids?.join(",")]);
 
   // realtime question updates
   useEffect(() => {
@@ -97,6 +123,27 @@ function JoinPage() {
     return () => { supabase.removeChannel(ch); };
   }, [question?.id]);
 
+  // countdown timer state
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!session?.expires_at) {
+      setSecondsLeft(null);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const difference = new Date(session.expires_at!).getTime() - Date.now();
+      const seconds = Math.max(0, Math.floor(difference / 1000));
+      setSecondsLeft(seconds);
+      if (seconds <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session?.expires_at]);
+
   // restore prior participant in this browser
   useEffect(() => {
     if (!session) return;
@@ -107,6 +154,36 @@ function JoinPage() {
       setName(parsed.name);
     }
   }, [session?.id]);
+
+  // Load existing database submissions for this participant to prevent reload duplicate submissions
+  useEffect(() => {
+    if (!participantId) return;
+    
+    // Collect all question IDs we care about
+    const questionIds: string[] = [];
+    if (question?.id) {
+      questionIds.push(question.id);
+    }
+    allQuestions.forEach((q) => {
+      if (q.id) questionIds.push(q.id);
+    });
+
+    if (questionIds.length === 0) return;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("responses")
+        .select("question_id")
+        .eq("participant_id", participantId)
+        .in("question_id", questionIds);
+
+      if (!error && data) {
+        const answeredIds = data.map((r) => r.question_id);
+        setSubmittedFor(new Set(answeredIds));
+      }
+    })();
+  }, [participantId, question?.id, allQuestions.length]);
+
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,27 +220,27 @@ function JoinPage() {
     return publicUrl;
   };
 
-  const handleSubmit = async () => {
-    if (!question || !participantId || (!answer.trim() && !responseFile)) return;
+  const handleSubmit = async (qid?: string, ans?: string) => {
+    const targetQ = qid ? (allQuestions.find(q => q.id === qid) ?? question) : question;
+    const targetAnswer = ans ?? answer;
+    if (!targetQ || !participantId || !targetAnswer.trim()) return;
     setSubmitting(true);
     try {
       let image_url = null;
-      if (responseFile) {
+      if (!qid && responseFile) {
         image_url = await uploadResponseImage(responseFile);
       }
-
       const { error } = await supabase.from("responses").insert({
-        question_id: question.id,
+        question_id: targetQ.id,
         participant_id: participantId,
-        answer: answer.trim(),
+        answer: targetAnswer.trim(),
         image_url,
       });
-
       if (error) throw error;
-
-      setSubmittedFor(question.id);
+      setSubmittedFor(prev => new Set([...prev, targetQ.id]));
+      if (!qid) { setAnswer(""); setResponseFile(null); }
+      else setAnswerMap(prev => ({ ...prev, [targetQ.id]: "" }));
       toast.success("Response submitted");
-      setResponseFile(null);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to submit response");
@@ -174,7 +251,7 @@ function JoinPage() {
 
   if (notFound) {
     return (
-      <Wrap>
+      <Wrap secondsLeft={secondsLeft}>
         <div className="text-center">
           <h1 className="text-2xl font-bold">Session not found</h1>
           <p className="mt-2 text-sm text-muted-foreground">Check the code <span className="font-mono">{upperCode}</span> with your faculty.</p>
@@ -182,11 +259,11 @@ function JoinPage() {
       </Wrap>
     );
   }
-  if (!session) return <Wrap><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></Wrap>;
+  if (!session) return <Wrap secondsLeft={secondsLeft}><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></Wrap>;
 
   if (session.status === "ended") {
     return (
-      <Wrap>
+      <Wrap secondsLeft={secondsLeft}>
         <div className="text-center">
           <h1 className="text-2xl font-bold">{session.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">This session has ended. Thanks for joining!</p>
@@ -197,7 +274,7 @@ function JoinPage() {
 
   if (!participantId) {
     return (
-      <Wrap>
+      <Wrap secondsLeft={secondsLeft}>
         <div className="text-center">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Joining</div>
           <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
@@ -215,7 +292,7 @@ function JoinPage() {
 
   if (!question) {
     return (
-      <Wrap>
+      <Wrap secondsLeft={secondsLeft}>
         <div className="text-center space-y-6">
           {session.image_url && (
             <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
@@ -237,10 +314,76 @@ function JoinPage() {
     );
   }
 
-  const alreadySubmitted = submittedFor === question.id;
+  // ── ALL mode or Multi-select mode: show multiple questions at once ─────────────────────────────────
+  const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 0);
+  if (hasMultipleActive && allQuestions.length > 0) {
+    return (
+      <Wrap secondsLeft={secondsLeft}>
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">All Questions</div>
+            <h1 className="mt-1 text-xl font-bold">{session.title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Hi {name}! Answer all questions below.</p>
+          </div>
+          {allQuestions.map((q, i) => {
+            const submitted = submittedFor.has(q.id);
+            const qAnswer = answerMap[q.id] ?? "";
+            return (
+              <div key={q.id} className="rounded-2xl border border-border bg-card/40 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">{i + 1}</span>
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</span>
+                </div>
+                {q.image_url && <img src={q.image_url} alt="" className="rounded-xl max-h-40 object-contain w-full border border-border" />}
+                <p className="font-semibold leading-snug">{q.title}</p>
+                {submitted ? (
+                  <div className="flex items-center gap-2 text-sm text-[color:var(--accent-emerald)]">
+                    <CheckCircle2 className="h-4 w-4" /> Submitted!
+                  </div>
+                ) : q.type === "wordcloud" ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={qAnswer}
+                      onChange={e => setAnswerMap(p => ({ ...p, [q.id]: e.target.value }))}
+                      placeholder="Type your thoughts..."
+                      rows={2}
+                      maxLength={200}
+                    />
+                    <Button onClick={() => handleSubmit(q.id, qAnswer)} disabled={submitting || !qAnswer.trim()} className="w-full gradient-bg font-semibold">
+                      {submitting ? "Submitting..." : "Submit"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {q.options.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => setAnswerMap(p => ({ ...p, [q.id]: opt }))}
+                        className={cn(
+                          "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
+                          qAnswer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40"
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                    <Button onClick={() => handleSubmit(q.id, qAnswer)} disabled={submitting || !qAnswer} className="w-full gradient-bg font-semibold">
+                      {submitting ? "Submitting..." : "Submit Answer"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Wrap>
+    );
+  }
+
+  const alreadySubmitted = submittedFor.has(question?.id ?? "");
 
   return (
-    <Wrap>
+    <Wrap secondsLeft={secondsLeft}>
       {question.image_url && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
           <img src={question.image_url} alt="Question visual" className="w-full h-full object-contain" />
@@ -274,7 +417,7 @@ function JoinPage() {
             </div>
           </div>
 
-          <Button onClick={handleSubmit} disabled={submitting || !answer.trim()} className="w-full h-14 gradient-bg font-semibold">
+          <Button onClick={() => handleSubmit()} disabled={submitting || !answer.trim()} className="w-full h-14 gradient-bg font-semibold">
             {submitting ? "Submitting..." : "Submit"}
           </Button>
         </div>
@@ -310,7 +453,7 @@ function JoinPage() {
             </div>
           </div>
 
-          <Button onClick={handleSubmit} disabled={submitting || !answer} className="w-full h-14 gradient-bg font-semibold">
+          <Button onClick={() => handleSubmit()} disabled={submitting || !answer} className="w-full h-14 gradient-bg font-semibold">
             {submitting ? "Submitting..." : "Submit Answer"}
           </Button>
         </div>
@@ -319,14 +462,24 @@ function JoinPage() {
   );
 }
 
-function Wrap({ children }: { children: React.ReactNode }) {
+function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLeft: number | null }) {
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
-        <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
-          <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
+      <header className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
+            <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
+          </div>
+          <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
         </div>
-        <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+
+        {/* Real-time Countdown Banner for Students */}
+        {secondsLeft !== null && secondsLeft !== undefined && secondsLeft > 0 && (
+          <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs text-primary font-bold animate-pulse">
+            <Timer className="h-3.5 w-3.5" />
+            <span>Time Left: {secondsLeft}s</span>
+          </div>
+        )}
       </header>
       <main className="flex-1 px-5 py-8 flex items-start justify-center">
         <div className="w-full max-w-md">{children}</div>
