@@ -13,8 +13,24 @@ import {
   MessageSquare,
   BarChart3,
   Calendar,
-  Sparkles
+  Sparkles,
+  Download,
+  FileText
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { generateSessionPDF } from "@/lib/pdf-generator";
 
 type Response = {
   id: string;
@@ -57,6 +73,23 @@ function ReportsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  
+  // Custom PDF states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<Row | null>(null);
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+
+  const [collegeName, setCollegeName] = useState("KCT Engineering College");
+  const [collegeLogoUrl, setCollegeLogoUrl] = useState("");
+  const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
+  const [reportTitle, setReportTitle] = useState("Student Assessment Report");
+  const [registerNumber, setRegisterNumber] = useState("");
+  const [semester, setSemester] = useState("III Year / V Semester");
+  const [courseName, setCourseName] = useState("B.E. Computer Science and Engineering");
+  const [subject, setSubject] = useState("");
+  const [facultyName, setFacultyName] = useState("");
+  const [questionOverrides, setQuestionOverrides] = useState<Record<string, { marks: number; feedback: string }>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Use user from the route context (loaded securely in _authenticated beforeLoad)
   const { user } = Route.useRouteContext() as { user: any };
@@ -127,6 +160,132 @@ function ReportsPage() {
     setExpandedSessionId(expandedSessionId === id ? null : id);
   };
 
+  const handleOpenModal = (session: Row) => {
+    setSelectedSession(session);
+    
+    // Set sensible defaults
+    setCollegeName("KCT Engineering College");
+    setCollegeLogoUrl("");
+    setDepartmentName("Department of Computer Science and Engineering");
+    setReportTitle("Session Engagement & Performance Report");
+    setSemester("III Year / V Semester");
+    setCourseName("B.E. Computer Science and Engineering");
+    setSubject(session.title);
+    setFacultyName(user?.displayName || user?.email || "Faculty Instructor");
+
+    setModalOpen(true);
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!selectedSession) return;
+    setIsGenerating(true);
+
+    try {
+      // 1. Map students
+      const studentsList = selectedSession.participants.map(p => {
+        let attempted = 0;
+        let correct = 0;
+        let wrong = 0;
+        let quizQuestionsCount = 0;
+
+        selectedSession.questions.forEach(q => {
+          const response = q.responses?.find(r => r.participant_id === p.id);
+          if (response) {
+            attempted++;
+            if (q.type === "quiz") {
+              quizQuestionsCount++;
+              if (response.answer === q.correct_answer) {
+                correct++;
+              } else {
+                wrong++;
+              }
+            }
+          }
+        });
+
+        const unanswered = selectedSession.questions.length - attempted;
+        const accuracy = quizQuestionsCount > 0 
+          ? (correct / quizQuestionsCount) * 100 
+          : (attempted / (selectedSession.questions.length || 1)) * 100;
+        
+        let status: "Excellent" | "Good" | "Average" | "Needs Improvement" | "Absent" = "Average";
+        if (accuracy >= 85) status = "Excellent";
+        else if (accuracy >= 70) status = "Good";
+        else if (accuracy >= 50) status = "Average";
+        else status = "Needs Improvement";
+
+        return {
+          studentName: p.name,
+          attendance: "Present" as const,
+          totalQuestions: selectedSession.questions.length,
+          attempted,
+          correct,
+          wrong,
+          unanswered,
+          accuracy,
+          status
+        };
+      });
+
+      // 2. Map questions
+      const questionsList = selectedSession.questions.map((q, idx) => {
+        let correctResponses = 0;
+        let wrongResponses = 0;
+
+        if (q.type === "quiz") {
+          q.responses?.forEach(r => {
+            if (r.answer === q.correct_answer) {
+              correctResponses++;
+            } else {
+              wrongResponses++;
+            }
+          });
+        } else {
+          correctResponses = q.responses?.length || 0;
+          wrongResponses = 0;
+        }
+
+        return {
+          index: idx + 1,
+          title: q.title,
+          type: q.type,
+          correctResponses,
+          wrongResponses
+        };
+      });
+
+      await generateSessionPDF(
+        {
+          sessionName: selectedSession.title,
+          sessionCode: selectedSession.code,
+          sessionDate: new Date(selectedSession.created_at).toLocaleDateString(),
+          totalParticipants: selectedSession.participants.length,
+          totalQuestions: selectedSession.questions.length,
+          collegeName,
+          departmentName,
+          courseName,
+          semester,
+          subject,
+          facultyName,
+          reportTitle,
+          logoUrl: collegeLogoUrl || null,
+        },
+        studentsList,
+        questionsList
+      );
+
+      const { toast } = await import("sonner");
+      toast.success("Session report generated and downloaded successfully!");
+      setModalOpen(false);
+    } catch (err: any) {
+      console.error("Error generating PDF:", err);
+      const { toast } = await import("sonner");
+      toast.error("Failed to generate PDF: " + err.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
@@ -189,24 +348,105 @@ function ReportsPage() {
                   </div>
                 </div>
 
-                {/* Expanded Session Analytics Panel */}
+                {/* Expanded Session Analytics Panel with Tabs */}
                 {isExpanded && (
                   <div className="border-t border-white/5 bg-black/10 p-6 space-y-6 animate-in fade-in slide-in-from-top-4 duration-200">
-                    <h4 className="text-sm font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" /> Question Breakdown
-                    </h4>
-
-                    {r.questions.length === 0 ? (
-                      <div className="text-sm text-muted-foreground py-4 text-center">
-                        No questions were configured for this session.
+                    <Tabs defaultValue="analytics" className="w-full">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                        <TabsList className="grid w-full grid-cols-2 max-w-[400px] bg-white/5 border border-white/5 p-1 rounded-xl">
+                          <TabsTrigger value="analytics" className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold">
+                            <BarChart3 className="h-4 w-4" /> Session Analytics
+                          </TabsTrigger>
+                          <TabsTrigger value="students" className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold">
+                            <Users className="h-4 w-4" /> Student Reports
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        <Button
+                          onClick={() => handleOpenModal(r)}
+                          size="sm"
+                          className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20 transition hover:shadow-blue-500/30 self-start sm:self-auto"
+                        >
+                          <Download className="h-4 w-4" /> Download Session Report
+                        </Button>
                       </div>
-                    ) : (
-                      <div className="grid gap-6">
-                        {r.questions.map((q, idx) => (
-                          <QuestionAnalyticsCard key={q.id} index={idx} question={q} participants={r.participants} />
-                        ))}
-                      </div>
-                    )}
+ 
+                      <TabsContent value="analytics" className="space-y-6">
+                        <h4 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2 mb-4">
+                          <BarChart3 className="h-4 w-4" /> Question Breakdown
+                        </h4>
+ 
+                        {r.questions.length === 0 ? (
+                          <div className="text-sm text-muted-foreground py-4 text-center">
+                            No questions were configured for this session.
+                          </div>
+                        ) : (
+                          <div className="grid gap-6">
+                            {r.questions.map((q, idx) => (
+                              <QuestionAnalyticsCard key={q.id} index={idx} question={q} participants={r.participants} />
+                            ))}
+                          </div>
+                        )}
+                      </TabsContent>
+ 
+                      <TabsContent value="students" className="space-y-6">
+                        <h4 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2 mb-4">
+                          <Users className="h-4 w-4" /> Student Performance Register
+                        </h4>
+ 
+                        {r.participants.length === 0 ? (
+                          <div className="text-sm text-muted-foreground py-4 text-center">
+                            No participants joined this session.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto rounded-xl border border-white/5 bg-white/[0.01]">
+                            <table className="w-full border-collapse text-left text-sm text-muted-foreground">
+                              <thead className="border-b border-white/5 bg-white/[0.02] text-xs uppercase tracking-wider text-muted-foreground">
+                                <tr>
+                                  <th className="px-4 py-3 font-semibold">Student Name</th>
+                                  <th className="px-4 py-3 font-semibold">Joined At</th>
+                                  <th className="px-4 py-3 font-semibold text-center">Questions Attempted</th>
+                                  <th className="px-4 py-3 font-semibold text-center">Quiz Score</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {r.participants.map((p) => {
+                                  const quizQuestions = r.questions.filter((q) => q.type === "quiz");
+                                  const responsesCount = r.questions.reduce((sum, q) => {
+                                    const hasResponse = q.responses?.some((resp) => resp.participant_id === p.id);
+                                    return sum + (hasResponse ? 1 : 0);
+                                  }, 0);
+                                  const correctAnswers = quizQuestions.reduce((sum, q) => {
+                                    const response = q.responses?.find((resp) => resp.participant_id === p.id);
+                                    const isCorrect = response && response.answer === q.correct_answer;
+                                    return sum + (isCorrect ? 1 : 0);
+                                  }, 0);
+ 
+                                  return (
+                                    <tr key={p.id} className="hover:bg-white/[0.02] transition">
+                                      <td className="px-4 py-3.5 font-medium text-foreground">{p.name}</td>
+                                      <td className="px-4 py-3.5 text-xs">
+                                        {new Date(p.joined_at).toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-3.5 text-center font-mono">
+                                        {responsesCount} / {r.questions.length}
+                                      </td>
+                                      <td className="px-4 py-3.5 text-center font-semibold text-emerald-400">
+                                        {quizQuestions.length > 0 ? (
+                                          <span>{correctAnswers} / {quizQuestions.length}</span>
+                                        ) : (
+                                          <span className="text-muted-foreground text-xs italic">N/A (No Quizzes)</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 )}
               </div>
@@ -214,6 +454,132 @@ function ReportsPage() {
           })}
         </div>
       )}
+ 
+      {/* PDF customization Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-white/10 text-foreground scrollbar-thin p-6 rounded-2xl">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
+              <FileText className="h-5 w-5 text-blue-400" /> Customize Session Assessment Report
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-sm">
+              Customize the details below to generate a professional, consolidated PDF report for the entire session.
+            </DialogDescription>
+          </DialogHeader>
+ 
+          <div className="space-y-6 py-4">
+            {/* Section 1: College Header */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 border-b border-white/5 pb-1">
+                College Header & Academic Info
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="collegeName" className="text-xs text-slate-300">College Name</Label>
+                  <Input
+                    id="collegeName"
+                    value={collegeName}
+                    onChange={(e) => setCollegeName(e.target.value)}
+                    placeholder="Enter College Name"
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="departmentName" className="text-xs text-slate-300">Department Name</Label>
+                  <Input
+                    id="departmentName"
+                    value={departmentName}
+                    onChange={(e) => setDepartmentName(e.target.value)}
+                    placeholder="Enter Department Name"
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label htmlFor="collegeLogoUrl" className="text-xs text-slate-300">College Logo Image URL (Optional)</Label>
+                  <Input
+                    id="collegeLogoUrl"
+                    value={collegeLogoUrl}
+                    onChange={(e) => setCollegeLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="reportTitle" className="text-xs text-slate-300">Report Title</Label>
+                  <Input
+                    id="reportTitle"
+                    value={reportTitle}
+                    onChange={(e) => setReportTitle(e.target.value)}
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="semester" className="text-xs text-slate-300">Year / Semester</Label>
+                  <Input
+                    id="semester"
+                    value={semester}
+                    onChange={(e) => setSemester(e.target.value)}
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="courseName" className="text-xs text-slate-300">Course/Degree Name</Label>
+                  <Input
+                    id="courseName"
+                    value={courseName}
+                    onChange={(e) => setCourseName(e.target.value)}
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="facultyName" className="text-xs text-slate-300">Faculty/Instructor Name</Label>
+                  <Input
+                    id="facultyName"
+                    value={facultyName}
+                    onChange={(e) => setFacultyName(e.target.value)}
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label htmlFor="subject" className="text-xs text-slate-300">Subject / Course Topic</Label>
+                  <Input
+                    id="subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="bg-black/20 border-white/10 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+ 
+          <DialogFooter className="border-t border-white/5 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setModalOpen(false)}
+              className="border-white/10 hover:bg-white/5 text-slate-300 text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGeneratePDF}
+              disabled={isGenerating}
+              className="gap-2 text-xs cursor-pointer"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" /> Download PDF Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
