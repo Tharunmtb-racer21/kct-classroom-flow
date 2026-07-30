@@ -451,8 +451,19 @@ function QuestionsPanel({
   };
 
   const remove = async (id: string) => {
-    const { error } = await supabase.from("questions").delete().eq("id", id);
-    if (error) toast.error(error.message);
+    if (!confirm("Are you sure you want to delete this question? This will also delete all student responses to this question.")) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.from("questions").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Question deleted successfully");
+      onReload();
+    } catch (err: any) {
+      console.error("Delete question error:", err);
+      toast.error(err.message || "Failed to delete question");
+    }
   };
 
   const [uploadingBanner, setUploadingBanner] = useState(false);
