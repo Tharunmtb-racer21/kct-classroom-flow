@@ -37,11 +37,25 @@ async function extractFromPdf(file: File): Promise<string> {
   // Dynamically import pdfjs-dist to keep initial bundle size small
   const pdfjsLib = await import("pdfjs-dist");
 
-  // Point the worker to the CDN so we don't need to copy the worker file
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let pdf;
+  try {
+    // Try unpkg first (direct NPM mirror - guaranteed to have the exact installed version)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  } catch (err) {
+    console.warn("Failed to load PDF worker from unpkg, trying jsdelivr...", err);
+    try {
+      // Try jsdelivr second
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    } catch (err2) {
+      console.warn("Failed to load PDF worker from jsdelivr, trying cdnjs...", err2);
+      // Fallback to cdnjs third
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+      pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    }
+  }
 
   const textParts: string[] = [];
 
