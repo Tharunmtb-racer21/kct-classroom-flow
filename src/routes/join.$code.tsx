@@ -54,6 +54,13 @@ function JoinPage() {
     setTheme(next);
   };
 
+  console.log("JoinPage Render:", {
+    session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
+    question,
+    allQuestionsCount: allQuestions.length,
+    participantId
+  });
+
   // load session by code
   useEffect(() => {
     (async () => {
@@ -66,13 +73,20 @@ function JoinPage() {
   // realtime updates
   useEffect(() => {
     if (!session) return;
+    console.log(`Subscribing to realtime updates for session: ${session.id}`);
     const ch = supabase
       .channel(`join-${session.id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, (payload) => {
+        console.log("Realtime update received for session:", payload.new);
         setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
       })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+      .subscribe((status) => {
+        console.log(`Realtime subscription status for session ${session.id}: ${status}`);
+      });
+    return () => { 
+      console.log(`Unsubscribing from realtime updates for session: ${session.id}`);
+      supabase.removeChannel(ch); 
+    };
   }, [session?.id]);
 
   // load current question OR all questions in ALL mode OR multi-selected active questions
@@ -83,33 +97,37 @@ function JoinPage() {
     if (session?.all_active) {
       setQuestion(null);
       (async () => {
-        const { data } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+        if (error) console.error("Error fetching all questions:", error);
         if (data) setAllQuestions(data as unknown as Question[]);
       })();
       return;
     }
 
     // Check if we have multiple custom active question IDs
-    if (activeIds.length > 0) {
+    if (activeIds.length > 1) {
       setQuestion(null);
       (async () => {
-        const { data } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+        if (error) console.error("Error fetching active questions:", error);
         if (data) setAllQuestions(data as unknown as Question[]);
       })();
       return;
     }
 
-    // Fallback to single current_question_id mode
-    if (!session?.current_question_id) { setQuestion(null); setAllQuestions([]); return; }
+    // Single active question mode (either via current_question_id or a single active_question_ids element)
+    const singleActiveId = session?.current_question_id || (activeIds.length === 1 ? activeIds[0] : null);
+    if (!singleActiveId) { setQuestion(null); setAllQuestions([]); return; }
     setAllQuestions([]);
     (async () => {
-      const { data } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", session.current_question_id!).maybeSingle();
+      const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", singleActiveId).maybeSingle();
+      if (error) console.error("Error fetching single question:", error);
       if (data) {
         setQuestion(data as unknown as Question);
         setAnswer("");
       }
     })();
-  }, [session?.current_question_id, session?.all_active, session?.active_question_ids?.join(",")]);
+  }, [session?.id, session?.current_question_id, session?.all_active, session?.active_question_ids?.join(",")]);
 
   // realtime question updates
   useEffect(() => {
@@ -290,32 +308,8 @@ function JoinPage() {
     );
   }
 
-  if (!question) {
-    return (
-      <Wrap secondsLeft={secondsLeft}>
-        <div className="text-center space-y-6">
-          {session.image_url && (
-            <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
-              <img src={session.image_url} alt="Session announcement" className="w-full h-full object-contain" />
-            </div>
-          )}
-          <div>
-            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">You're in</div>
-            <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Hi {name}! Waiting for the next question…</p>
-          </div>
-          <div className="flex justify-center">
-            <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
-              <div className="h-full w-1/2 gradient-bg animate-pulse" />
-            </div>
-          </div>
-        </div>
-      </Wrap>
-    );
-  }
-
   // ── ALL mode or Multi-select mode: show multiple questions at once ─────────────────────────────────
-  const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 0);
+  const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 1);
   if (hasMultipleActive && allQuestions.length > 0) {
     return (
       <Wrap secondsLeft={secondsLeft}>
@@ -358,6 +352,7 @@ function JoinPage() {
                     {q.options.map(opt => (
                       <button
                         key={opt}
+                        type="button"
                         onClick={() => setAnswerMap(p => ({ ...p, [q.id]: opt }))}
                         className={cn(
                           "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
@@ -375,6 +370,30 @@ function JoinPage() {
               </div>
             );
           })}
+        </div>
+      </Wrap>
+    );
+  }
+
+  if (!question) {
+    return (
+      <Wrap secondsLeft={secondsLeft}>
+        <div className="text-center space-y-6">
+          {session.image_url && (
+            <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
+              <img src={session.image_url} alt="Session announcement" className="w-full h-full object-contain" />
+            </div>
+          )}
+          <div>
+            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">You're in</div>
+            <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Hi {name}! Waiting for the next question…</p>
+          </div>
+          <div className="flex justify-center">
+            <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
+              <div className="h-full w-1/2 gradient-bg animate-pulse" />
+            </div>
+          </div>
         </div>
       </Wrap>
     );
@@ -427,6 +446,7 @@ function JoinPage() {
             {question.options.map((opt) => (
               <button
                 key={opt}
+                type="button"
                 onClick={() => setAnswer(opt)}
                 className={cn(
                   "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",

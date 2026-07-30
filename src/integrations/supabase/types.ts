@@ -72,6 +72,7 @@ export type Database = {
           correct_answer: string | null
           created_at: string
           id: string
+          image_url: string | null
           options: Json
           order_index: number
           session_id: string
@@ -82,6 +83,7 @@ export type Database = {
           correct_answer?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           options?: Json
           order_index?: number
           session_id: string
@@ -92,6 +94,7 @@ export type Database = {
           correct_answer?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           options?: Json
           order_index?: number
           session_id?: string
@@ -113,6 +116,7 @@ export type Database = {
           answer: string
           created_at: string
           id: string
+          image_url: string | null
           participant_id: string
           question_id: string
         }
@@ -120,6 +124,7 @@ export type Database = {
           answer: string
           created_at?: string
           id?: string
+          image_url?: string | null
           participant_id: string
           question_id: string
         }
@@ -127,6 +132,7 @@ export type Database = {
           answer?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           participant_id?: string
           question_id?: string
         }
@@ -156,6 +162,10 @@ export type Database = {
           id: string
           status: Database["public"]["Enums"]["session_status"]
           title: string
+          all_active: boolean
+          active_question_ids: string[] | null
+          expires_at: string | null
+          image_url: string | null
         }
         Insert: {
           code: string
@@ -165,6 +175,10 @@ export type Database = {
           id?: string
           status?: Database["public"]["Enums"]["session_status"]
           title: string
+          all_active?: boolean
+          active_question_ids?: string[] | null
+          expires_at?: string | null
+          image_url?: string | null
         }
         Update: {
           code?: string
@@ -174,6 +188,10 @@ export type Database = {
           id?: string
           status?: Database["public"]["Enums"]["session_status"]
           title?: string
+          all_active?: boolean
+          active_question_ids?: string[] | null
+          expires_at?: string | null
+          image_url?: string | null
         }
         Relationships: [
           {
