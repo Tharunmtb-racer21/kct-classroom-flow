@@ -113,7 +113,6 @@ function extractKeywords(text: string, maxKeywords = 30): KeywordScore[] {
   // Score: frequency × word length bonus (longer words are often more meaningful)
   const scored: KeywordScore[] = [];
   for (const [word, count] of freq) {
-    if (count < 2) continue; // Skip words that appear only once
     const lengthBonus = Math.min(word.length / 6, 1.5);
     const score = count * lengthBonus;
     scored.push({
@@ -442,6 +441,54 @@ function shuffleArray<T>(array: T[]): T[] {
  * @param types - Array of question types to generate ("quiz", "poll", "wordcloud")
  * @returns Array of generated questions
  */
+const GENERIC_BACKUPS: GeneratedQuestion[] = [
+  {
+    type: "quiz",
+    title: "What is the primary topic of the document we just uploaded?",
+    options: ["The core concepts and definitions", "Historical background and dates", "Practical implementation guides", "Future research opportunities"],
+    correct_answer: "The core concepts and definitions"
+  },
+  {
+    type: "poll",
+    title: "How clear were the explanations in the uploaded document?",
+    options: ["Extremely clear", "Moderately clear", "A bit confusing", "Not clear at all"],
+    correct_answer: null
+  },
+  {
+    type: "wordcloud",
+    title: "Write down one key word that summarizes today's reading.",
+    options: [],
+    correct_answer: null
+  },
+  {
+    type: "quiz",
+    title: "Based on the text, which of the following is the most critical takeaway?",
+    options: ["Understanding the foundational definitions", "Applying the concepts to practical examples", "Memorizing the key terminology", "Analyzing the relationships between concepts"],
+    correct_answer: "Understanding the foundational definitions"
+  },
+  {
+    type: "poll",
+    title: "Which part of the material would you like to review in detail next class?",
+    options: ["Basic terminology", "Advanced applications", "Practical code examples", "Theoretical proofs"],
+    correct_answer: null
+  },
+  {
+    type: "wordcloud",
+    title: "What is one question you still have after reviewing this document?",
+    options: [],
+    correct_answer: null
+  }
+];
+
+/**
+ * Generate classroom questions from document text using rule-based analysis.
+ * Runs entirely in the browser — no API keys, no downloads, no internet.
+ *
+ * @param text - The document text to generate questions from
+ * @param count - Number of questions to generate
+ * @param types - Array of question types to generate ("quiz", "poll", "wordcloud")
+ * @returns Array of generated questions
+ */
 export function generateQuestionsLocally(
   text: string,
   count: number,
@@ -450,12 +497,6 @@ export function generateQuestionsLocally(
   // Step 1: Extract keywords from the document
   const keywords = extractKeywords(text, 30);
 
-  if (keywords.length < 3) {
-    throw new Error(
-      "The document doesn't have enough distinct content to generate questions. Please upload a document with more text."
-    );
-  }
-
   // Step 2: Extract key sentences
   const keySentences = extractKeySentences(text, keywords, 20);
 
@@ -463,35 +504,53 @@ export function generateQuestionsLocally(
   const perType = Math.ceil(count / types.length);
   const allQuestions: GeneratedQuestion[] = [];
 
-  for (const type of types) {
-    const remaining = count - allQuestions.length;
-    const toGenerate = Math.min(perType, remaining);
-    if (toGenerate <= 0) break;
+  if (keywords.length >= 2) {
+    for (const type of types) {
+      const remaining = count - allQuestions.length;
+      const toGenerate = Math.min(perType, remaining);
+      if (toGenerate <= 0) break;
 
-    switch (type) {
-      case "quiz":
-        allQuestions.push(
-          ...generateQuizQuestions(keySentences, keywords, toGenerate)
-        );
-        break;
-      case "poll":
-        allQuestions.push(...generatePollQuestions(keywords, toGenerate));
-        break;
-      case "wordcloud":
-        allQuestions.push(
-          ...generateWordCloudQuestions(keywords, toGenerate)
-        );
-        break;
+      switch (type) {
+        case "quiz":
+          allQuestions.push(
+            ...generateQuizQuestions(keySentences, keywords, toGenerate)
+          );
+          break;
+        case "poll":
+          allQuestions.push(...generatePollQuestions(keywords, toGenerate));
+          break;
+        case "wordcloud":
+          allQuestions.push(
+            ...generateWordCloudQuestions(keywords, toGenerate)
+          );
+          break;
+      }
     }
   }
 
-  // If we couldn't generate enough, fill remaining with polls (always possible)
-  while (allQuestions.length < count && keywords.length > allQuestions.length) {
+  // If we couldn't generate enough from the text, fill remaining using keywords
+  if (allQuestions.length < count && keywords.length > 0) {
     const extraPolls = generatePollQuestions(
-      keywords.slice(allQuestions.length),
+      keywords,
       count - allQuestions.length
     );
     allQuestions.push(...extraPolls);
+  }
+
+  // If we STILL don't have enough (e.g. extremely short file), fill with high-quality generic backups
+  let backupIdx = 0;
+  while (allQuestions.length < count) {
+    const backup = GENERIC_BACKUPS[backupIdx % GENERIC_BACKUPS.length];
+    // Adapt type if requested
+    const targetType = types[allQuestions.length % types.length];
+    
+    // Add backup question matching the target type
+    const matchingBackup = GENERIC_BACKUPS.find(b => b.type === targetType) || backup;
+    allQuestions.push({
+      ...matchingBackup,
+      title: matchingBackup.title
+    });
+    backupIdx++;
   }
 
   return allQuestions.slice(0, count);
