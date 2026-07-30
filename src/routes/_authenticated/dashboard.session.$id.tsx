@@ -804,7 +804,10 @@ function AIGenerateDialog({
   // Step 1 — upload state
   const [docFile, setDocFile] = useState<File | null>(null);
   const [apiKey, setApiKey] = useState(
-    () => (import.meta as any).env?.VITE_NVIDIA_API_KEY ?? ""
+    () => (import.meta as any).env?.VITE_NVIDIA_API_KEY ?? 
+          (import.meta as any).env?.VITE_GOOGLE_AI_KEY ?? 
+          (import.meta as any).env?.VITE_GROQ_API_KEY ?? 
+          ""
   );
   const [numQuestions, setNumQuestions] = useState(5);
   const [selectedTypes, setSelectedTypes] = useState<AIQType[]>([
@@ -849,9 +852,9 @@ function AIGenerateDialog({
       toast.error("Please select a document file.");
       return;
     }
+    // Allow proceeding without API key; ai-service.ts will fall back locally
     if (!apiKey.trim()) {
-      toast.error("Please enter your NVIDIA NIM API key.");
-      return;
+      toast.info("No API key entered. Questions will be generated locally in your browser.");
     }
     if (selectedTypes.length === 0) {
       toast.error("Select at least one question type.");
@@ -951,15 +954,15 @@ function AIGenerateDialog({
           <div className="space-y-5 mt-2">
             {/* API Key */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                NVIDIA NIM API Key
+              <Label className="flex items-center gap-1.5 justify-between">
+                <span>AI Provider API Key (Google, NVIDIA, or Groq)</span>
                 <span className="text-xs text-muted-foreground font-normal">
-                  (get free key at build.nvidia.com)
+                  Leave empty for local (offline) generation
                 </span>
               </Label>
               <Input
                 type="password"
-                placeholder="nvapi-..."
+                placeholder="Google (AIzaSy...), Groq (gsk_...), NVIDIA (nvapi-...) or empty"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="font-mono text-sm"
@@ -1053,14 +1056,14 @@ function AIGenerateDialog({
               </div>
             </div>
 
-            <Button
-              onClick={handleGenerate}
-              disabled={!docFile || !apiKey.trim()}
-              className="w-full gradient-bg gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate {numQuestions} Questions with AI
-            </Button>
+             <Button
+               onClick={handleGenerate}
+               disabled={!docFile}
+               className="w-full gradient-bg gap-2"
+             >
+               <Sparkles className="h-4 w-4" />
+               Generate {numQuestions} Questions {apiKey.trim() ? "with AI" : "with Local Browser Fallback"}
+             </Button>
           </div>
         )}
 

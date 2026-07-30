@@ -210,15 +210,37 @@ export async function generateQuestionsFromText(
 
   // 1. If user provided a specific API key in the UI, try that one first.
   if (apiKey?.trim()) {
-    const active = getActiveProvider();
-    const url = active?.provider.url ?? "https://integrate.api.nvidia.com/v1/chat/completions";
-    const model = active?.provider.model ?? "meta/llama-3.3-70b-instruct";
-    const name = active?.provider.name ?? "Custom AI";
+    const trimmedKey = apiKey.trim();
+    let url = "https://integrate.api.nvidia.com/v1/chat/completions";
+    let model = "meta/llama-3.3-70b-instruct";
+    let name = "NVIDIA NIM";
+
+    // Auto-detect provider based on key format
+    if (trimmedKey.startsWith("AIzaSy")) {
+      url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      model = "gemini-2.0-flash";
+      name = "Google AI Studio";
+    } else if (trimmedKey.startsWith("gsk_")) {
+      url = "https://api.groq.com/openai/v1/chat/completions";
+      model = "llama-3.3-70b-8192";
+      name = "Groq";
+    } else if (trimmedKey.startsWith("nvapi-")) {
+      url = "https://integrate.api.nvidia.com/v1/chat/completions";
+      model = "meta/llama-3.3-70b-instruct";
+      name = "NVIDIA NIM";
+    } else {
+      // Fallback: check getActiveProvider or use NVIDIA default
+      const active = getActiveProvider();
+      url = active?.provider.url ?? url;
+      model = active?.provider.model ?? model;
+      name = active?.provider.name ?? name;
+    }
+
     try {
-      return await callProviderAPI(url, model, apiKey.trim(), name, text, count, types);
+      return await callProviderAPI(url, model, trimmedKey, name, text, count, types);
     } catch (err: any) {
       console.warn(`User-provided key failed for ${name}:`, err.message);
-      toast.error(`Custom API key failed: ${err.message}. Falling back to browser-local generation...`);
+      toast.error(`Custom API key failed (${name}): ${err.message}. Falling back to browser-local generation...`);
       return generateQuestionsLocally(text, count, types);
     }
   }
