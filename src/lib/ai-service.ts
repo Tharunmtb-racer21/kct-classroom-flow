@@ -11,6 +11,9 @@
  *   VITE_AI_PROVIDER      → "nvidia" | "groq" | "google" | "together"
  */
 
+import { generateQuestionsLocally } from "./local-question-generator";
+import { toast } from "sonner";
+
 export type QType = "quiz" | "poll" | "wordcloud";
 
 export interface GeneratedQuestion {
@@ -195,47 +198,106 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
 
 /**
  * Generate classroom questions from document text.
- * Automatically uses the active AI provider configured in .env.
- * Falls back through providers in priority order if needed.
- * Throws a user-friendly error on failure.
+ * Automatically uses the active AI provider configured in .env,
+ * falls back to other available keys in .env, and finally
+ * falls back to local browser-based generation if no keys work.
  */
 export async function generateQuestionsFromText(
   opts: GenerateQuestionsOptions
 ): Promise<GeneratedQuestion[]> {
   const { text, count, types, apiKey } = opts;
-
-  // Resolve which provider + URL + model to use
-  const active = getActiveProvider();
   const env = (import.meta as any).env ?? {};
 
-  // apiKey passed in takes priority (user typed it in UI),
-  // otherwise fall back to env-detected provider
-  const resolvedKey = apiKey?.trim() || (active ? env[active.provider.envKey] : "");
-  const resolvedUrl = active?.provider.url ?? "https://integrate.api.nvidia.com/v1/chat/completions";
-  const resolvedModel = active?.provider.model ?? "meta/llama-3.3-70b-instruct";
-  const providerName = active?.provider.name ?? "AI";
-
-  if (!resolvedKey) {
-    throw new Error(
-      "No API key found. Please add at least one API key in your .env file (VITE_NVIDIA_API_KEY, VITE_GROQ_API_KEY, etc.)"
-    );
+  // 1. If user provided a specific API key in the UI, try that one first.
+  if (apiKey?.trim()) {
+    const active = getActiveProvider();
+    const url = active?.provider.url ?? "https://integrate.api.nvidia.com/v1/chat/completions";
+    const model = active?.provider.model ?? "meta/llama-3.3-70b-instruct";
+    const name = active?.provider.name ?? "Custom AI";
+    try {
+      return await callProviderAPI(url, model, apiKey.trim(), name, text, count, types);
+    } catch (err: any) {
+      console.warn(`User-provided key failed for ${name}:`, err.message);
+      toast.error(`Custom API key failed: ${err.message}. Falling back to browser-local generation...`);
+      return generateQuestionsLocally(text, count, types);
+    }
   }
 
-  const prompt = buildPrompt(text, count, types);
+  // 2. Otherwise, check all providers with keys in priority order.
+  const activeProviders: Array<{ key: ProviderKey; config: ProviderConfig; apiKey: string }> = [];
+  
+  // First prioritize the forced one if set
+  const forced = env.VITE_AI_PROVIDER as ProviderKey | undefined;
+  if (forced && PROVIDERS[forced] && env[PROVIDERS[forced].envKey]?.trim()) {
+    activeProviders.push({
+      key: forced,
+      config: PROVIDERS[forced],
+      apiKey: env[PROVIDERS[forced].envKey].trim()
+    });
+  }
 
+  // Then add the rest that have keys set in .env
+  for (const pKey of PRIORITY_ORDER) {
+    if (pKey === forced) continue; // already added
+    const cfg = PROVIDERS[pKey];
+    const keyVal = env[cfg.envKey]?.trim();
+    if (keyVal) {
+      activeProviders.push({ key: pKey, config: cfg, apiKey: keyVal });
+    }
+  }
+
+  // Try each configured provider one-by-one
+  for (const prov of activeProviders) {
+    try {
+      console.log(`Attempting question generation with: ${prov.config.name}`);
+      return await callProviderAPI(
+        prov.config.url,
+        prov.config.model,
+        prov.apiKey,
+        prov.config.name,
+        text,
+        count,
+        types
+      );
+    } catch (err: any) {
+      console.warn(`${prov.config.name} generation failed:`, err.message);
+      // Continue to next provider in loop
+    }
+  }
+
+  // 3. Fallback: If no API keys worked or no keys were provided, generate locally
+  console.log("No working API keys found. Generating questions locally in the browser...");
+  try {
+    return generateQuestionsLocally(text, count, types);
+  } catch (localErr: any) {
+    throw new Error(`Failed to generate questions: ${localErr.message}`);
+  }
+}
+
+/** Helper to call a single OpenAI-compatible completions endpoint */
+async function callProviderAPI(
+  url: string,
+  model: string,
+  key: string,
+  providerName: string,
+  text: string,
+  count: number,
+  types: QType[]
+): Promise<GeneratedQuestion[]> {
+  const prompt = buildPrompt(text, count, types);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000); // 45s timeout
 
   let response: Response;
   try {
-    response = await fetch(resolvedUrl, {
+    response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${resolvedKey}`,
+        Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: resolvedModel,
+        model: model,
         messages: [
           {
             role: "user",
@@ -250,13 +312,9 @@ export async function generateQuestionsFromText(
     });
   } catch (err: any) {
     if (err.name === "AbortError") {
-      throw new Error(
-        `Request timed out (45s). ${providerName} is busy — please try again.`
-      );
+      throw new Error(`Request timed out (45s). ${providerName} is busy.`);
     }
-    throw new Error(
-      "Network error. Please check your connection and try again."
-    );
+    throw new Error(`Network connection error calling ${providerName}.`);
   } finally {
     clearTimeout(timeout);
   }
@@ -264,27 +322,22 @@ export async function generateQuestionsFromText(
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     if (response.status === 401) {
-      throw new Error(
-        `Invalid API key for ${providerName}. Please check your key in .env.`
-      );
+      throw new Error(`Invalid API key.`);
     }
     if (response.status === 429) {
-      throw new Error(
-        `Rate limit reached on ${providerName}. Switch to a backup provider in .env (set VITE_AI_PROVIDER).`
-      );
+      throw new Error(`Rate limit reached.`);
     }
-    throw new Error(
-      `${providerName} API error (${response.status}): ${errorText || "Unknown error"}`
-    );
+    throw new Error(`API error (${response.status}): ${errorText || "Unknown error"}`);
   }
 
   const data = await response.json();
   const rawContent: string = data?.choices?.[0]?.message?.content ?? "";
 
   if (!rawContent) {
-    throw new Error(`${providerName} returned an empty response. Please try again.`);
+    throw new Error(`Empty response returned.`);
   }
 
   return parseAIResponse(rawContent);
 }
+
 
