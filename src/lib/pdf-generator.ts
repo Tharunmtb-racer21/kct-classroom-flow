@@ -56,6 +56,28 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> => {
   });
 };
 
+// Helper to load logo with fallback options (PNG -> high-res JPEG -> optimized JPEG -> vectorized fallback)
+const loadLogoWithFallbacks = async (userLogoUrl: string | null): Promise<{ img: HTMLImageElement | null; urlUsed: string }> => {
+  if (userLogoUrl && userLogoUrl.trim() !== "") {
+    const img = await loadImage(userLogoUrl);
+    if (img) return { img, urlUsed: userLogoUrl };
+  }
+  
+  // Prefer official PNG (best quality for PDF, no lossy compression)
+  const pngImg = await loadImage("/kct-logo-pdf.png");
+  if (pngImg) return { img: pngImg, urlUsed: "/kct-logo-pdf.png" };
+
+  // Try official high-resolution JPEG version
+  const highResImg = await loadImage("/kct-logo-opt.jpg");
+  if (highResImg) return { img: highResImg, urlUsed: "/kct-logo-opt.jpg" };
+  
+  // Final fallback — smaller optimized JPEG
+  const optImg = await loadImage("/kct-logo88.jpg");
+  if (optImg) return { img: optImg, urlUsed: "/kct-logo88.jpg" };
+  
+  return { img: null, urlUsed: "" };
+};
+
 // Helper to draw Fallback Logo (Academic Crest Shield)
 const drawFallbackLogo = (doc: jsPDF, x: number, y: number, size: number) => {
   const centerX = x + size / 2;
@@ -109,11 +131,73 @@ export async function generateSessionPDF(
   const pageWidth = doc.internal.pageSize.width;
   const margin = 15;
 
-  // Pre-load logo
+  // Pre-load logo with fallback
   let logoImg: HTMLImageElement | null = null;
-  if (session.logoUrl) {
-    logoImg = await loadImage(session.logoUrl);
-  }
+  let logoUrlToUse = "";
+  
+  const logoData = await loadLogoWithFallbacks(session.logoUrl);
+  logoImg = logoData.img;
+  logoUrlToUse = logoData.urlUsed;
+
+  // Track page numbers where watermark has been drawn to prevent duplicates
+  const watermarkedPages = new Set<number>();
+
+  // Watermark template
+  const drawPageWatermark = (docInstance: jsPDF) => {
+    if (!logoImg) return;
+    try {
+      const printableWidth = pageWidth - (margin * 2);
+      const watermarkWidth = printableWidth * 0.7; // 70% of printable page width
+      
+      const imgWidth = logoImg.width;
+      const imgHeight = logoImg.height;
+      const aspectRatio = imgWidth / imgHeight;
+      
+      let drawWidth = watermarkWidth;
+      let drawHeight = watermarkWidth / aspectRatio;
+      
+      // Center of the page
+      const drawX = (pageWidth - drawWidth) / 2;
+      const drawY = (pageHeight - drawHeight) / 2;
+      
+      // Save graphic state to apply transparency
+      docInstance.saveGraphicsState();
+      
+      // Set opacity to 7% (very subtle and elegant watermark)
+      try {
+        let gState;
+        if (typeof (docInstance as any).GState === "function") {
+          gState = new (docInstance as any).GState({ opacity: 0.07 });
+        } else if (typeof (jsPDF as any).GState === "function") {
+          gState = new (jsPDF as any).GState({ opacity: 0.07 });
+        }
+        
+        if (gState) {
+          docInstance.setGState(gState);
+        }
+      } catch (err) {
+        console.warn("GState failed to initialize, fallback to default opacity:", err);
+      }
+      
+      const format = logoUrlToUse.toLowerCase().endsWith(".png") ? "PNG" : "JPEG";
+      docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
+      
+      // Restore graphic state to normal
+      docInstance.restoreGraphicsState();
+    } catch (e) {
+      console.error("Error drawing watermark:", e);
+    }
+  };
+
+  const drawWatermarkIfNeeded = (pageNum: number) => {
+    if (watermarkedPages.has(pageNum)) return;
+    doc.setPage(pageNum);
+    drawPageWatermark(doc);
+    watermarkedPages.add(pageNum);
+  };
+
+  // Draw watermark on the first page immediately
+  drawWatermarkIfNeeded(1);
 
   // Header template
   const drawPageHeader = (docInstance: jsPDF) => {
@@ -123,7 +207,25 @@ export async function generateSessionPDF(
 
     if (logoImg) {
       try {
-        docInstance.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
+        const imgWidth = logoImg.width;
+        const imgHeight = logoImg.height;
+        const aspectRatio = imgWidth / imgHeight;
+        
+        let drawWidth = logoSize;
+        let drawHeight = logoSize;
+        
+        if (aspectRatio > 1) {
+          drawHeight = logoSize / aspectRatio;
+        } else {
+          drawWidth = logoSize * aspectRatio;
+        }
+        
+        // Center the logo in the 16x16 header box
+        const drawX = logoX + (logoSize - drawWidth) / 2;
+        const drawY = logoY + (logoSize - drawHeight) / 2;
+        
+        const format = logoUrlToUse.toLowerCase().endsWith(".png") ? "PNG" : "JPEG";
+        docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
       } catch (e) {
         drawFallbackLogo(docInstance, logoX, logoY, logoSize);
       }
@@ -213,6 +315,9 @@ export async function generateSessionPDF(
       3: { cellWidth: 58 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for summary box
@@ -278,6 +383,9 @@ export async function generateSessionPDF(
       5: { cellWidth: 28 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for student performance table
@@ -360,6 +468,9 @@ export async function generateSessionPDF(
       }
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for Question analysis
@@ -422,12 +533,16 @@ export async function generateSessionPDF(
       5: { cellWidth: 18, fontStyle: "bold" },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
-  // --- Add Page Numbers, Headers and Footers to All Pages ---
+  // --- Add Watermarks, Page Numbers, Headers and Footers to All Pages ---
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    drawWatermarkIfNeeded(i); // Ensure watermark is on every page
     drawPageHeader(doc);
     drawPageFooter(doc, i, totalPages);
   }
