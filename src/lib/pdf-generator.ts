@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { KCT_LOGO_BASE64 } from "./kct-logo-b64";
 
 export interface SessionReportInfo {
   sessionName: string;
@@ -41,7 +42,7 @@ export interface QuestionAnalysisItem {
   wrongResponses: number;
 }
 
-// Utility to load image
+// Utility to load image from a URL or data URL
 const loadImage = (url: string): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
     if (!url) {
@@ -56,27 +57,20 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> => {
   });
 };
 
-// Helper to load logo with fallback options (PNG -> high-res JPEG -> optimized JPEG -> vectorized fallback)
-const loadLogoWithFallbacks = async (userLogoUrl: string | null): Promise<{ img: HTMLImageElement | null; urlUsed: string }> => {
-  if (userLogoUrl && userLogoUrl.trim() !== "") {
+// Load the official KCT logo from the embedded base64 data (always succeeds)
+// Falls back to URL loading for user-supplied logos, then to the embedded logo
+const loadLogoWithFallbacks = async (userLogoUrl: string | null): Promise<{ img: HTMLImageElement | null; isBase64: boolean }> => {
+  // Try user-provided URL first (custom branding)
+  if (userLogoUrl && userLogoUrl.trim() !== "" && !userLogoUrl.startsWith("/kct-logo")) {
     const img = await loadImage(userLogoUrl);
-    if (img) return { img, urlUsed: userLogoUrl };
+    if (img) return { img, isBase64: false };
   }
-  
-  // Prefer official PNG (best quality for PDF, no lossy compression)
-  const pngImg = await loadImage("/kct-logo-pdf.png");
-  if (pngImg) return { img: pngImg, urlUsed: "/kct-logo-pdf.png" };
 
-  // Try official high-resolution JPEG version
-  const highResImg = await loadImage("/kct-logo-opt.jpg");
-  if (highResImg) return { img: highResImg, urlUsed: "/kct-logo-opt.jpg" };
-  
-  // Final fallback — smaller optimized JPEG
-  const optImg = await loadImage("/kct-logo88.jpg");
-  if (optImg) return { img: optImg, urlUsed: "/kct-logo88.jpg" };
-  
-  return { img: null, urlUsed: "" };
+  // Always fall back to the embedded base64 KCT logo — guaranteed to render
+  const img = await loadImage(KCT_LOGO_BASE64);
+  return { img, isBase64: true };
 };
+
 
 // Helper to draw Fallback Logo (Academic Crest Shield)
 const drawFallbackLogo = (doc: jsPDF, x: number, y: number, size: number) => {
@@ -131,18 +125,18 @@ export async function generateSessionPDF(
   const pageWidth = doc.internal.pageSize.width;
   const margin = 15;
 
-  // Pre-load logo with fallback
+  // Pre-load logo — embedded base64 guarantees render, no network failures
   let logoImg: HTMLImageElement | null = null;
-  let logoUrlToUse = "";
+  let logoIsBase64 = true;
   
   const logoData = await loadLogoWithFallbacks(session.logoUrl);
   logoImg = logoData.img;
-  logoUrlToUse = logoData.urlUsed;
+  logoIsBase64 = logoData.isBase64;
 
   // Track page numbers where watermark has been drawn to prevent duplicates
   const watermarkedPages = new Set<number>();
 
-  // Watermark template
+  // Watermark template — draws the KCT logo centered on the page at 7% opacity
   const drawPageWatermark = (docInstance: jsPDF) => {
     if (!logoImg) return;
     try {
@@ -179,7 +173,8 @@ export async function generateSessionPDF(
         console.warn("GState failed to initialize, fallback to default opacity:", err);
       }
       
-      const format = logoUrlToUse.toLowerCase().endsWith(".png") ? "PNG" : "JPEG";
+      // PNG format for the embedded base64 logo, JPEG for custom URLs
+      const format = logoIsBase64 ? "PNG" : (session.logoUrl?.toLowerCase().endsWith(".png") ? "PNG" : "JPEG");
       docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
       
       // Restore graphic state to normal
@@ -224,7 +219,8 @@ export async function generateSessionPDF(
         const drawX = logoX + (logoSize - drawWidth) / 2;
         const drawY = logoY + (logoSize - drawHeight) / 2;
         
-        const format = logoUrlToUse.toLowerCase().endsWith(".png") ? "PNG" : "JPEG";
+        // PNG for embedded base64 logo, JPEG for custom URLs
+        const format = logoIsBase64 ? "PNG" : (session.logoUrl?.toLowerCase().endsWith(".png") ? "PNG" : "JPEG");
         docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
       } catch (e) {
         drawFallbackLogo(docInstance, logoX, logoY, logoSize);
