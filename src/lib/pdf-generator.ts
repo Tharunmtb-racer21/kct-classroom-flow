@@ -42,10 +42,10 @@ export interface QuestionAnalysisItem {
   wrongResponses: number;
 }
 
-// Utility to load image from a URL or data URL
-const loadImage = (url: string): Promise<HTMLImageElement | null> => {
+// Helper to load user-supplied image URL if present
+const loadUserImage = (url: string | null): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
-    if (!url) {
+    if (!url || url.trim() === "" || url.startsWith("/kct-logo")) {
       resolve(null);
       return;
     }
@@ -55,20 +55,6 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> => {
     img.onerror = () => resolve(null);
     img.src = url;
   });
-};
-
-// Load the official KCT logo from the embedded base64 data (always succeeds)
-// Falls back to URL loading for user-supplied logos, then to the embedded logo
-const loadLogoWithFallbacks = async (userLogoUrl: string | null): Promise<{ img: HTMLImageElement | null; isBase64: boolean }> => {
-  // Try user-provided URL first (custom branding)
-  if (userLogoUrl && userLogoUrl.trim() !== "" && !userLogoUrl.startsWith("/kct-logo")) {
-    const img = await loadImage(userLogoUrl);
-    if (img) return { img, isBase64: false };
-  }
-
-  // Always fall back to the embedded base64 KCT logo — guaranteed to render
-  const img = await loadImage(KCT_LOGO_BASE64);
-  return { img, isBase64: true };
 };
 
 
@@ -125,59 +111,44 @@ export async function generateSessionPDF(
   const pageWidth = doc.internal.pageSize.width;
   const margin = 15;
 
-  // Pre-load logo — embedded base64 guarantees render, no network failures
-  let logoImg: HTMLImageElement | null = null;
-  let logoIsBase64 = true;
-  
-  const logoData = await loadLogoWithFallbacks(session.logoUrl);
-  logoImg = logoData.img;
-  logoIsBase64 = logoData.isBase64;
+  // Pre-load custom user logo if specified
+  const customLogoImg = await loadUserImage(session.logoUrl);
 
   // Track page numbers where watermark has been drawn to prevent duplicates
   const watermarkedPages = new Set<number>();
 
-  // Watermark template — draws the KCT logo centered on the page at 7% opacity
+  // Watermark template — draws the KCT logo centered on every page at 8% opacity
   const drawPageWatermark = (docInstance: jsPDF) => {
-    if (!logoImg) return;
     try {
       const printableWidth = pageWidth - (margin * 2);
-      const watermarkWidth = printableWidth * 0.7; // 70% of printable page width
+      const watermarkSize = printableWidth * 0.70; // 70% of printable page width (~126mm)
       
-      const imgWidth = logoImg.width;
-      const imgHeight = logoImg.height;
-      const aspectRatio = imgWidth / imgHeight;
+      const drawX = (pageWidth - watermarkSize) / 2;
+      const drawY = (pageHeight - watermarkSize) / 2;
       
-      let drawWidth = watermarkWidth;
-      let drawHeight = watermarkWidth / aspectRatio;
-      
-      // Center of the page
-      const drawX = (pageWidth - drawWidth) / 2;
-      const drawY = (pageHeight - drawHeight) / 2;
-      
-      // Save graphic state to apply transparency
       docInstance.saveGraphicsState();
       
-      // Set opacity to 7% (very subtle and elegant watermark)
       try {
         let gState;
         if (typeof (docInstance as any).GState === "function") {
-          gState = new (docInstance as any).GState({ opacity: 0.07 });
+          gState = new (docInstance as any).GState({ opacity: 0.08 });
         } else if (typeof (jsPDF as any).GState === "function") {
-          gState = new (jsPDF as any).GState({ opacity: 0.07 });
+          gState = new (jsPDF as any).GState({ opacity: 0.08 });
         }
-        
         if (gState) {
           docInstance.setGState(gState);
         }
       } catch (err) {
-        console.warn("GState failed to initialize, fallback to default opacity:", err);
+        console.warn("GState opacity failed:", err);
       }
       
-      // PNG format for the embedded base64 logo, JPEG for custom URLs
-      const format = logoIsBase64 ? "PNG" : (session.logoUrl?.toLowerCase().endsWith(".png") ? "PNG" : "JPEG");
-      docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
+      if (customLogoImg) {
+        docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, watermarkSize, watermarkSize);
+      } else {
+        // Direct Base64 string rendering — 100% reliable, zero network overhead
+        docInstance.addImage(KCT_LOGO_BASE64, "PNG", drawX, drawY, watermarkSize, watermarkSize);
+      }
       
-      // Restore graphic state to normal
       docInstance.restoreGraphicsState();
     } catch (e) {
       console.error("Error drawing watermark:", e);
@@ -200,39 +171,33 @@ export async function generateSessionPDF(
     const logoX = margin;
     const logoY = 12;
 
-    if (logoImg) {
+    if (customLogoImg) {
       try {
-        const imgWidth = logoImg.width;
-        const imgHeight = logoImg.height;
+        const imgWidth = customLogoImg.width;
+        const imgHeight = customLogoImg.height;
         const aspectRatio = imgWidth / imgHeight;
-        
         let drawWidth = logoSize;
         let drawHeight = logoSize;
-        
         if (aspectRatio > 1) {
           drawHeight = logoSize / aspectRatio;
         } else {
           drawWidth = logoSize * aspectRatio;
         }
-        
-        // Center the logo in the 16x16 header box
         const drawX = logoX + (logoSize - drawWidth) / 2;
         const drawY = logoY + (logoSize - drawHeight) / 2;
-        
-        // PNG for embedded base64 logo, JPEG for custom URLs
-        const format = logoIsBase64 ? "PNG" : (session.logoUrl?.toLowerCase().endsWith(".png") ? "PNG" : "JPEG");
-        docInstance.addImage(logoImg, format, drawX, drawY, drawWidth, drawHeight);
+        docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, drawWidth, drawHeight);
       } catch (e) {
-        drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+        docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
       }
     } else {
-      drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+      // Direct Base64 rendering — official KCT logo
+      docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
     }
 
     docInstance.setTextColor(15, 23, 42); // slate-900
     docInstance.setFont("helvetica", "bold");
     docInstance.setFontSize(12);
-    docInstance.text(session.collegeName || "ABC Engineering College", pageWidth / 2, 15, { align: "center" });
+    docInstance.text(session.collegeName || "Kumaraguru College of Technology", pageWidth / 2, 15, { align: "center" });
 
     if (session.departmentName) {
       docInstance.setFont("helvetica", "normal");
@@ -261,7 +226,7 @@ export async function generateSessionPDF(
     docInstance.setFont("helvetica", "normal");
     docInstance.setFontSize(7.5);
 
-    docInstance.text(session.collegeName || "ABC Engineering College", margin, pageHeight - 10);
+    docInstance.text(session.collegeName || "Kumaraguru College of Technology", margin, pageHeight - 10);
     docInstance.text(`Generated On: ${new Date().toLocaleString()} | Generated By: ${session.facultyName || "Faculty"}`, pageWidth / 2, pageHeight - 10, {
       align: "center",
     });
