@@ -94,6 +94,7 @@ type AuditLogItem = {
 };
 
 export const Route = createFileRoute("/developer")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Developer Telemetry & System Analytics · KCT PULSE" },

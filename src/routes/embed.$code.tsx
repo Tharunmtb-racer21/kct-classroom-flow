@@ -35,6 +35,7 @@ type Response = {
 };
 
 export const Route = createFileRoute("/embed/$code")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Live Slide Embed · KCT PULSE" },
