@@ -118,3 +118,37 @@ export async function autoDraftStaleSessions() {
     console.error("Error in autoDraftStaleSessions:", err);
   }
 }
+
+/**
+ * Purges empty draft sessions with 0 questions and 0 participants.
+ */
+export async function purgeEmptyTestSessions(): Promise<number> {
+  try {
+    const { data: count, error } = await supabase.rpc("purge_empty_draft_sessions");
+    if (!error && typeof count === "number") {
+      console.log(`⚡ Purged ${count} empty draft test session(s).`);
+      return count;
+    }
+    // Fallback client-side purging
+    const { data: drafts } = await supabase
+      .from("sessions")
+      .select("id, questions(id), participants(id)")
+      .eq("status", "draft");
+
+    if (!drafts || drafts.length === 0) return 0;
+
+    const emptyIds = drafts
+      .filter((d: any) => (!d.questions || d.questions.length === 0) && (!d.participants || d.participants.length === 0))
+      .map((d: any) => d.id);
+
+    if (emptyIds.length > 0) {
+      await supabase.from("sessions").delete().in("id", emptyIds);
+      console.log(`⚡ Purged ${emptyIds.length} empty draft test session(s).`);
+      return emptyIds.length;
+    }
+    return 0;
+  } catch (err) {
+    console.error("Error in purgeEmptyTestSessions:", err);
+    return 0;
+  }
+}

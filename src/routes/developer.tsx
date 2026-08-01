@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { auth } from "@/lib/firebase";
-import { autoDraftStaleSessions } from "@/lib/session-utils";
+import { autoDraftStaleSessions, purgeEmptyTestSessions } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -289,6 +289,12 @@ function DeveloperDashboard() {
     await loadData();
   };
 
+  const handlePurgeEmptySessions = async () => {
+    const count = await purgeEmptyTestSessions();
+    addAuditLog(`Database Purge: Cleaned up ${count} empty draft test session(s)`, "SYSTEM", "warn");
+    await loadData();
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return;
     loadData();
@@ -523,6 +529,10 @@ function DeveloperDashboard() {
 
           <Button onClick={handleRunCleanup} variant="outline" size="sm" className="gap-2 text-xs border-amber-500/40 text-amber-500 hover:bg-amber-500/10">
             <Trash2 className="h-3.5 w-3.5" /> Auto-Draft Cleanup
+          </Button>
+
+          <Button onClick={handlePurgeEmptySessions} variant="outline" size="sm" className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10">
+            <Flame className="h-3.5 w-3.5" /> Purge DB Test Data
           </Button>
 
           <Button onClick={loadData} variant="outline" size="sm" className="gap-2 text-xs border-border">
