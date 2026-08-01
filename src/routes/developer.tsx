@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Database,
+  Eye,
   Flame,
   Globe,
   HardDrive,
@@ -31,11 +32,11 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { auth } from "@/lib/firebase";
 import { autoDraftStaleSessions } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -85,7 +86,7 @@ type ProfileRow = {
 type AuditLogItem = {
   index: number;
   id: string;
-  tag: "AUTH" | "SESSION" | "RESPONSE" | "QUESTION" | "SYSTEM" | "AI";
+  tag: "AUTH" | "SESSION" | "RESPONSE" | "QUESTION" | "SYSTEM";
   msg: string;
   timestamp: string;
   isoDate: string;
@@ -123,6 +124,7 @@ function DeveloperDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [apiLatencyMs, setApiLatencyMs] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [selectedSessionForModal, setSelectedSessionForModal] = useState<SessionRow | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
   // Passkey Login Handler
@@ -145,7 +147,7 @@ function DeveloperDashboard() {
 
   const addAuditLog = (
     msg: string,
-    tag: "AUTH" | "SESSION" | "RESPONSE" | "QUESTION" | "SYSTEM" | "AI" = "SYSTEM",
+    tag: "AUTH" | "SESSION" | "RESPONSE" | "QUESTION" | "SYSTEM" = "SYSTEM",
     type: "info" | "success" | "warn" | "error" = "info",
     isoDate?: string
   ) => {
@@ -221,7 +223,6 @@ function DeveloperDashboard() {
       const initialLogs: AuditLogItem[] = [];
       let counter = 1;
 
-      // Add recent session events
       sRows.slice(0, 15).forEach((s) => {
         initialLogs.push({
           index: counter,
@@ -234,7 +235,6 @@ function DeveloperDashboard() {
         });
       });
 
-      // Add recent participant join events
       pRows.slice(0, 15).forEach((p) => {
         initialLogs.push({
           index: counter,
@@ -247,7 +247,6 @@ function DeveloperDashboard() {
         });
       });
 
-      // Add recent responses
       rRows.slice(0, 15).forEach((r) => {
         initialLogs.push({
           index: counter,
@@ -273,7 +272,7 @@ function DeveloperDashboard() {
 
   const handleRunCleanup = async () => {
     await autoDraftStaleSessions();
-    addAuditLog("Manual stale sessions cleanup executed successfully (Sessions active > 1h auto-drafted)", "SYSTEM", "warn");
+    addAuditLog("Manual stale sessions cleanup executed (Sessions active > 1h auto-drafted)", "SYSTEM", "warn");
     await loadData();
   };
 
@@ -281,7 +280,6 @@ function DeveloperDashboard() {
     if (!isAuthenticated) return;
     loadData();
 
-    // Realtime subscriptions for System Telemetry
     const sysChannel = supabase
       .channel("dev-telemetry-suite")
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload) => {
@@ -305,6 +303,20 @@ function DeveloperDashboard() {
       supabase.removeChannel(sysChannel);
     };
   }, [isAuthenticated]);
+
+  // Map Profile Helper
+  const getFacultyInfo = (creatorId: string) => {
+    const prof = profiles.find((p) => p.id === creatorId);
+    if (prof) {
+      return { name: prof.full_name || prof.email || `Faculty (${creatorId.slice(0, 6)})`, email: prof.email || "" };
+    }
+    return { name: `Faculty (${creatorId.slice(0, 8)})`, email: creatorId };
+  };
+
+  // Map Session Participants Helper
+  const getSessionParticipants = (sessionId: string) => {
+    return participants.filter((p) => p.session_id === sessionId);
+  };
 
   // Filter Data by Timeframe (1D, 7D, 30D, ALL)
   const filterByTimeframe = <T extends { created_at?: string; joined_at?: string }>(items: T[]) => {
@@ -338,45 +350,40 @@ function DeveloperDashboard() {
   const wordcloudQuestionsCount = useMemo(() => filteredQuestionsByTime.filter((q) => q.type === "wordcloud").length, [filteredQuestionsByTime]);
   const quizQuestionsCount = useMemo(() => filteredQuestionsByTime.filter((q) => q.type === "quiz").length, [filteredQuestionsByTime]);
 
-  // Domain Breakdown for Institutional SSO Security
-  const domainBreakdown = useMemo(() => {
-    const map: Record<string, number> = { "kct.ac.in": 0, "kongu.edu": 0, "Other": 0 };
-    profiles.forEach((p) => {
-      if (!p.email) map["Other"]++;
-      else if (p.email.endsWith("@kct.ac.in")) map["kct.ac.in"]++;
-      else if (p.email.endsWith("@kongu.edu")) map["kongu.edu"]++;
-      else map["Other"]++;
-    });
-    return map;
-  }, [profiles]);
-
-  // Unique Faculty Creators
+  // Unique Faculty Creators with Total Students Taught
   const uniqueCreators = useMemo(() => {
-    const map = new Map<string, { creator_id: string; profile?: ProfileRow; count: number; lastActive: string }>();
+    const map = new Map<string, { creator_id: string; profile?: ProfileRow; count: number; totalStudents: number; lastActive: string }>();
     sessions.forEach((s) => {
+      const sessParts = participants.filter((p) => p.session_id === s.id).length;
       const existing = map.get(s.creator_id) || {
         creator_id: s.creator_id,
         profile: profiles.find((p) => p.id === s.creator_id),
         count: 0,
+        totalStudents: 0,
         lastActive: s.created_at,
       };
       existing.count++;
+      existing.totalStudents += sessParts;
       if (new Date(s.created_at) > new Date(existing.lastActive)) {
         existing.lastActive = s.created_at;
       }
       map.set(s.creator_id, existing);
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [sessions, profiles]);
+  }, [sessions, profiles, participants]);
 
   // Filtered Sessions for Search Input
   const searchedSessions = useMemo(() => {
     if (!searchQuery.trim()) return filteredSessionsByTime;
     const q = searchQuery.toLowerCase();
     return filteredSessionsByTime.filter(
-      (s) => s.title.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || s.creator_id.toLowerCase().includes(q)
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q) ||
+        s.creator_id.toLowerCase().includes(q) ||
+        getFacultyInfo(s.creator_id).name.toLowerCase().includes(q)
     );
-  }, [filteredSessionsByTime, searchQuery]);
+  }, [filteredSessionsByTime, searchQuery, profiles]);
 
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
@@ -454,7 +461,7 @@ function DeveloperDashboard() {
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> DEVELOPER TELEMETRY SUITE
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Full Stack Firebase, Supabase & Realtime Performance Monitor</p>
+            <p className="text-xs text-muted-foreground">Real-time Faculty, Session & Student Join Analytics</p>
           </div>
         </div>
 
@@ -524,21 +531,21 @@ function DeveloperDashboard() {
 
           <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500">
-              <ShieldCheck className="h-5 w-5" />
+              <UserCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">Firebase Auth</div>
-              <div className="text-lg font-black text-foreground">{profiles.length} Users</div>
+              <div className="text-[11px] font-bold text-muted-foreground uppercase">Faculty Creators</div>
+              <div className="text-lg font-black text-foreground">{uniqueCreators.length} Faculty</div>
             </div>
           </div>
 
           <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/30 grid place-items-center text-amber-500">
-              <Flame className="h-5 w-5" />
+              <Users className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">AI Generation Quota</div>
-              <div className="text-lg font-black text-foreground">Active</div>
+              <div className="text-[11px] font-bold text-muted-foreground uppercase">Total Students Joined</div>
+              <div className="text-lg font-black text-foreground">{participants.length} Students</div>
             </div>
           </div>
         </div>
@@ -592,10 +599,10 @@ function DeveloperDashboard() {
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black">{filteredParticipantsByTime.length}</span>
-              <span className="text-xs text-blue-500 font-bold">Participants</span>
+              <span className="text-xs text-blue-500 font-bold">Students Joined</span>
             </div>
             <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
-              Realtime participant join stream
+              Across all classroom sessions
             </div>
           </div>
 
@@ -611,36 +618,33 @@ function DeveloperDashboard() {
               <span className="text-xs text-purple-500 font-bold">Answers</span>
             </div>
             <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
-              Recorded responses across all sessions
+              Recorded answers across all sessions
             </div>
           </div>
         </div>
 
         {/* Detailed Tabs Suite */}
-        <Tabs defaultValue="telemetry" className="space-y-6">
+        <Tabs defaultValue="sessions" className="space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
             <TabsList className="bg-card border border-border p-1 rounded-xl flex-wrap">
-              <TabsTrigger value="telemetry" className="gap-2 text-xs font-semibold">
-                <Terminal className="h-3.5 w-3.5" /> Telemetry Logs ({auditLogs.length})
-              </TabsTrigger>
               <TabsTrigger value="sessions" className="gap-2 text-xs font-semibold">
-                <Layers className="h-3.5 w-3.5" /> Sessions ({filteredSessionsByTime.length})
+                <Layers className="h-3.5 w-3.5" /> Sessions & Faculty ({searchedSessions.length})
               </TabsTrigger>
               <TabsTrigger value="creators" className="gap-2 text-xs font-semibold">
-                <UserCheck className="h-3.5 w-3.5" /> Creators ({uniqueCreators.length})
+                <UserCheck className="h-3.5 w-3.5" /> Faculty Breakdown ({uniqueCreators.length})
               </TabsTrigger>
               <TabsTrigger value="responses" className="gap-2 text-xs font-semibold">
                 <MessageSquare className="h-3.5 w-3.5" /> Submissions ({filteredResponsesByTime.length})
               </TabsTrigger>
-              <TabsTrigger value="db_health" className="gap-2 text-xs font-semibold">
-                <Database className="h-3.5 w-3.5" /> Database & Storage Health
+              <TabsTrigger value="telemetry" className="gap-2 text-xs font-semibold">
+                <Terminal className="h-3.5 w-3.5" /> Telemetry Logs ({auditLogs.length})
               </TabsTrigger>
             </TabsList>
 
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search telemetry/records..."
+                placeholder="Search sessions/faculty/students..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-xs bg-card/60 border-border"
@@ -648,7 +652,178 @@ function DeveloperDashboard() {
             </div>
           </div>
 
-          {/* TAB 1: SYSTEM AUDIT & TELEMETRY LOGS */}
+          {/* TAB 1: ALL SESSIONS & FACULTY MONITOR */}
+          <TabsContent value="sessions" className="space-y-4">
+            <div className="glass rounded-2xl overflow-hidden border border-border/60">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">Session Title</th>
+                      <th className="px-4 py-3">Code</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Faculty / Creator Name</th>
+                      <th className="px-4 py-3">Students Joined</th>
+                      <th className="px-4 py-3">Created At</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {searchedSessions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No sessions match filter query.
+                        </td>
+                      </tr>
+                    ) : (
+                      searchedSessions.map((s) => {
+                        const faculty = getFacultyInfo(s.creator_id);
+                        const sessParts = getSessionParticipants(s.id);
+
+                        return (
+                          <tr key={s.id} className="hover:bg-accent/40 transition">
+                            <td className="px-4 py-3 font-semibold text-foreground max-w-[200px] truncate">{s.title}</td>
+                            <td className="px-4 py-3 font-mono font-black text-primary">{s.code}</td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
+                                  s.status === "live"
+                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                    : s.status === "draft"
+                                    ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                                    : "bg-muted text-muted-foreground border-border"
+                                )}
+                              >
+                                {s.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px] truncate">
+                              <div className="font-bold text-foreground">{faculty.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">{faculty.email}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="font-extrabold text-blue-500 bg-blue-500/10 border border-blue-500/30 px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1">
+                                <Users className="h-3.5 w-3.5" /> {sessParts.length} Students
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{new Date(s.created_at).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right space-x-2">
+                              {/* View Student List Dialog */}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] gap-1 text-primary">
+                                    <Eye className="h-3.5 w-3.5" /> View Students ({sessParts.length})
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-base">
+                                      <Users className="h-4 w-4 text-primary" /> Students Joined — {s.title} ({s.code})
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3 my-2">
+                                    <div className="text-xs text-muted-foreground">
+                                      Faculty Creator: <strong className="text-foreground">{faculty.name}</strong>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-1">
+                                      {sessParts.length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-muted-foreground italic">
+                                          No students joined this session yet.
+                                        </div>
+                                      ) : (
+                                        sessParts.map((p, pIdx) => (
+                                          <div key={p.id} className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50 text-xs">
+                                            <div className="flex items-center gap-2">
+                                              <span className="h-5 w-5 rounded-full bg-primary/20 text-primary grid place-items-center text-[10px] font-bold">
+                                                {pIdx + 1}
+                                              </span>
+                                              <span className="font-bold text-foreground">{p.name}</span>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                              {new Date(p.joined_at).toLocaleTimeString()}
+                                            </span>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+
+                              <Link
+                                to="/embed/$code"
+                                params={{ code: s.code }}
+                                target="_blank"
+                                className="text-xs text-primary font-bold hover:underline"
+                              >
+                                Embed View
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB 2: FACULTY CREATORS MONITOR */}
+          <TabsContent value="creators" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {uniqueCreators.map((item) => (
+                <div key={item.creator_id} className="glass rounded-2xl p-5 border border-border/60 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base">
+                      {item.profile?.full_name?.charAt(0) || "F"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm truncate">{item.profile?.full_name || "Faculty Creator"}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{item.profile?.email || item.creator_id}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Sessions Created</span>
+                      <strong className="text-foreground text-sm font-extrabold">{item.count} Sessions</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Total Students Taught</span>
+                      <strong className="text-blue-500 text-sm font-extrabold">{item.totalStudents} Students</strong>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* TAB 3: SUBMISSIONS MONITOR */}
+          <TabsContent value="responses" className="space-y-4">
+            <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers ({filteredResponsesByTime.length})
+              </h3>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {filteredResponsesByTime.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 text-xs">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2.5 py-1 rounded-lg text-xs">
+                        {r.answer}
+                      </span>
+                      <span className="text-muted-foreground truncate max-w-[250px]">Participant ID: {r.participant_id.slice(0, 8)}...</span>
+                    </div>
+                    <span className="text-muted-foreground text-[11px] font-mono">{new Date(r.created_at).toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB 4: TELEMETRY LOGS */}
           <TabsContent value="telemetry" className="space-y-4">
             <div className="glass rounded-2xl p-5 border border-border/60 space-y-4 font-mono">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -656,12 +831,8 @@ function DeveloperDashboard() {
                   <span className="font-bold flex items-center gap-2 text-emerald-500">
                     <Terminal className="h-4 w-4" /> Live Realtime Telemetry & Audit Stream
                   </span>
-                  <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] text-emerald-500 font-bold">
-                    LOGS INDEX 1-{filteredAuditLogs.length}
-                  </span>
                 </div>
 
-                {/* Log Tag Filter */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {(["ALL", "AUTH", "SESSION", "RESPONSE", "QUESTION", "SYSTEM"] as const).map((tag) => (
                     <button
@@ -719,178 +890,6 @@ function DeveloperDashboard() {
                     </div>
                   ))
                 )}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* TAB 2: ALL SESSIONS MONITOR */}
-          <TabsContent value="sessions" className="space-y-4">
-            <div className="glass rounded-2xl overflow-hidden border border-border/60">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
-                    <tr>
-                      <th className="px-4 py-3">Session Title</th>
-                      <th className="px-4 py-3">Code</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Creator ID</th>
-                      <th className="px-4 py-3">Created At</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {searchedSessions.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                          No sessions match filter query.
-                        </td>
-                      </tr>
-                    ) : (
-                      searchedSessions.map((s) => (
-                        <tr key={s.id} className="hover:bg-accent/40 transition">
-                          <td className="px-4 py-3 font-semibold text-foreground max-w-[220px] truncate">{s.title}</td>
-                          <td className="px-4 py-3 font-mono font-bold text-primary">{s.code}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={cn(
-                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
-                                s.status === "live"
-                                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
-                                  : s.status === "draft"
-                                  ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
-                                  : "bg-muted text-muted-foreground border-border"
-                              )}
-                            >
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-muted-foreground max-w-[140px] truncate select-all">{s.creator_id}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{new Date(s.created_at).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right space-x-2">
-                            <Link
-                              to="/embed/$code"
-                              params={{ code: s.code }}
-                              target="_blank"
-                              className="text-xs text-primary font-bold hover:underline"
-                            >
-                              Embed View
-                            </Link>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* TAB 3: FACULTY CREATORS MONITOR */}
-          <TabsContent value="creators" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {uniqueCreators.map((item) => (
-                <div key={item.creator_id} className="glass rounded-2xl p-5 border border-border/60 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base">
-                      {item.profile?.full_name?.charAt(0) || "F"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm truncate">{item.profile?.full_name || "Faculty Creator"}</h4>
-                      <p className="text-xs text-muted-foreground truncate">{item.profile?.email || item.creator_id}</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground block text-[10px]">Sessions Created</span>
-                      <strong className="text-foreground text-sm font-extrabold">{item.count}</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px]">Last Session</span>
-                      <span className="text-foreground text-[11px] font-mono">{new Date(item.lastActive).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* TAB 4: SUBMISSIONS MONITOR */}
-          <TabsContent value="responses" className="space-y-4">
-            <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers ({filteredResponsesByTime.length})
-              </h3>
-
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {filteredResponsesByTime.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 text-xs">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2 py-0.5 rounded text-[11px]">
-                        {r.answer}
-                      </span>
-                      <span className="text-muted-foreground truncate max-w-[250px]">Participant ID: {r.participant_id.slice(0, 8)}...</span>
-                    </div>
-                    <span className="text-muted-foreground text-[11px] font-mono">{new Date(r.created_at).toLocaleTimeString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* TAB 5: DATABASE & STORAGE HEALTH */}
-          <TabsContent value="db_health" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Supabase Storage Stats */}
-              <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  <Database className="h-5 w-5 text-primary" /> Supabase Database Metrics
-                </h3>
-                <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground">Total Sessions Rows</span>
-                    <span className="font-bold font-mono text-foreground">{sessions.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground">Total Questions Rows</span>
-                    <span className="font-bold font-mono text-foreground">{questions.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground">Total Student Responses Rows</span>
-                    <span className="font-bold font-mono text-foreground">{responses.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground">Total Participants Rows</span>
-                    <span className="font-bold font-mono text-foreground">{participants.length}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Institutional SSO & Auth Domain Security */}
-              <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-500" /> Firebase Auth SSO Domain Security
-                </h3>
-                <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-primary" /> @kct.ac.in Faculty Accounts
-                    </span>
-                    <span className="font-bold font-mono text-emerald-500">{domainBreakdown["kct.ac.in"]}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-blue-500" /> @kongu.edu Accounts
-                    </span>
-                    <span className="font-bold font-mono text-blue-500">{domainBreakdown["kongu.edu"]}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border/40">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Users className="h-4 w-4 text-amber-500" /> General Accounts
-                    </span>
-                    <span className="font-bold font-mono text-amber-500">{domainBreakdown["Other"]}</span>
-                  </div>
-                </div>
               </div>
             </div>
           </TabsContent>
