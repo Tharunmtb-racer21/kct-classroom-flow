@@ -94,7 +94,6 @@ type AuditLogItem = {
 };
 
 export const Route = createFileRoute("/developer")({
-  ssr: false,
   head: () => ({
     meta: [
       { title: "Developer Telemetry & System Analytics · KCT PULSE" },
@@ -415,7 +414,14 @@ function DeveloperDashboard() {
     });
   }, [auditLogs, logFilterTag, searchQuery]);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-6">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-3 text-sm text-muted-foreground font-mono">Initializing Developer Telemetry Portal...</p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
