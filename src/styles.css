@@ -63,54 +63,54 @@
 
 :root {
   --radius: 0.625rem;
-  /* Light / Bright Mode Theme */
-  --background: oklch(0.98 0.01 250);
-  --foreground: oklch(0.14 0.03 260);
-  --card: oklch(1 0 0 / 0.85);
-  --card-foreground: oklch(0.14 0.03 260);
+  /* Light / Bright Mode Theme - Enhanced Visual Depth & Background Image Visibility */
+  --background: oklch(0.97 0.015 250);
+  --foreground: oklch(0.14 0.035 260);
+  --card: oklch(0.99 0.005 250 / 0.85);
+  --card-foreground: oklch(0.14 0.035 260);
   --popover: oklch(0.99 0.005 250);
-  --popover-foreground: oklch(0.14 0.03 260);
-  --primary: oklch(0.55 0.18 240);
+  --popover-foreground: oklch(0.14 0.035 260);
+  --primary: oklch(0.52 0.20 250);
   --primary-foreground: oklch(0.99 0.005 250);
-  --primary-glow: oklch(0.65 0.16 210);
-  --accent-emerald: oklch(0.6 0.17 165);
-  --secondary: oklch(0.94 0.01 250);
-  --secondary-foreground: oklch(0.14 0.03 260);
-  --muted: oklch(0.92 0.01 260);
-  --muted-foreground: oklch(0.4 0.02 255);
-  --accent: oklch(0.9 0.03 245);
-  --accent-foreground: oklch(0.14 0.03 260);
-  --destructive: oklch(0.6 0.22 22);
+  --primary-glow: oklch(0.58 0.18 220);
+  --accent-emerald: oklch(0.56 0.18 165);
+  --secondary: oklch(0.93 0.015 250);
+  --secondary-foreground: oklch(0.14 0.035 260);
+  --muted: oklch(0.92 0.015 260);
+  --muted-foreground: oklch(0.38 0.03 255);
+  --accent: oklch(0.90 0.03 245);
+  --accent-foreground: oklch(0.14 0.035 260);
+  --destructive: oklch(0.58 0.22 22);
   --destructive-foreground: oklch(0.99 0.005 250);
-  --border: oklch(0.14 0.03 260 / 0.12);
-  --input: oklch(0.14 0.03 260 / 0.08);
-  --ring: oklch(0.55 0.18 240);
-  --chart-1: oklch(0.55 0.18 240);
-  --chart-2: oklch(0.6 0.17 165);
-  --chart-3: oklch(0.65 0.2 300);
-  --chart-4: oklch(0.7 0.16 90);
+  --border: oklch(0.14 0.035 260 / 0.15);
+  --input: oklch(0.14 0.035 260 / 0.10);
+  --ring: oklch(0.52 0.20 250);
+  --chart-1: oklch(0.52 0.20 250);
+  --chart-2: oklch(0.56 0.18 165);
+  --chart-3: oklch(0.60 0.20 300);
+  --chart-4: oklch(0.65 0.16 90);
   --chart-5: oklch(0.55 0.22 20);
-  --sidebar: oklch(0.96 0.01 260 / 0.9);
-  --sidebar-foreground: oklch(0.14 0.03 260);
-  --sidebar-primary: oklch(0.55 0.18 240);
+  --sidebar: oklch(0.97 0.015 260 / 0.88);
+  --sidebar-foreground: oklch(0.14 0.035 260);
+  --sidebar-primary: oklch(0.52 0.20 250);
   --sidebar-primary-foreground: oklch(0.99 0.005 250);
-  --sidebar-accent: oklch(0.94 0.01 260);
-  --sidebar-accent-foreground: oklch(0.14 0.03 260);
-  --sidebar-border: oklch(0.14 0.03 260 / 0.12);
-  --sidebar-ring: oklch(0.55 0.18 240);
+  --sidebar-accent: oklch(0.92 0.02 260);
+  --sidebar-accent-foreground: oklch(0.14 0.035 260);
+  --sidebar-border: oklch(0.14 0.035 260 / 0.14);
+  --sidebar-ring: oklch(0.52 0.20 250);
 
-  --gradient-primary: linear-gradient(135deg, oklch(0.55 0.18 240), oklch(0.6 0.17 165));
-  --gradient-hero: radial-gradient(ellipse at top, oklch(0.9 0.05 245 / 0.5), transparent 60%),
-                   radial-gradient(ellipse at bottom right, oklch(0.92 0.06 165 / 0.35), transparent 60%);
-  --shadow-glow: 0 0 40px oklch(0.55 0.18 240 / 0.15);
-  --shadow-elegant: 0 20px 60px -20px oklch(0.1 0.05 260 / 0.08);
+  --gradient-primary: linear-gradient(135deg, oklch(0.52 0.20 250), oklch(0.56 0.18 165));
+  --gradient-hero: radial-gradient(ellipse at top, oklch(0.88 0.06 245 / 0.5), transparent 60%),
+                   radial-gradient(ellipse at bottom right, oklch(0.90 0.07 165 / 0.35), transparent 60%);
+  --shadow-glow: 0 0 40px oklch(0.52 0.20 250 / 0.20);
+  --shadow-elegant: 0 15px 45px -15px oklch(0.1 0.05 260 / 0.12);
 
-  --gradient-bg-1: oklch(0.92 0.06 245 / 0.45);
-  --gradient-bg-2: oklch(0.94 0.07 165 / 0.35);
-  --dashboard-overlay: linear-gradient(90deg, rgba(250, 250, 250, 0.9) 0%, rgba(250, 250, 250, 0.72) 45%, rgba(250, 250, 250, 0.55) 100%);
-  --bg-img-opacity: 0.18;
-  --bg-img-blend: multiply;
-  --landing-overlay: oklch(0.98 0.01 250 / 0.55);
+  --gradient-bg-1: oklch(0.88 0.08 245 / 0.35);
+  --gradient-bg-2: oklch(0.90 0.09 165 / 0.28);
+  --dashboard-overlay: linear-gradient(90deg, rgba(245, 247, 250, 0.72) 0%, rgba(245, 247, 250, 0.50) 45%, rgba(245, 247, 250, 0.32) 100%);
+  --bg-img-opacity: 0.42;
+  --bg-img-blend: normal;
+  --landing-overlay: oklch(0.97 0.015 250 / 0.45);
 }
 
 .dark {
