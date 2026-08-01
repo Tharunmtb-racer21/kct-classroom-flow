@@ -224,37 +224,40 @@ function DeveloperDashboard() {
       let counter = 1;
 
       sRows.slice(0, 15).forEach((s) => {
+        const cId = (s.creator_id || "anonymous").slice(0, 8);
         initialLogs.push({
           index: counter,
           id: `LOG-${String(counter++).padStart(4, "0")}`,
           tag: "SESSION",
-          msg: `Session '${s.title}' (${s.code}) created by creator ${s.creator_id.slice(0, 8)}... [Status: ${s.status}]`,
-          timestamp: new Date(s.created_at).toLocaleString(),
-          isoDate: s.created_at,
+          msg: `Session '${s.title || "Untitled"}' (${s.code || "----"}) created by creator ${cId}... [Status: ${s.status}]`,
+          timestamp: s.created_at ? new Date(s.created_at).toLocaleString() : new Date().toLocaleString(),
+          isoDate: s.created_at || new Date().toISOString(),
           type: s.status === "live" ? "success" : "info",
         });
       });
 
       pRows.slice(0, 15).forEach((p) => {
+        const sId = (p.session_id || "unknown").slice(0, 8);
         initialLogs.push({
           index: counter,
           id: `LOG-${String(counter++).padStart(4, "0")}`,
           tag: "AUTH",
-          msg: `Student participant '${p.name}' joined session ID ${p.session_id.slice(0, 8)}...`,
-          timestamp: new Date(p.joined_at).toLocaleString(),
-          isoDate: p.joined_at,
+          msg: `Student participant '${p.name || "Student"}' joined session ID ${sId}...`,
+          timestamp: p.joined_at ? new Date(p.joined_at).toLocaleString() : new Date().toLocaleString(),
+          isoDate: p.joined_at || new Date().toISOString(),
           type: "info",
         });
       });
 
       rRows.slice(0, 15).forEach((r) => {
+        const qId = (r.question_id || "unknown").slice(0, 8);
         initialLogs.push({
           index: counter,
           id: `LOG-${String(counter++).padStart(4, "0")}`,
           tag: "RESPONSE",
-          msg: `Student response recorded for question ${r.question_id.slice(0, 8)}... -> Answer: '${r.answer}'`,
-          timestamp: new Date(r.created_at).toLocaleString(),
-          isoDate: r.created_at,
+          msg: `Student response recorded for question ${qId}... -> Answer: '${r.answer || ""}'`,
+          timestamp: r.created_at ? new Date(r.created_at).toLocaleString() : new Date().toLocaleString(),
+          isoDate: r.created_at || new Date().toISOString(),
           type: "success",
         });
       });
@@ -289,12 +292,12 @@ function DeveloperDashboard() {
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "participants" }, (payload) => {
         const p = payload.new as ParticipantRow;
-        addAuditLog(`Live Student '${p.name}' joined session`, "AUTH", "info");
+        addAuditLog(`Live Student '${p?.name || "Student"}' joined session`, "AUTH", "info");
         setParticipants((prev) => [p, ...prev]);
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "responses" }, (payload) => {
         const r = payload.new as ResponseRow;
-        addAuditLog(`New response received: '${r.answer}'`, "RESPONSE", "success");
+        addAuditLog(`New response received: '${r?.answer || ""}'`, "RESPONSE", "success");
         setResponses((prev) => [r, ...prev]);
       })
       .subscribe();
@@ -305,7 +308,10 @@ function DeveloperDashboard() {
   }, [isAuthenticated]);
 
   // Map Profile Helper
-  const getFacultyInfo = (creatorId: string) => {
+  const getFacultyInfo = (creatorId?: string | null) => {
+    if (!creatorId) {
+      return { name: "Faculty (Unknown)", email: "unknown@kct.ac.in" };
+    }
     const prof = profiles.find((p) => p.id === creatorId);
     if (prof && (prof.full_name || prof.email)) {
       return { name: prof.full_name || prof.email, email: prof.email || "" };
@@ -314,7 +320,7 @@ function DeveloperDashboard() {
     if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
       const email = currentFirebaseUser.email || "";
       const derivedName = currentFirebaseUser.displayName || email.split("@")[0].replace(/[._-]/g, " ");
-      const formatted = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
+      const formatted = derivedName ? derivedName.charAt(0).toUpperCase() + derivedName.slice(1) : "Faculty";
       return { name: formatted, email };
     }
     return { name: `Prof. ${creatorId.slice(0, 6).toUpperCase()}`, email: `faculty_${creatorId.slice(0, 5)}@kct.ac.in` };
@@ -361,20 +367,21 @@ function DeveloperDashboard() {
   const uniqueCreators = useMemo(() => {
     const map = new Map<string, { creator_id: string; profile?: ProfileRow; count: number; totalStudents: number; lastActive: string }>();
     sessions.forEach((s) => {
+      const cId = s.creator_id || "anonymous";
       const sessParts = participants.filter((p) => p.session_id === s.id).length;
-      const existing = map.get(s.creator_id) || {
-        creator_id: s.creator_id,
-        profile: profiles.find((p) => p.id === s.creator_id),
+      const existing = map.get(cId) || {
+        creator_id: cId,
+        profile: profiles.find((p) => p.id === cId),
         count: 0,
         totalStudents: 0,
-        lastActive: s.created_at,
+        lastActive: s.created_at || new Date().toISOString(),
       };
       existing.count++;
       existing.totalStudents += sessParts;
-      if (new Date(s.created_at) > new Date(existing.lastActive)) {
+      if (s.created_at && new Date(s.created_at) > new Date(existing.lastActive)) {
         existing.lastActive = s.created_at;
       }
-      map.set(s.creator_id, existing);
+      map.set(cId, existing);
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [sessions, profiles, participants]);
