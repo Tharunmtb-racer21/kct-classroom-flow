@@ -1,4 +1,4 @@
-# ⚡ KCT PULSE — Real-time Classroom Engagement
+# ⚡ KCT PULSE — Enterprise Classroom Engagement & Telemetry
 
 <div align="center">
 
@@ -7,9 +7,9 @@
 [![Firebase Auth](https://img.shields.io/badge/Auth-Firebase-orange?style=for-the-badge&logo=firebase)](https://firebase.google.com)
 [![Kumaraguru College](https://img.shields.io/badge/Campus-KCT-blue?style=for-the-badge)](https://kct.ac.in)
 
-**Transforming KCT classrooms into active, interactive learning environments.** 
+**Transforming Kumaraguru College of Technology (KCT) classrooms into active, interactive learning environments.** 
 
-[Explore Live Web App 🚀](https://kct-classroom-flow.vercel.app) • [Faculty Portal 🔑](https://kct-classroom-flow.vercel.app/auth)
+[Explore Live Web App 🚀](https://kct-classroom-flow.vercel.app) • [Faculty Portal 🔑](https://kct-classroom-flow.vercel.app/auth) • [Developer Telemetry 📊](https://kct-classroom-flow.vercel.app/developer)
 
 ---
 
@@ -19,22 +19,31 @@
 
 ---
 
-### ✨ Core Features
+### ✨ Core Features & Platform Capabilities
 
-*   📊 **Instant Audience Polls** — Launch multi-choice polls with live, animating bar charts.
-*   ☁️ **Real-time Word Clouds** — Watch student inputs dynamically form interactive, sizing word clusters.
-*   🤖 **Multi-Provider AI Engine** — Generates questions instantly using an automated fallback list (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) ensuring high-availability (16,000+ free queries/day) scale for up to **600+ faculty members**.
-*   ⚡ **One-Click Activate & Deactivate All** — Simple controls to make all session questions active at once or shut down the active state instantly.
-*   ⏱️ **Live Countdown Timer Sync** — Syncs Auto Play timers in real-time to student screens with active seconds-left countdown headers.
-*   🛡️ **Anti-Repetition Check** — Browser validation checks Supabase responses on reload, locking student inputs to prevent double submissions.
-*   📈 **Rich Reports Breakdown** — Expanded analytical reports displaying student names alongside their exact answered text values for audits.
-*   🔒 **Secure Faculty Control** — Simple sign-in portal via Microsoft OAuth or institutional credentials powered by Firebase Auth.
+*   📊 **Instant Audience Polls & Word Clouds** — Launch multi-choice polls with live, animating bar charts and interactive word clusters.
+*   📺 **Slide Presentation Embed View (`/embed/$code`)** — Dedicated frameless presentation layout designed for embedding directly into **Google Slides** or **Microsoft PowerPoint** slides via `iframe`, complete with projector QR codes and real-time chart synchronization.
+*   👨‍💻 **Developer Telemetry & Faculty Monitoring (`/developer`)** — Password-gated administration dashboard (`Pulse_2026`) featuring:
+    *   **Faculty Creator Mapping**: Shows Faculty Full Name & Email for every session.
+    *   **Student Join Tracking & List Modal**: Displays total joined students with a popup modal listing exact student names.
+    *   **Status & Timeframe Filters**: Instant filter buttons for `ALL`, `🟢 Live`, `📝 Draft`, and `🏁 Ended` sessions, plus timeframes (`1D`, `7D`, `30D`, `ALL`).
+    *   **System Diagnostics**: Latency ping (ms), Supabase WebSocket channel connection status, and Firebase Auth domain statistics (`@kct.ac.in`, `@kongu.edu`).
+*   ⏱️ **Automated 1-Hour Session Management** — Background cleanup loop automatically demotes live sessions active for > 1 hour back to `draft` mode.
+*   🔒 **Enterprise Security & Inactivity Guard** — Restricted exclusively to verified institutional emails (`@kct.ac.in` and `@kongu.edu`) with 30-minute faculty inactivity auto-logout.
+*   🤖 **Multi-Provider AI Engine** — Automated failover question generator (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) ensuring 16,000+ free queries/day.
+*   📈 **Rich PDF Analytical Reports** — Export post-session analytics with exact student responses formatted as PDF downloads.
+
+---
+
+### 📚 Documentation & Technical Handover
+
+- 📄 [**Client Technical Specification & Handover Report (`CLIENT_HANDOVER_SPEC.md`)**](./CLIENT_HANDOVER_SPEC.md) — Complete enterprise technical specification prepared for college administration and stakeholders.
+- 🏗️ [**Project Architecture Guide (`PROJECT_ARCHITECTURE.md`)**](./PROJECT_ARCHITECTURE.md) — Comprehensive guide covering routing, Supabase database schemas, and background timers.
+- 🎨 [**UI/UX Design System & Tokens (`DESIGN_SYSTEM.md`)**](./DESIGN_SYSTEM.md) — Complete visual identity, color scale, glassmorphism specs, and typography guide.
 
 ---
 
 ### 🛠️ Architecture & Tech Stack
-
-Our platform is engineered for high performance, sub-second latency, and scale.
 
 ```mermaid
 graph TD
@@ -44,9 +53,9 @@ graph TD
     A -->|Vercel Edge| E[Serverless Functions]
 ```
 
-*   **Framework:** React 19 + [Vite](https://vite.dev) + [TanStack Router & Start](https://tanstack.com/router)
+*   **Framework:** React 18 + [Vite](https://vite.dev) + [TanStack Router & Start](https://tanstack.com/router)
 *   **Database & Subscriptions:** [Supabase](https://supabase.com) (PostgreSQL + Realtime Channel Engines)
-*   **Authentication:** [Firebase Authentication](https://firebase.google.com) (Faculty accounts, Microsoft OAuth SSO)
+*   **Authentication:** [Firebase Authentication](https://firebase.google.com) (Faculty accounts restricted to `@kct.ac.in`)
 *   **AI API Switching:** Dynamic runtime provider failover implementation (`src/lib/ai-service.ts`)
 *   **Styling & Components:** Tailwind CSS + Radix UI + Lucide Icons
 *   **Hosting:** [Vercel](https://vercel.com) (Edge Network)
@@ -79,7 +88,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
 VITE_FIREBASE_APP_ID="your-app-id"
 
 # AI Multi-Provider API keys
-VITE_AI_PROVIDER="nvidia" # Primary fallback driver
+VITE_AI_PROVIDER="nvidia"
 VITE_NVIDIA_API_KEY="nvapi-..."
 VITE_GROQ_API_KEY="gsk_..."
 VITE_GOOGLE_AI_KEY="AIzaSy..."
@@ -90,7 +99,7 @@ VITE_TOGETHER_API_KEY="together_..."
 ```bash
 npm run dev
 ```
-Open [http://localhost:8081](http://localhost:8081) to test the app locally.
+Open [http://localhost:8080](http://localhost:8080) to test the app locally.
 
 ---
 
