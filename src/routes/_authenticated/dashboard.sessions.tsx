@@ -94,12 +94,10 @@ function SessionsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sessions</h1>
           <p className="mt-1 text-sm text-muted-foreground">Create and manage every classroom session.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle showLabel variant="outline" className="border-border shadow-sm" />
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" />New Session</Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" />New Session</Button>
+          </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Create Session</DialogTitle></DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
@@ -114,7 +112,6 @@ function SessionsPage() {
             </DialogContent>
           </Dialog>
         </div>
-      </div>
 
       <div className="mt-8 glass rounded-2xl overflow-hidden">
         <div className="grid grid-cols-12 gap-4 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/60">
