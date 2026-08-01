@@ -179,35 +179,40 @@ function DeveloperDashboard() {
     setLoading(true);
     const startPing = performance.now();
     try {
-      // 1. Fetch Sessions
+      // 1. Fetch Sessions (latest 200)
       const { data: sData } = await supabase
         .from("sessions")
         .select("id,title,code,status,creator_id,created_at,current_question_id,expires_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
 
-      // 2. Fetch Questions
+      // 2. Fetch Questions (latest 300)
       const { data: qData } = await supabase
         .from("questions")
         .select("id,session_id,type,title,created_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(300);
 
-      // 3. Fetch Participants
+      // 3. Fetch Participants (latest 500)
       const { data: pData } = await supabase
         .from("participants")
         .select("id,session_id,name,joined_at")
-        .order("joined_at", { ascending: false });
+        .order("joined_at", { ascending: false })
+        .limit(500);
 
-      // 4. Fetch Responses
+      // 4. Fetch Responses (latest 500)
       const { data: rData } = await supabase
         .from("responses")
         .select("id,question_id,participant_id,answer,created_at,image_url")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
 
-      // 5. Fetch Profiles
+      // 5. Fetch Profiles (latest 100)
       const { data: profData } = await supabase
         .from("profiles")
         .select("id,full_name,email,avatar_url,created_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
