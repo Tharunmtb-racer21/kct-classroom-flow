@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { toast } from "sonner";
 
 type SessionRow = {
   id: string;
@@ -110,12 +111,54 @@ function DeveloperDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
 
+  const DEV_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+  const handleLockDeveloper = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kct_dev_auth");
+      localStorage.removeItem("kct_dev_auth_time");
+    }
+    setIsAuthenticated(false);
+    setPasskey("");
+  };
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
-      setIsAuthenticated(localStorage.getItem("kct_dev_auth") === "true");
+      const isAuth = localStorage.getItem("kct_dev_auth") === "true";
+      const authTime = Number(localStorage.getItem("kct_dev_auth_time") || "0");
+      if (isAuth && authTime > 0 && Date.now() - authTime > DEV_TIMEOUT_MS) {
+        handleLockDeveloper();
+      } else {
+        setIsAuthenticated(isAuth);
+      }
     }
   }, []);
+
+  // 30-Minute Inactivity Auto-Lock Listener
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timer: NodeJS.Timeout;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        handleLockDeveloper();
+        toast.info("Developer portal locked after 30 minutes of inactivity.");
+      }, DEV_TIMEOUT_MS);
+    };
+
+    resetInactivityTimer();
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, resetInactivityTimer));
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetInactivityTimer));
+    };
+  }, [isAuthenticated]);
 
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -139,15 +182,10 @@ function DeveloperDashboard() {
       setIsAuthenticated(true);
       setErrorMsg("");
       localStorage.setItem("kct_dev_auth", "true");
+      localStorage.setItem("kct_dev_auth_time", Date.now().toString());
     } else {
       setErrorMsg("Access Denied: Incorrect developer password.");
     }
-  };
-
-  const handleLockDeveloper = () => {
-    localStorage.removeItem("kct_dev_auth");
-    setIsAuthenticated(false);
-    setPasskey("");
   };
 
   const addAuditLog = (
