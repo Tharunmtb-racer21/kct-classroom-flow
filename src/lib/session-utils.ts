@@ -75,3 +75,46 @@ export function isPrivatePreviewHost(): boolean {
     h === "127.0.0.1"
   );
 }
+
+import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * Checks all live sessions in Supabase and automatically updates any
+ * session that has been active for more than 1 hour (or past its expires_at)
+ * back to "draft" mode.
+ */
+export async function autoDraftStaleSessions() {
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).getTime();
+    const now = Date.now();
+
+    const { data: liveSessions, error } = await supabase
+      .from("sessions")
+      .select("id, created_at, expires_at")
+      .eq("status", "live");
+
+    if (error || !liveSessions || liveSessions.length === 0) return;
+
+    const idsToDraft: string[] = [];
+
+    liveSessions.forEach((s: any) => {
+      const isExpired = s.expires_at ? new Date(s.expires_at).getTime() <= now : false;
+      const isOlderThan1Hour = s.created_at ? new Date(s.created_at).getTime() <= oneHourAgo : false;
+
+      if (isExpired || isOlderThan1Hour) {
+        idsToDraft.push(s.id);
+      }
+    });
+
+    if (idsToDraft.length > 0) {
+      await supabase
+        .from("sessions")
+        .update({ status: "draft", expires_at: null, current_question_id: null })
+        .in("id", idsToDraft);
+
+      console.log(`⚡ Auto-demoted ${idsToDraft.length} stale live session(s) active > 1 hour back to draft mode.`);
+    }
+  } catch (err) {
+    console.error("Error in autoDraftStaleSessions:", err);
+  }
+}

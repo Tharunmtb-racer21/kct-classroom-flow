@@ -82,13 +82,21 @@ function SessionControl() {
     if (error) toast.error(error.message);
   };
 
-  const startSession = () => updateSession({ status: "live" });
-  const pauseSession = () => updateSession({ status: "draft" });
-  const endSession = () => updateSession({ status: "ended", current_question_id: null, all_active: false });
+  const startSession = () => {
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    updateSession({ status: "live", expires_at: expiresAt });
+    toast.success("Live session started! (Auto-drafts after 1 hour)");
+  };
+  const pauseSession = () => updateSession({ status: "draft", expires_at: null });
+  const endSession = () => updateSession({ status: "ended", current_question_id: null, all_active: false, expires_at: null });
 
   const goToQuestion = async (qid: string | null) => {
-    if (session?.status !== "live") await updateSession({ status: "live", current_question_id: qid });
-    else await updateSession({ current_question_id: qid });
+    if (session?.status !== "live") {
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await updateSession({ status: "live", current_question_id: qid, expires_at: expiresAt });
+    } else {
+      await updateSession({ current_question_id: qid });
+    }
   };
 
   const nextQuestion = () => {
@@ -301,6 +309,17 @@ function SessionControl() {
             className="mt-3 w-full text-xs text-muted-foreground hover:text-foreground"
           >
             Copy join link
+          </button>
+          <button
+            onClick={() => {
+              const embedUrl = `${window.location.origin}/embed/${session.code}`;
+              navigator.clipboard.writeText(embedUrl);
+              toast.success("PowerPoint / Slide Embed URL copied! 📊");
+            }}
+            className="mt-2 w-full text-xs text-primary font-semibold hover:underline flex items-center justify-center gap-1.5"
+          >
+            <PresentationIcon className="h-3.5 w-3.5" />
+            Copy Slide Embed URL (PowerPoint/Google Slides)
           </button>
           {previewWarning && (
             <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">

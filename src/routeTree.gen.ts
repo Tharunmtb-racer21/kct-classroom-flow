@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
+import { Route as EmbedCodeRouteImport } from './routes/embed.$code'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as AuthenticatedDashboardSessionsRouteImport } from './routes/_authenticated/dashboard.sessions'
@@ -20,6 +22,11 @@ import { Route as AuthenticatedDashboardReportsRouteImport } from './routes/_aut
 import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_authenticated/dashboard.profile'
 import { Route as AuthenticatedDashboardSessionIdRouteImport } from './routes/_authenticated/dashboard.session.$id'
 
+const DeveloperRoute = DeveloperRouteImport.update({
+  id: '/developer',
+  path: '/developer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -37,6 +44,11 @@ const IndexRoute = IndexRouteImport.update({
 const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedCodeRoute = EmbedCodeRouteImport.update({
+  id: '/embed/$code',
+  path: '/embed/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -78,7 +90,9 @@ const AuthenticatedDashboardSessionIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/developer': typeof DeveloperRoute
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
@@ -89,6 +103,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/developer': typeof DeveloperRoute
+  '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
@@ -101,7 +117,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/developer': typeof DeveloperRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/_authenticated/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/_authenticated/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
@@ -114,7 +132,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/developer'
     | '/dashboard'
+    | '/embed/$code'
     | '/join/$code'
     | '/dashboard/profile'
     | '/dashboard/reports'
@@ -125,6 +145,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/developer'
+    | '/embed/$code'
     | '/join/$code'
     | '/dashboard/profile'
     | '/dashboard/reports'
@@ -136,7 +158,9 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/developer'
     | '/_authenticated/dashboard'
+    | '/embed/$code'
     | '/join/$code'
     | '/_authenticated/dashboard/profile'
     | '/_authenticated/dashboard/reports'
@@ -149,11 +173,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  DeveloperRoute: typeof DeveloperRoute
+  EmbedCodeRoute: typeof EmbedCodeRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/developer': {
+      id: '/developer'
+      path: '/developer'
+      fullPath: '/developer'
+      preLoaderRoute: typeof DeveloperRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -180,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$code'
       fullPath: '/join/$code'
       preLoaderRoute: typeof JoinCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/$code': {
+      id: '/embed/$code'
+      path: '/embed/$code'
+      fullPath: '/embed/$code'
+      preLoaderRoute: typeof EmbedCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/dashboard': {
@@ -264,6 +304,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  DeveloperRoute: DeveloperRoute,
+  EmbedCodeRoute: EmbedCodeRoute,
   JoinCodeRoute: JoinCodeRoute,
 }
 export const routeTree = rootRouteImport

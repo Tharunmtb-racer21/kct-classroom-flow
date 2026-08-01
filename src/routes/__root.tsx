@@ -137,12 +137,21 @@ function RootShell({ children }: { children: ReactNode }) {
 
 import { Toaster } from "@/components/ui/sonner";
 import { getStoredTheme, applyTheme } from "@/components/theme-toggle";
+import { autoDraftStaleSessions } from "@/lib/session-utils";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
     applyTheme(getStoredTheme());
+    autoDraftStaleSessions();
+
+    // Periodically auto-demote stale live sessions (> 1 hour) back to draft mode every minute
+    const interval = setInterval(() => {
+      autoDraftStaleSessions();
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
