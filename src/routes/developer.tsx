@@ -32,6 +32,7 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/lib/firebase";
 import { autoDraftStaleSessions } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
