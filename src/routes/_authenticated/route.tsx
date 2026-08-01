@@ -23,9 +23,28 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
+import { supabase } from "@/integrations/supabase/client";
+
 function AuthenticatedLayout() {
   const navigate = useNavigate();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync current faculty profile to Supabase profiles table
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user && user.email) {
+      const nameFromEmail = user.email.split("@")[0].replace(/[._-]/g, " ");
+      const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+      supabase.from("profiles").upsert({
+        id: user.uid,
+        email: user.email,
+        full_name: user.displayName || formattedName,
+        avatar_url: user.photoURL,
+      }).then(({ error }) => {
+        if (error) console.error("Auto profile sync error:", error.message);
+      });
+    }
+  }, []);
   
   // 30 minutes in milliseconds
   const INACTIVITY_TIMEOUT = 30 * 60 * 1000;

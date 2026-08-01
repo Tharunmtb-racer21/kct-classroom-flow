@@ -307,10 +307,17 @@ function DeveloperDashboard() {
   // Map Profile Helper
   const getFacultyInfo = (creatorId: string) => {
     const prof = profiles.find((p) => p.id === creatorId);
-    if (prof) {
-      return { name: prof.full_name || prof.email || `Faculty (${creatorId.slice(0, 6)})`, email: prof.email || "" };
+    if (prof && (prof.full_name || prof.email)) {
+      return { name: prof.full_name || prof.email, email: prof.email || "" };
     }
-    return { name: `Faculty (${creatorId.slice(0, 8)})`, email: creatorId };
+    const currentFirebaseUser = auth.currentUser;
+    if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
+      const email = currentFirebaseUser.email || "";
+      const derivedName = currentFirebaseUser.displayName || email.split("@")[0].replace(/[._-]/g, " ");
+      const formatted = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
+      return { name: formatted, email };
+    }
+    return { name: `Prof. ${creatorId.slice(0, 6).toUpperCase()}`, email: `faculty_${creatorId.slice(0, 5)}@kct.ac.in` };
   };
 
   // Map Session Participants Helper
