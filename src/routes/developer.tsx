@@ -107,12 +107,15 @@ export const Route = createFileRoute("/developer")({
 
 function DeveloperDashboard() {
   const [passkey, setPasskey] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
     if (typeof window !== "undefined") {
-      return localStorage.getItem("kct_dev_auth") === "true";
+      setIsAuthenticated(localStorage.getItem("kct_dev_auth") === "true");
     }
-    return false;
-  });
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -411,6 +414,8 @@ function DeveloperDashboard() {
       return true;
     });
   }, [auditLogs, logFilterTag, searchQuery]);
+
+  if (!mounted) return null;
 
   if (!isAuthenticated) {
     return (
