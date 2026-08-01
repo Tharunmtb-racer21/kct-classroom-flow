@@ -124,6 +124,7 @@ function DeveloperDashboard() {
   const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "live" | "draft" | "ended">("ALL");
   const [logFilterTag, setLogFilterTag] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [apiLatencyMs, setApiLatencyMs] = useState<number | null>(null);
@@ -390,18 +391,24 @@ function DeveloperDashboard() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [sessions, profiles, participants]);
 
-  // Filtered Sessions for Search Input
+  // Filtered Sessions for Search Input & Status Filters
   const searchedSessions = useMemo(() => {
-    if (!searchQuery.trim()) return filteredSessionsByTime;
-    const q = searchQuery.toLowerCase();
-    return filteredSessionsByTime.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        s.creator_id.toLowerCase().includes(q) ||
-        getFacultyInfo(s.creator_id).name.toLowerCase().includes(q)
-    );
-  }, [filteredSessionsByTime, searchQuery, profiles]);
+    let result = filteredSessionsByTime;
+    if (statusFilter !== "ALL") {
+      result = result.filter((s) => s.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (s) =>
+          (s.title || "").toLowerCase().includes(q) ||
+          (s.code || "").toLowerCase().includes(q) ||
+          (s.creator_id || "").toLowerCase().includes(q) ||
+          getFacultyInfo(s.creator_id).name.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [filteredSessionsByTime, searchQuery, statusFilter, profiles]);
 
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
@@ -682,6 +689,61 @@ function DeveloperDashboard() {
           {/* TAB 1: ALL SESSIONS & FACULTY MONITOR */}
           <TabsContent value="sessions" className="space-y-4">
             <div className="glass rounded-2xl overflow-hidden border border-border/60">
+              {/* Status Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground mr-1">Status Filter:</span>
+                  <button
+                    onClick={() => setStatusFilter("ALL")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border",
+                      statusFilter === "ALL"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-card/60 text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    All ({filteredSessionsByTime.length})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter("live")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      statusFilter === "live"
+                        ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20"
+                    )}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Live Sessions ({liveSessionsCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter("draft")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      statusFilter === "draft"
+                        ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                        : "bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20"
+                    )}
+                  >
+                    Draft Sessions ({draftSessionsCount})
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter("ended")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      statusFilter === "ended"
+                        ? "bg-slate-700 text-white border-slate-700 shadow-sm"
+                        : "bg-card/60 text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    Ended Sessions ({endedSessionsCount})
+                  </button>
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  Showing <span className="font-bold text-foreground">{searchedSessions.length}</span> sessions
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
