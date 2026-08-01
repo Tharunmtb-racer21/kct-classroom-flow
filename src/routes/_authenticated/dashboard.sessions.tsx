@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { generateSessionCode } from "@/lib/session-utils";
+import { generateSessionCode, autoDraftStaleSessions } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
@@ -37,7 +37,7 @@ function SessionsPage() {
   };
 
   useEffect(() => {
-    load();
+    autoDraftStaleSessions().then(() => load());
     const ch = supabase
       .channel("sessions-list")
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, load)

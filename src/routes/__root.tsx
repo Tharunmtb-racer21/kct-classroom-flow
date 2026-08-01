@@ -144,14 +144,6 @@ function RootComponent() {
 
   useEffect(() => {
     applyTheme(getStoredTheme());
-    autoDraftStaleSessions();
-
-    // Periodically auto-demote stale live sessions (> 1 hour) back to draft mode every minute
-    const interval = setInterval(() => {
-      autoDraftStaleSessions();
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
   }, []);
 
   return (
