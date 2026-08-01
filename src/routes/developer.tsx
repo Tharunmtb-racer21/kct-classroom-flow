@@ -95,6 +95,13 @@ type AuditLogItem = {
   type: "info" | "success" | "warn" | "error";
 };
 
+type FailedAttemptRecord = {
+  id: string;
+  attemptedPass: string;
+  timestamp: string;
+  userAgent: string;
+};
+
 export const Route = createFileRoute("/developer")({
   head: () => ({
     meta: [
@@ -174,6 +181,54 @@ function DeveloperDashboard() {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [selectedSessionForModal, setSelectedSessionForModal] = useState<SessionRow | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [failedAttempts, setFailedAttempts] = useState<FailedAttemptRecord[]>([]);
+
+  // Load Failed Password Attempt History
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("kct_dev_failed_attempts");
+        if (raw) setFailedAttempts(JSON.parse(raw));
+      } catch (e) {
+        console.error("Failed to parse failed attempts:", e);
+      }
+    }
+  }, []);
+
+  const recordFailedAttempt = (attempted: string) => {
+    if (typeof window === "undefined") return;
+    const newRecord: FailedAttemptRecord = {
+      id: `FAIL-${Date.now().toString().slice(-6)}`,
+      attemptedPass: attempted || "(empty input)",
+      timestamp: new Date().toLocaleString(),
+      userAgent: navigator.userAgent.includes("Windows")
+        ? "Windows Client"
+        : navigator.userAgent.includes("Mac")
+        ? "macOS Client"
+        : navigator.userAgent.includes("Android")
+        ? "Android Device"
+        : navigator.userAgent.includes("iPhone")
+        ? "iPhone Device"
+        : "Web Client",
+    };
+    try {
+      const raw = localStorage.getItem("kct_dev_failed_attempts");
+      const list: FailedAttemptRecord[] = raw ? JSON.parse(raw) : [];
+      const updated = [newRecord, ...list].slice(0, 50);
+      localStorage.setItem("kct_dev_failed_attempts", JSON.stringify(updated));
+      setFailedAttempts(updated);
+    } catch (e) {
+      console.error("Failed to save attempt:", e);
+    }
+  };
+
+  const handleClearFailedAttempts = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kct_dev_failed_attempts");
+      setFailedAttempts([]);
+      toast.success("Security access logs cleared.");
+    }
+  };
 
   // Passkey Login Handler
   const handleAuthenticate = (e: React.FormEvent) => {
@@ -184,7 +239,9 @@ function DeveloperDashboard() {
       localStorage.setItem("kct_dev_auth", "true");
       localStorage.setItem("kct_dev_auth_time", Date.now().toString());
     } else {
+      const entered = passkey;
       setErrorMsg("Access Denied: Incorrect developer password.");
+      recordFailedAttempt(entered);
     }
   };
 
@@ -592,6 +649,26 @@ function DeveloperDashboard() {
 
       {/* Main Developer Telemetry Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+        {/* Security Warning Banner for Failed Password Attempts */}
+        {failedAttempts.length > 0 && (
+          <div className="glass rounded-2xl p-4 border border-rose-500/40 bg-rose-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/30 grid place-items-center text-rose-500 shrink-0">
+                <Shield className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-rose-500 uppercase tracking-wider">Security Warning: Failed Developer Password Attempts Logged</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  <span className="font-extrabold text-foreground">{failedAttempts.length} unauthorized access attempt(s)</span> recorded. Last attempt: <span className="font-mono text-foreground">{failedAttempts[0]?.timestamp}</span> with input <code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/30 font-black">{failedAttempts[0]?.attemptedPass}</code>.
+                </div>
+              </div>
+            </div>
+            <Button onClick={handleClearFailedAttempts} variant="outline" size="sm" className="gap-2 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10 shrink-0">
+              <Trash2 className="h-3.5 w-3.5" /> Clear Access Logs
+            </Button>
+          </div>
+        )}
+
         {/* Realtime API & Storage Health Indicators */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
@@ -725,6 +802,9 @@ function DeveloperDashboard() {
               </TabsTrigger>
               <TabsTrigger value="telemetry" className="gap-2 text-xs font-semibold">
                 <Terminal className="h-3.5 w-3.5" /> Telemetry Logs ({auditLogs.length})
+              </TabsTrigger>
+              <TabsTrigger value="security" className="gap-2 text-xs font-semibold text-rose-400 data-[state=active]:text-rose-500">
+                <Shield className="h-3.5 w-3.5" /> Failed Attempts ({failedAttempts.length})
               </TabsTrigger>
             </TabsList>
 
@@ -1033,6 +1113,71 @@ function DeveloperDashboard() {
                   ))
                 )}
               </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB 5: FAILED PASSWORD ATTEMPTS SECURITY LOG */}
+          <TabsContent value="security" className="space-y-4">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-rose-500" /> Security Access Log: Failed Developer Password Attempts
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Tracks every unauthorized access attempt into the Developer Portal with timestamp, entered input, and client device info.
+                  </p>
+                </div>
+
+                {failedAttempts.length > 0 && (
+                  <Button onClick={handleClearFailedAttempts} variant="outline" size="sm" className="gap-2 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10">
+                    <Trash2 className="h-3.5 w-3.5" /> Clear Access Logs
+                  </Button>
+                )}
+              </div>
+
+              {failedAttempts.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 grid place-items-center text-emerald-500 mx-auto">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
+                  <div className="text-sm font-bold text-foreground">No Failed Password Attempts Recorded</div>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    All developer portal access attempts have been clean and authorized.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                      <tr>
+                        <th className="px-4 py-3">Log ID</th>
+                        <th className="px-4 py-3">Attempted Password Input</th>
+                        <th className="px-4 py-3">Timestamp</th>
+                        <th className="px-4 py-3">Client Environment</th>
+                        <th className="px-4 py-3 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {failedAttempts.map((attempt) => (
+                        <tr key={attempt.id} className="hover:bg-rose-500/5 transition">
+                          <td className="px-4 py-3 font-mono font-bold text-rose-400">{attempt.id}</td>
+                          <td className="px-4 py-3 font-mono font-black text-foreground bg-card/60 px-2.5 py-1 rounded max-w-[220px] truncate border border-border/40">
+                            {attempt.attemptedPass}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground font-mono">{attempt.timestamp}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{attempt.userAgent}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/30">
+                              Access Denied
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
