@@ -456,108 +456,107 @@ function ReportsPage() {
       )}
  
       {/* PDF customization Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-white/10 text-foreground scrollbar-thin p-6 rounded-2xl">
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border text-card-foreground scrollbar-thin p-6 rounded-2xl">
           <DialogHeader className="space-y-1">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
-              <FileText className="h-5 w-5 text-blue-400" /> Customize Session Assessment Report
+              <FileText className="h-5 w-5 text-primary" /> Customize Session Assessment Report
             </DialogTitle>
-            <DialogDescription className="text-slate-400 text-sm">
+            <DialogDescription className="text-muted-foreground text-sm">
               Customize the details below to generate a professional, consolidated PDF report for the entire session.
             </DialogDescription>
           </DialogHeader>
- 
+
           <div className="space-y-6 py-4">
             {/* Section 1: College Header */}
             <div className="space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 border-b border-white/5 pb-1">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-primary border-b border-border/50 pb-1">
                 College Header & Academic Info
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="collegeName" className="text-xs text-slate-300">College Name</Label>
+                  <Label htmlFor="collegeName" className="text-xs text-foreground">College Name</Label>
                   <Input
                     id="collegeName"
                     value={collegeName}
                     onChange={(e) => setCollegeName(e.target.value)}
                     placeholder="Enter College Name"
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="departmentName" className="text-xs text-slate-300">Department Name</Label>
+                  <Label htmlFor="departmentName" className="text-xs text-foreground">Department Name</Label>
                   <Input
                     id="departmentName"
                     value={departmentName}
                     onChange={(e) => setDepartmentName(e.target.value)}
                     placeholder="Enter Department Name"
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="collegeLogoUrl" className="text-xs text-slate-300">College Logo Image URL (Optional)</Label>
+                  <Label htmlFor="collegeLogoUrl" className="text-xs text-foreground">College Logo Image URL (Optional)</Label>
                   <Input
                     id="collegeLogoUrl"
                     value={collegeLogoUrl}
                     onChange={(e) => setCollegeLogoUrl(e.target.value)}
                     placeholder="https://example.com/logo.png"
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="reportTitle" className="text-xs text-slate-300">Report Title</Label>
+                  <Label htmlFor="reportTitle" className="text-xs text-foreground">Report Title</Label>
                   <Input
                     id="reportTitle"
                     value={reportTitle}
                     onChange={(e) => setReportTitle(e.target.value)}
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="semester" className="text-xs text-slate-300">Year / Semester</Label>
+                  <Label htmlFor="semester" className="text-xs text-foreground">Year / Semester</Label>
                   <Input
                     id="semester"
                     value={semester}
                     onChange={(e) => setSemester(e.target.value)}
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="courseName" className="text-xs text-slate-300">Course/Degree Name</Label>
+                  <Label htmlFor="courseName" className="text-xs text-foreground">Course/Degree Name</Label>
                   <Input
                     id="courseName"
                     value={courseName}
                     onChange={(e) => setCourseName(e.target.value)}
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="facultyName" className="text-xs text-slate-300">Faculty/Instructor Name</Label>
+                  <Label htmlFor="facultyName" className="text-xs text-foreground">Faculty/Instructor Name</Label>
                   <Input
                     id="facultyName"
                     value={facultyName}
                     onChange={(e) => setFacultyName(e.target.value)}
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="subject" className="text-xs text-slate-300">Subject / Course Topic</Label>
+                  <Label htmlFor="subject" className="text-xs text-foreground">Subject / Course Topic</Label>
                   <Input
                     id="subject"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="bg-black/20 border-white/10 text-sm"
+                    className="bg-card/40 border-border text-sm"
                   />
                 </div>
               </div>
             </div>
           </div>
- 
-          <DialogFooter className="border-t border-white/5 pt-4">
+
+          <DialogFooter className="border-t border-border/50 pt-4">
             <Button
               variant="outline"
               onClick={() => setModalOpen(false)}
-              className="border-white/10 hover:bg-white/5 text-slate-300 text-xs cursor-pointer"
+              className="border-border hover:bg-accent text-foreground text-xs cursor-pointer"
             >
               Cancel
             </Button>

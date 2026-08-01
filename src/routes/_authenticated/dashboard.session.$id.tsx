@@ -16,6 +16,7 @@ import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
 import { extractTextFromDocument } from "@/lib/document-parser";
 import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType } from "@/lib/ai-service";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
@@ -201,6 +202,7 @@ function SessionControl() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <ThemeToggle variant="outline" />
           {session.status !== "live" && session.status !== "ended" && (
             <Button onClick={startSession} className="gradient-bg"><Play className="mr-2 h-4 w-4" /> Start</Button>
           )}

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   signInWithPopup,
   GoogleAuthProvider,
@@ -163,6 +164,9 @@ function AuthPage() {
       className="min-h-screen flex items-center justify-center px-4 py-10 bg-cover bg-center bg-fixed bg-no-repeat relative before:absolute before:inset-0 before:bg-background/80"
       style={{ backgroundImage: "url('/kct-bg-new.png')" }}
     >
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle variant="ghost" className="bg-card/40 backdrop-blur border border-border/50" />
+      </div>
       <div className="w-full max-w-md relative z-10">
         <Link to="/" className="mb-8 flex items-center justify-center gap-3">
           <div className="grid h-16 w-16 place-items-center rounded-2xl overflow-hidden shadow-[var(--shadow-glow)]">

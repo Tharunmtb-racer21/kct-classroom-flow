@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Session = {
   id: string;
@@ -58,7 +59,8 @@ function DashboardHome() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage your live classroom sessions.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <ThemeToggle showLabel variant="outline" className="border-border shadow-sm" />
           <div className="bg-white h-10 px-4 flex items-center justify-center rounded-md shadow-sm">
             <img src="/kumaraguru-logo.jpg" alt="Kumaraguru Institutions" className="h-6 object-contain" />
           </div>

@@ -10,6 +10,7 @@ import { generateSessionCode } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Row = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; created_at: string; participants: { count: number }[] };
 
@@ -93,23 +94,26 @@ function SessionsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sessions</h1>
           <p className="mt-1 text-sm text-muted-foreground">Create and manage every classroom session.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" />New Session</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Create Session</DialogTitle></DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Session title</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Electrochemistry Lecture" />
-              </div>
-              <Button type="submit" disabled={saving || !title.trim()} className="w-full gradient-bg">
-                {saving ? "Creating..." : "Create Session"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-3">
+          <ThemeToggle showLabel variant="outline" className="border-border shadow-sm" />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" />New Session</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create Session</DialogTitle></DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Session title</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Electrochemistry Lecture" />
+                </div>
+                <Button type="submit" disabled={saving || !title.trim()} className="w-full gradient-bg">
+                  {saving ? "Creating..." : "Create Session"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="mt-8 glass rounded-2xl overflow-hidden">

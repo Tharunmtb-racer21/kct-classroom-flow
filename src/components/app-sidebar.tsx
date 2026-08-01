@@ -1,9 +1,8 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, LogOut, PresentationIcon, User, Sun, Moon } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { BarChart3, LayoutDashboard, LogOut, PresentationIcon, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
-import { useState, useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/profile"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
@@ -49,12 +48,15 @@ export function AppSidebar() {
           );
         })}
       </nav>
-      <button
-        onClick={handleLogout}
-        className="m-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
-      >
-        <LogOut className="h-4 w-4" /> Logout
-      </button>
+      <div className="p-4 border-t border-border/60 space-y-1">
+        <ThemeToggle showLabel variant="ghost" className="w-full justify-start px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-foreground" />
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
+        >
+          <LogOut className="h-4 w-4" /> Logout
+        </button>
+      </div>
     </aside>
   );
 }

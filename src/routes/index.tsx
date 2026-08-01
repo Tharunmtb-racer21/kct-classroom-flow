@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BarChart3, Cloud, Sparkles, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -38,6 +39,7 @@ function Index() {
           <span className="text-2xl font-extrabold tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
         </Link>
         <div className="flex items-center gap-3">
+          <ThemeToggle variant="ghost" />
           <Link to="/auth">
             <Button variant="ghost">Faculty Login</Button>
           </Link>

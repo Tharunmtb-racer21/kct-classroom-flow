@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Upload, Sun, Moon, Timer } from "lucide-react";
+import { CheckCircle2, Loader2, Upload, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
@@ -36,23 +37,6 @@ function JoinPage() {
   const [answer, setAnswer] = useState("");
   const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
   const [answerMap, setAnswerMap] = useState<Record<string, string>>({});
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-
-  useEffect(() => {
-    const current = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    setTheme(current);
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    if (next === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("theme", next);
-    setTheme(next);
-  };
 
   console.log("JoinPage Render:", {
     session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
@@ -493,13 +477,16 @@ function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLef
           <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
         </div>
 
-        {/* Real-time Countdown Banner for Students */}
-        {secondsLeft !== null && secondsLeft !== undefined && secondsLeft > 0 && (
-          <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs text-primary font-bold animate-pulse">
-            <Timer className="h-3.5 w-3.5" />
-            <span>Time Left: {secondsLeft}s</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Real-time Countdown Banner for Students */}
+          {secondsLeft !== null && secondsLeft !== undefined && secondsLeft > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs text-primary font-bold animate-pulse">
+              <Timer className="h-3.5 w-3.5" />
+              <span>Time Left: {secondsLeft}s</span>
+            </div>
+          )}
+          <ThemeToggle variant="ghost" size="sm" />
+        </div>
       </header>
       <main className="flex-1 px-5 py-8 flex items-start justify-center">
         <div className="w-full max-w-md">{children}</div>
