@@ -245,7 +245,7 @@ function DeveloperDashboard() {
               </label>
               <Input
                 type="password"
-                placeholder="Enter password (e.g. Pulse_2026)"
+                placeholder="Enter Developer Password"
                 value={passkey}
                 onChange={(e) => {
                   setPasskey(e.target.value);
@@ -265,7 +265,7 @@ function DeveloperDashboard() {
           </form>
 
           <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
-            <Shield className="h-3.5 w-3.5 text-emerald-500" /> Authorized Developers Only · Password: <span className="font-mono font-bold">Pulse_2026</span>
+            <Shield className="h-3.5 w-3.5 text-emerald-500" /> Authorized Admin & Developer Use Only
           </div>
         </div>
       </div>
