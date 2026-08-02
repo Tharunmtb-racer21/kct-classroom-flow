@@ -109,11 +109,10 @@ export async function generateSessionPDF(
   const pageWidth = doc.internal.pageSize.width;
   const margin = 15;
 
-  // Pre-load logo
+  // Pre-load logo (Default to official Kumaraguru College of Technology permanent logo)
   let logoImg: HTMLImageElement | null = null;
-  if (session.logoUrl) {
-    logoImg = await loadImage(session.logoUrl);
-  }
+  const targetLogoUrl = session.logoUrl || (typeof window !== "undefined" ? `${window.location.origin}/kct-logo-opt.jpg` : "/kct-logo-opt.jpg");
+  logoImg = await loadImage(targetLogoUrl);
 
   // Header template
   const drawPageHeader = (docInstance: jsPDF) => {
@@ -123,9 +122,13 @@ export async function generateSessionPDF(
 
     if (logoImg) {
       try {
-        docInstance.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
+        docInstance.addImage(logoImg, "JPEG", logoX, logoY, logoSize, logoSize);
       } catch (e) {
-        drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+        try {
+          docInstance.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
+        } catch (e2) {
+          drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+        }
       }
     } else {
       drawFallbackLogo(docInstance, logoX, logoY, logoSize);
@@ -134,7 +137,7 @@ export async function generateSessionPDF(
     docInstance.setTextColor(15, 23, 42); // slate-900
     docInstance.setFont("helvetica", "bold");
     docInstance.setFontSize(12);
-    docInstance.text(session.collegeName || "ABC Engineering College", pageWidth / 2, 15, { align: "center" });
+    docInstance.text(session.collegeName || "Kumaraguru College of Technology", pageWidth / 2, 15, { align: "center" });
 
     if (session.departmentName) {
       docInstance.setFont("helvetica", "normal");

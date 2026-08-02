@@ -80,8 +80,8 @@ function ReportsPage() {
   const [selectedSession, setSelectedSession] = useState<Row | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
 
-  const [collegeName, setCollegeName] = useState("KCT Engineering College");
-  const [collegeLogoUrl, setCollegeLogoUrl] = useState("");
+  const [collegeName, setCollegeName] = useState("Kumaraguru College of Technology");
+  const [collegeLogoUrl, setCollegeLogoUrl] = useState("/kct-logo-opt.jpg");
   const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
   const [reportTitle, setReportTitle] = useState("Student Assessment Report");
   const [registerNumber, setRegisterNumber] = useState("");
