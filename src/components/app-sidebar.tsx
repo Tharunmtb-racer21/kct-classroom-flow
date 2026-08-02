@@ -1,15 +1,14 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, LogOut, Presentation, User, Lock } from "lucide-react";
+import { BarChart3, LayoutDashboard, LogOut, Presentation, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/profile" | "/developer"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
+const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/profile"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
   { title: "Sessions", url: "/dashboard/sessions", icon: Presentation },
   { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
   { title: "Profile", url: "/dashboard/profile", icon: User },
-  { title: "Developer Lock", url: "/developer", icon: Lock },
 ];
 
 export function AppSidebar() {

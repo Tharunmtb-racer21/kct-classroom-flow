@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LayoutDashboard, Presentation, BarChart3, User, Lock } from "lucide-react";
+import { LayoutDashboard, Presentation, BarChart3, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -13,7 +13,6 @@ const mobileNavItems = [
   { title: "Sessions", url: "/dashboard/sessions" as const, icon: Presentation },
   { title: "Reports", url: "/dashboard/reports" as const, icon: BarChart3 },
   { title: "Profile", url: "/dashboard/profile" as const, icon: User },
-  { title: "Developer Lock", url: "/developer" as const, icon: Lock },
 ];
 
 function DashboardLayout() {
