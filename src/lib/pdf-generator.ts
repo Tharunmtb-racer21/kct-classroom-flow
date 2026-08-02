@@ -114,6 +114,28 @@ export async function generateSessionPDF(
   const targetLogoUrl = session.logoUrl || (typeof window !== "undefined" ? `${window.location.origin}/kct-logo-opt.jpg` : "/kct-logo-opt.jpg");
   logoImg = await loadImage(targetLogoUrl);
 
+  // Pre-load background seal watermark image
+  let watermarkImg: HTMLImageElement | null = null;
+  const watermarkUrl = typeof window !== "undefined" ? `${window.location.origin}/kct-seal-watermark.jpg` : "/kct-seal-watermark.jpg";
+  watermarkImg = await loadImage(watermarkUrl);
+
+  // Watermark Background template (Low Transparency 8%)
+  const drawWatermark = (docInstance: jsPDF) => {
+    if (watermarkImg) {
+      try {
+        docInstance.saveGraphicsState();
+        docInstance.setGState(new (docInstance as any).GState({ opacity: 0.08 }));
+        const wmSize = 110; // 110mm width & height centered in A4 page
+        const wmX = (pageWidth - wmSize) / 2;
+        const wmY = (pageHeight - wmSize) / 2;
+        docInstance.addImage(watermarkImg, "JPEG", wmX, wmY, wmSize, wmSize);
+        docInstance.restoreGraphicsState();
+      } catch (e) {
+        console.error("Watermark render error:", e);
+      }
+    }
+  };
+
   // Header template
   const drawPageHeader = (docInstance: jsPDF) => {
     const logoSize = 16;
@@ -427,10 +449,11 @@ export async function generateSessionPDF(
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
   });
 
-  // --- Add Page Numbers, Headers and Footers to All Pages ---
+  // --- Add Page Numbers, Headers, Footers, and Watermarks to All Pages ---
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    drawWatermark(doc);
     drawPageHeader(doc);
     drawPageFooter(doc, i, totalPages);
   }

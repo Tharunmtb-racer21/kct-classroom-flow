@@ -288,9 +288,16 @@ function ReportsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Detailed analytics and responses across your sessions.</p>
+    <div className="mx-auto max-w-6xl px-6 py-10 relative">
+      {/* Low transparency KCT Official Seal Watermark Background */}
+      <div className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center opacity-[0.04]">
+        <img src="/kct-seal-watermark.jpg" alt="KCT Seal Watermark" className="w-[500px] h-[500px] object-contain" />
+      </div>
+
+      <div className="relative z-10 space-y-1">
+        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+        <p className="text-sm text-muted-foreground">Detailed analytics and responses across your sessions.</p>
+      </div>
 
       {loading ? (
         <div className="mt-8 flex justify-center py-12">
