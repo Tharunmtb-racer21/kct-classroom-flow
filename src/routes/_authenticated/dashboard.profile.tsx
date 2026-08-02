@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
-import { User, Calendar, Shield, PresentationIcon, Mail, Upload, Loader2, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { User, Calendar, Shield, Presentation, Mail, Upload, Loader2, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
   component: ProfilePage,
@@ -295,7 +295,7 @@ function ProfilePage() {
             <div className="space-y-1">
               <div className="text-muted-foreground text-xs uppercase">Sessions Launched</div>
               <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                <PresentationIcon className="h-4 w-4 text-primary" />
+                <Presentation className="h-4 w-4 text-primary" />
                 {sessionCount} sessions
               </div>
             </div>

@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { generateSessionPDF } from "@/lib/pdf-generator";
+import { exportSessionToCSV, exportSessionToExcel } from "@/lib/export-utils";
 
 type Response = {
   id: string;
@@ -362,13 +363,31 @@ function ReportsPage() {
                           </TabsTrigger>
                         </TabsList>
                         
-                        <Button
-                          onClick={() => handleOpenModal(r)}
-                          size="sm"
-                          className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20 transition hover:shadow-blue-500/30 self-start sm:self-auto"
-                        >
-                          <Download className="h-4 w-4" /> Download Session Report
-                        </Button>
+                        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                          <Button
+                            onClick={() => exportSessionToCSV(r)}
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold rounded-xl"
+                          >
+                            <Download className="h-4 w-4" /> Export CSV
+                          </Button>
+                          <Button
+                            onClick={() => exportSessionToExcel(r)}
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-purple-500/40 text-purple-400 hover:bg-purple-500/10 text-xs font-semibold rounded-xl"
+                          >
+                            <Download className="h-4 w-4" /> Export Excel (.xlsx)
+                          </Button>
+                          <Button
+                            onClick={() => handleOpenModal(r)}
+                            size="sm"
+                            className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20 transition hover:shadow-blue-500/30"
+                          >
+                            <FileText className="h-4 w-4" /> PDF Report
+                          </Button>
+                        </div>
                       </div>
  
                       <TabsContent value="analytics" className="space-y-6">

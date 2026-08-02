@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -318,7 +318,7 @@ function SessionControl() {
             }}
             className="mt-2 w-full text-xs text-primary font-semibold hover:underline flex items-center justify-center gap-1.5"
           >
-            <PresentationIcon className="h-3.5 w-3.5" />
+            <Presentation className="h-3.5 w-3.5" />
             Copy Slide Embed URL (PowerPoint/Google Slides)
           </button>
           {previewWarning && (
