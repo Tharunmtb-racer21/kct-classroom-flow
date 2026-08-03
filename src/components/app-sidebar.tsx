@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { BarChart3, LayoutDashboard, LogOut, Presentation, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
+import { logUserLogout } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const items: { title: string; url: "/dashboard" | "/dashboard/sessions" | "/dashboard/reports" | "/dashboard/profile"; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
@@ -16,6 +17,7 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const handleLogout = async () => {
+    await logUserLogout();
     await auth.signOut();
     navigate({ to: "/", replace: true });
   };

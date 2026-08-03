@@ -224,6 +224,57 @@ export type Database = {
         }
         Relationships: []
       }
+      login_logs: {
+        Row: {
+          id: string
+          user_id: string
+          role: string
+          email: string | null
+          login_time: string
+          logout_time: string | null
+          session_duration: number | null
+          browser: string | null
+          device: string | null
+          operating_system: string | null
+          ip_address: string | null
+          country: string | null
+          city: string | null
+          status: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role?: string
+          email?: string | null
+          login_time?: string
+          logout_time?: string | null
+          session_duration?: number | null
+          browser?: string | null
+          device?: string | null
+          operating_system?: string | null
+          ip_address?: string | null
+          country?: string | null
+          city?: string | null
+          status?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: string
+          email?: string | null
+          login_time?: string
+          logout_time?: string | null
+          session_duration?: number | null
+          browser?: string | null
+          device?: string | null
+          operating_system?: string | null
+          ip_address?: string | null
+          country?: string | null
+          city?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -235,6 +286,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      get_admin_dashboard_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
     }
     Enums: {

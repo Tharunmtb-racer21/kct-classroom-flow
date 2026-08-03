@@ -95,66 +95,78 @@ function ReportsPage() {
   // Use user from the route context (loaded securely in _authenticated beforeLoad)
   const { user } = Route.useRouteContext() as { user: any };
 
-  useEffect(() => {
-    (async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const { data, error } = await supabase
-          .from("sessions")
-          .select(`
+  const loadReports = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("sessions")
+        .select(`
+          id,
+          title,
+          code,
+          status,
+          created_at,
+          participants (
+            id,
+            name,
+            joined_at
+          ),
+          questions!session_id (
             id,
             title,
-            code,
-            status,
-            created_at,
-            participants (
+            type,
+            options,
+            correct_answer,
+            order_index,
+            responses (
               id,
-              name,
-              joined_at
-            ),
-            questions!session_id (
-              id,
-              title,
-              type,
-              options,
-              correct_answer,
-              order_index,
-              responses (
-                id,
-                answer,
-                participant_id,
-                created_at
-              )
+              answer,
+              participant_id,
+              created_at
             )
-          `)
-          .eq("creator_id", user.uid)
-          .order("created_at", { ascending: false });
+          )
+        `)
+        .eq("creator_id", user.uid)
+        .order("created_at", { ascending: false });
 
-        if (error) {
-          console.error("Supabase error fetching reports:", error);
-          const { toast } = await import("sonner");
-          toast.error("Failed to load reports: " + error.message);
-          throw error;
-        }
-
-        console.log("Reports data loaded successfully:", data);
-
-        // Ensure questions are sorted by order_index
-        const formattedData = (data as unknown as Row[])?.map(session => ({
-          ...session,
-          questions: [...(session.questions ?? [])].sort((a, b) => a.order_index - b.order_index)
-        })) ?? [];
-
-        setRows(formattedData);
-      } catch (err: any) {
-        console.error("Failed to load reports:", err);
-      } finally {
-        setLoading(false);
+      if (error) {
+        console.error("Supabase error fetching reports:", error);
+        const { toast } = await import("sonner");
+        toast.error("Failed to load reports: " + error.message);
+        throw error;
       }
-    })();
+
+      // Ensure questions are sorted by order_index
+      const formattedData = (data as unknown as Row[])?.map(session => ({
+        ...session,
+        questions: [...(session.questions ?? [])].sort((a, b) => a.order_index - b.order_index)
+      })) ?? [];
+
+      setRows(formattedData);
+    } catch (err: any) {
+      console.error("Failed to load reports:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+
+    if (!user) return;
+    const channel = supabase
+      .channel("reports-live-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` }, loadReports)
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, loadReports)
+      .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadReports)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const toggleExpand = (id: string) => {

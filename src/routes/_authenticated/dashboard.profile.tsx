@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
+import { logUserLogout } from "@/lib/login-logger";
 import { User, Calendar, Shield, Presentation, Mail, Upload, Loader2, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
@@ -170,6 +171,7 @@ function ProfilePage() {
   };
 
   const logout = async () => {
+    await logUserLogout();
     await auth.signOut();
     navigate({ to: "/", replace: true });
   };

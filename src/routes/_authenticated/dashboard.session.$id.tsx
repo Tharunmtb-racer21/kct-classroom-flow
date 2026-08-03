@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
+type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null; created_at?: string; creator_id?: string };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
 
@@ -34,14 +34,24 @@ function SessionControl() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [responses, setResponses] = useState<Response[]>([]);
+  const [allSessionResponses, setAllSessionResponses] = useState<Response[]>([]);
 
   const loadAll = async () => {
-    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url").eq("id", id).maybeSingle();
+    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id").eq("id", id).maybeSingle();
     setSession(s as Session | null);
     const { data: qs } = await supabase.from("questions").select("*").eq("session_id", id).order("order_index");
-    setQuestions(((qs ?? []) as unknown) as Question[]);
+    const qList = ((qs ?? []) as unknown) as Question[];
+    setQuestions(qList);
     const { data: ps } = await supabase.from("participants").select("id,name,joined_at").eq("session_id", id).order("joined_at");
     setParticipants((ps ?? []) as Participant[]);
+
+    if (qList.length > 0) {
+      const qIds = qList.map((q) => q.id);
+      const { data: respData } = await supabase.from("responses").select("*").in("question_id", qIds);
+      setAllSessionResponses((respData ?? []) as Response[]);
+    } else {
+      setAllSessionResponses([]);
+    }
   };
 
   useEffect(() => {
@@ -51,6 +61,7 @@ function SessionControl() {
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `id=eq.${id}` }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "questions", filter: `session_id=eq.${id}` }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "participants", filter: `session_id=eq.${id}` }, loadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadAll)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [id]);
@@ -286,6 +297,44 @@ function SessionControl() {
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Dynamic Session Analytics Summary Bar */}
+      <div className="mt-6 glass rounded-2xl p-5 border border-white/10 bg-white/[0.02] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 text-xs">
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Questions</span>
+          <div className="text-xl font-bold text-foreground mt-0.5">{questions.length} Qs</div>
+        </div>
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Students Joined</span>
+          <div className="text-xl font-bold text-foreground mt-0.5">{participants.length} Students</div>
+        </div>
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Total Submissions</span>
+          <div className="text-xl font-bold text-emerald-400 mt-0.5">{allSessionResponses.length} Resp.</div>
+        </div>
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Participation %</span>
+          <div className="text-xl font-bold text-cyan-400 mt-0.5">
+            {questions.length > 0 && participants.length > 0
+              ? Math.min(100, Math.round((allSessionResponses.length / (questions.length * participants.length)) * 100))
+              : 0}%
+          </div>
+        </div>
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Completion %</span>
+          <div className="text-xl font-bold text-purple-400 mt-0.5">
+            {questions.length > 0
+              ? Math.round((questions.filter(q => allSessionResponses.some(r => r.question_id === q.id)).length / questions.length) * 100)
+              : 0}%
+          </div>
+        </div>
+        <div>
+          <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">Export Status</span>
+          <div className="text-sm font-semibold text-emerald-400 mt-1 flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Ready (PDF/CSV)
+          </div>
         </div>
       </div>
 

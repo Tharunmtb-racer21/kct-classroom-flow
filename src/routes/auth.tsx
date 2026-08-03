@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
+import { logUserLogin } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   signInWithPopup,
@@ -64,6 +65,7 @@ function AuthPage() {
       console.error("Failed to sync user profile in database:", error);
       toast.error("Database sync failed: " + error.message);
     }
+    let currentRole = "faculty";
     const { data: roleExists } = await supabase.from("user_roles").select("role").eq("user_id", user.uid).maybeSingle();
     if (!roleExists) {
       const { error: roleErr } = await supabase.from("user_roles").insert({
@@ -73,7 +75,11 @@ function AuthPage() {
       if (roleErr) {
         console.error("Failed to sync user role in database:", roleErr);
       }
+    } else {
+      currentRole = roleExists.role;
     }
+    // Record login entry in login_logs
+    await logUserLogin({ uid: user.uid, email: user.email }, currentRole);
   };
 
   useEffect(() => {

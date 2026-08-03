@@ -88,6 +88,20 @@ type ProfileRow = {
   created_at?: string;
 };
 
+type LoginLogRow = {
+  id: string;
+  user_id: string;
+  role: string;
+  email: string | null;
+  login_time: string;
+  logout_time: string | null;
+  session_duration: number | null;
+  browser: string | null;
+  device: string | null;
+  operating_system: string | null;
+  status: string;
+};
+
 type AuditLogItem = {
   index: number;
   id: string;
@@ -176,6 +190,7 @@ function DeveloperDashboard() {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [loginLogs, setLoginLogs] = useState<LoginLogRow[]>([]);
   const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "ALL">("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "live" | "draft" | "ended">("ALL");
   const [questionTypeFilter, setQuestionTypeFilter] = useState<"ALL" | "poll" | "wordcloud" | "quiz">("ALL");
@@ -313,6 +328,13 @@ function DeveloperDashboard() {
         .order("created_at", { ascending: false })
         .limit(100);
 
+      // 6. Fetch Login Logs (latest 200)
+      const { data: logData } = await supabase
+        .from("login_logs")
+        .select("id,user_id,role,email,login_time,logout_time,session_duration,browser,device,operating_system,status")
+        .order("login_time", { ascending: false })
+        .limit(200);
+
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
 
@@ -321,12 +343,14 @@ function DeveloperDashboard() {
       const pRows = (pData as ParticipantRow[]) || [];
       const rRows = (rData as ResponseRow[]) || [];
       const profRows = (profData as ProfileRow[]) || [];
+      const lRows = (logData as LoginLogRow[]) || [];
 
       setSessions(sRows);
       setQuestions(qRows);
       setParticipants(pRows);
       setResponses(rRows);
       setProfiles(profRows);
+      setLoginLogs(lRows);
 
       // Re-populate audit log history
       const initialLogs: AuditLogItem[] = [];
@@ -414,6 +438,11 @@ function DeveloperDashboard() {
         const r = payload.new as ResponseRow;
         addAuditLog(`New response received: '${r?.answer || ""}'`, "RESPONSE", "success");
         setResponses((prev) => [r, ...prev]);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "login_logs" }, (payload) => {
+        const l = payload.new as LoginLogRow;
+        addAuditLog(`Faculty Authentication Event: ${l?.email || "Faculty"} logged in/updated`, "AUTH", "info");
+        loadData();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "questions" }, (payload) => {
         const q = payload.new as QuestionRow;
@@ -834,6 +863,9 @@ function DeveloperDashboard() {
               <TabsTrigger value="creators" className="gap-2 text-xs font-semibold">
                 <UserCheck className="h-3.5 w-3.5" /> Faculty Breakdown ({uniqueCreators.length})
               </TabsTrigger>
+              <TabsTrigger value="login_logs" className="gap-2 text-xs font-semibold">
+                <Activity className="h-3.5 w-3.5 text-emerald-400" /> Login History ({loginLogs.length})
+              </TabsTrigger>
               <TabsTrigger value="questions" className="gap-2 text-xs font-semibold">
                 <HelpCircle className="h-3.5 w-3.5 text-cyan-500" /> Questions Added ({filteredQuestionsByTime.length})
               </TabsTrigger>
@@ -1135,6 +1167,89 @@ function DeveloperDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          {/* TAB: LOGIN HISTORY MONITOR */}
+          <TabsContent value="login_logs" className="space-y-4">
+            <div className="glass rounded-2xl overflow-hidden border border-border/60">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+                  Faculty Login Logs & Active Sessions ({loginLogs.length})
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  Active Faculty Online: <span className="font-bold text-emerald-400">{loginLogs.filter((l) => !l.logout_time).length}</span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">Faculty / User Email</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Login Time</th>
+                      <th className="px-4 py-3">Logout Time</th>
+                      <th className="px-4 py-3">Session Duration</th>
+                      <th className="px-4 py-3">Browser / Device</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {loginLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No login history recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      loginLogs.map((log) => {
+                        const isOnline = !log.logout_time;
+                        const durationSec = log.session_duration ?? 0;
+                        const durationFormatted = durationSec > 0 
+                          ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s` 
+                          : isOnline ? "Active" : "< 1m";
+
+                        return (
+                          <tr key={log.id} className="hover:bg-accent/40 transition">
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {log.email || `User ${log.user_id.slice(0, 8)}`}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                {log.role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground font-mono">
+                              {new Date(log.login_time).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground font-mono">
+                              {log.logout_time ? new Date(log.logout_time).toLocaleString() : "Active Session"}
+                            </td>
+                            <td className="px-4 py-3 font-mono font-semibold text-foreground">
+                              {durationFormatted}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {log.browser || "Browser"} • {log.device || "Desktop"} ({log.operating_system || "OS"})
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border",
+                                isOnline 
+                                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" 
+                                  : "bg-muted text-muted-foreground border-border"
+                              )}>
+                                {isOnline && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                                {isOnline ? "Online" : "Logged Out"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </TabsContent>
 
