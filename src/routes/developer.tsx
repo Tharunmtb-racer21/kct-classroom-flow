@@ -461,18 +461,38 @@ function DeveloperDashboard() {
     if (!creatorId) {
       return { name: "Faculty (Unknown)", email: "unknown@kct.ac.in" };
     }
+
+    // 1. Check Profiles table
     const prof = profiles.find((p) => p.id === creatorId);
     if (prof && (prof.full_name || prof.email)) {
-      return { name: prof.full_name || prof.email, email: prof.email || "" };
+      const email = prof.email || "";
+      const name = prof.full_name || (email ? email.split("@")[0].replace(/[._-]/g, " ") : "Faculty");
+      return { name, email };
     }
+
+    // 2. Check Login Logs table
+    const logMatch = loginLogs.find((l) => l.user_id === creatorId);
+    if (logMatch && logMatch.email) {
+      const email = logMatch.email;
+      const rawName = email.split("@")[0].replace(/[._-]/g, " ");
+      const formattedName = rawName
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      return { name: formattedName, email };
+    }
+
+    // 3. Check Current Logged In Firebase User
     const currentFirebaseUser = auth.currentUser;
     if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
       const email = currentFirebaseUser.email || "";
-      const derivedName = currentFirebaseUser.displayName || email.split("@")[0].replace(/[._-]/g, " ");
+      const derivedName = currentFirebaseUser.displayName || (email ? email.split("@")[0].replace(/[._-]/g, " ") : "Faculty");
       const formatted = derivedName ? derivedName.charAt(0).toUpperCase() + derivedName.slice(1) : "Faculty";
       return { name: formatted, email };
     }
-    return { name: `Prof. ${creatorId.slice(0, 6).toUpperCase()}`, email: `faculty_${creatorId.slice(0, 5)}@kct.ac.in` };
+
+    // 4. Fallback for unlinked historical test sessions
+    return { name: `Faculty Member (${creatorId.slice(0, 6)})`, email: `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in` };
   };
 
   // Map Session Participants Helper
