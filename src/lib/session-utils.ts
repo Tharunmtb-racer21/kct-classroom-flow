@@ -124,7 +124,7 @@ export async function autoDraftStaleSessions() {
  */
 export async function purgeEmptyTestSessions(): Promise<number> {
   try {
-    const { data: count, error } = await supabase.rpc("purge_empty_draft_sessions");
+    const { data: count, error } = await (supabase.rpc as any)("purge_empty_draft_sessions");
     if (!error && typeof count === "number") {
       console.log(`⚡ Purged ${count} empty draft test session(s).`);
       return count;

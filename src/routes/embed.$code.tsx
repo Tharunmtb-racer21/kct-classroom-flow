@@ -105,7 +105,7 @@ function EmbedPage() {
       const { data } = await supabase
         .from("questions")
         .select("id,session_id,type,title,options,correct_answer,image_url")
-        .eq("id", session.current_question_id)
+        .eq("id", session.current_question_id!)
         .maybeSingle();
 
       if (data) {

@@ -58,6 +58,9 @@ type QuestionRow = {
   session_id: string;
   type: "wordcloud" | "poll" | "quiz";
   title: string;
+  options?: any;
+  correct_answer?: string | null;
+  image_url?: string | null;
   created_at?: string;
 };
 
@@ -175,6 +178,7 @@ function DeveloperDashboard() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "ALL">("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "live" | "draft" | "ended">("ALL");
+  const [questionTypeFilter, setQuestionTypeFilter] = useState<"ALL" | "poll" | "wordcloud" | "quiz">("ALL");
   const [logFilterTag, setLogFilterTag] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [apiLatencyMs, setApiLatencyMs] = useState<number | null>(null);
@@ -284,7 +288,7 @@ function DeveloperDashboard() {
       // 2. Fetch Questions (latest 300)
       const { data: qData } = await supabase
         .from("questions")
-        .select("id,session_id,type,title,created_at")
+        .select("id,session_id,type,title,options,correct_answer,image_url,created_at")
         .order("created_at", { ascending: false })
         .limit(300);
 
@@ -398,7 +402,7 @@ function DeveloperDashboard() {
       .channel("dev-telemetry-suite")
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, (payload) => {
         const s = payload.new as SessionRow;
-        addAuditLog(`Session state updated: '${s?.title || payload.old?.id}' -> [Status: ${s?.status}]`, "SESSION", "success");
+        addAuditLog(`Session state updated: '${s?.title || (payload.old as SessionRow)?.id}' -> [Status: ${s?.status}]`, "SESSION", "success");
         loadData();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "participants" }, (payload) => {
@@ -410,6 +414,11 @@ function DeveloperDashboard() {
         const r = payload.new as ResponseRow;
         addAuditLog(`New response received: '${r?.answer || ""}'`, "RESPONSE", "success");
         setResponses((prev) => [r, ...prev]);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "questions" }, (payload) => {
+        const q = payload.new as QuestionRow;
+        addAuditLog(`New question created: '${q?.title || ""}' [Type: ${q?.type}]`, "QUESTION", "info");
+        setQuestions((prev) => [q, ...prev]);
       })
       .subscribe();
 
@@ -440,6 +449,11 @@ function DeveloperDashboard() {
   // Map Session Participants Helper
   const getSessionParticipants = (sessionId: string) => {
     return participants.filter((p) => p.session_id === sessionId);
+  };
+
+  // Map Session Questions Helper
+  const getSessionQuestions = (sessionId: string) => {
+    return questions.filter((q) => q.session_id === sessionId);
   };
 
   // Filter Data by Timeframe (1D, 7D, 30D, ALL)
@@ -510,11 +524,34 @@ function DeveloperDashboard() {
           (s.title || "").toLowerCase().includes(q) ||
           (s.code || "").toLowerCase().includes(q) ||
           (s.creator_id || "").toLowerCase().includes(q) ||
-          getFacultyInfo(s.creator_id).name.toLowerCase().includes(q)
+          (getFacultyInfo(s.creator_id)?.name || "").toLowerCase().includes(q)
       );
     }
     return result;
   }, [filteredSessionsByTime, searchQuery, statusFilter, profiles]);
+
+  // Filtered Questions for Questions Tab & Type Filters
+  const searchedQuestions = useMemo(() => {
+    let result = filteredQuestionsByTime;
+    if (questionTypeFilter !== "ALL") {
+      result = result.filter((q) => q.type === questionTypeFilter);
+    }
+    if (searchQuery.trim()) {
+      const qStr = searchQuery.toLowerCase();
+      result = result.filter((q) => {
+        const parentSession = sessions.find((s) => s.id === q.session_id);
+        const faculty = parentSession ? getFacultyInfo(parentSession.creator_id) : null;
+        return (
+          (q.title || "").toLowerCase().includes(qStr) ||
+          (q.type || "").toLowerCase().includes(qStr) ||
+          (parentSession?.title || "").toLowerCase().includes(qStr) ||
+          (parentSession?.code || "").toLowerCase().includes(qStr) ||
+          (faculty?.name || "").toLowerCase().includes(qStr)
+        );
+      });
+    }
+    return result;
+  }, [filteredQuestionsByTime, questionTypeFilter, searchQuery, sessions, profiles]);
 
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
@@ -797,6 +834,9 @@ function DeveloperDashboard() {
               <TabsTrigger value="creators" className="gap-2 text-xs font-semibold">
                 <UserCheck className="h-3.5 w-3.5" /> Faculty Breakdown ({uniqueCreators.length})
               </TabsTrigger>
+              <TabsTrigger value="questions" className="gap-2 text-xs font-semibold">
+                <HelpCircle className="h-3.5 w-3.5 text-cyan-500" /> Questions Added ({filteredQuestionsByTime.length})
+              </TabsTrigger>
               <TabsTrigger value="responses" className="gap-2 text-xs font-semibold">
                 <MessageSquare className="h-3.5 w-3.5" /> Submissions ({filteredResponsesByTime.length})
               </TabsTrigger>
@@ -886,6 +926,7 @@ function DeveloperDashboard() {
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Faculty / Creator Name</th>
                       <th className="px-4 py-3">Students Joined</th>
+                      <th className="px-4 py-3">Questions Added</th>
                       <th className="px-4 py-3">Created At</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
@@ -893,7 +934,7 @@ function DeveloperDashboard() {
                   <tbody className="divide-y divide-border/40">
                     {searchedSessions.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <td colSpan={8} className="text-center py-8 text-muted-foreground">
                           No sessions match filter query.
                         </td>
                       </tr>
@@ -901,6 +942,7 @@ function DeveloperDashboard() {
                       searchedSessions.map((s) => {
                         const faculty = getFacultyInfo(s.creator_id);
                         const sessParts = getSessionParticipants(s.id);
+                        const sessQs = getSessionQuestions(s.id);
 
                         return (
                           <tr key={s.id} className="hover:bg-accent/40 transition">
@@ -929,8 +971,155 @@ function DeveloperDashboard() {
                                 <Users className="h-3.5 w-3.5" /> {sessParts.length} Students
                               </span>
                             </td>
+                            <td className="px-4 py-3">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <button className="font-extrabold text-cyan-500 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1 transition cursor-pointer">
+                                    <HelpCircle className="h-3.5 w-3.5" /> {sessQs.length} Questions
+                                  </button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-lg">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-base">
+                                      <HelpCircle className="h-4 w-4 text-cyan-500" /> Questions Added — {s.title} ({s.code})
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3 my-2">
+                                    <div className="text-xs text-muted-foreground">
+                                      Faculty Creator: <strong className="text-foreground">{faculty.name}</strong>
+                                    </div>
+                                    <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+                                      {sessQs.length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-muted-foreground italic">
+                                          No questions created in this session yet.
+                                        </div>
+                                      ) : (
+                                        sessQs.map((q, qIdx) => (
+                                          <div key={q.id} className="p-3 rounded-xl bg-card border border-border/50 text-xs space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-2">
+                                                <span className="h-5 w-5 rounded-full bg-cyan-500/20 text-cyan-500 grid place-items-center text-[10px] font-bold">
+                                                  {qIdx + 1}
+                                                </span>
+                                                <span className="font-bold text-foreground">{q.title}</span>
+                                              </div>
+                                              <span
+                                                className={cn(
+                                                  "rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase border",
+                                                  q.type === "poll"
+                                                    ? "bg-cyan-500/10 text-cyan-500 border-cyan-500/30"
+                                                    : q.type === "wordcloud"
+                                                    ? "bg-purple-500/10 text-purple-500 border-purple-500/30"
+                                                    : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                                )}
+                                              >
+                                                {q.type}
+                                              </span>
+                                            </div>
+                                            {Array.isArray(q.options) && q.options.length > 0 && (
+                                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {q.options.map((opt: any, oIdx: number) => {
+                                                  const optText = typeof opt === "string" ? opt : opt?.text || JSON.stringify(opt);
+                                                  const isCorrect = q.correct_answer && q.correct_answer === optText;
+                                                  return (
+                                                    <span
+                                                      key={oIdx}
+                                                      className={cn(
+                                                        "px-2 py-0.5 rounded text-[10px] font-medium border",
+                                                        isCorrect
+                                                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold"
+                                                          : "bg-muted/60 text-muted-foreground border-border/40"
+                                                      )}
+                                                    >
+                                                      {optText} {isCorrect && "✓"}
+                                                    </span>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </td>
                             <td className="px-4 py-3 text-muted-foreground">{new Date(s.created_at).toLocaleString()}</td>
                             <td className="px-4 py-3 text-right space-x-2">
+                              {/* View Questions List Dialog */}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] gap-1 text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10">
+                                    <HelpCircle className="h-3.5 w-3.5" /> View Questions ({sessQs.length})
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-lg">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-base">
+                                      <HelpCircle className="h-4 w-4 text-cyan-500" /> Questions Added — {s.title} ({s.code})
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3 my-2">
+                                    <div className="text-xs text-muted-foreground">
+                                      Faculty Creator: <strong className="text-foreground">{faculty.name}</strong>
+                                    </div>
+                                    <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+                                      {sessQs.length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-muted-foreground italic">
+                                          No questions created in this session yet.
+                                        </div>
+                                      ) : (
+                                        sessQs.map((q, qIdx) => (
+                                          <div key={q.id} className="p-3 rounded-xl bg-card border border-border/50 text-xs space-y-1.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-2">
+                                                <span className="h-5 w-5 rounded-full bg-cyan-500/20 text-cyan-500 grid place-items-center text-[10px] font-bold">
+                                                  {qIdx + 1}
+                                                </span>
+                                                <span className="font-bold text-foreground">{q.title}</span>
+                                              </div>
+                                              <span
+                                                className={cn(
+                                                  "rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase border",
+                                                  q.type === "poll"
+                                                    ? "bg-cyan-500/10 text-cyan-500 border-cyan-500/30"
+                                                    : q.type === "wordcloud"
+                                                    ? "bg-purple-500/10 text-purple-500 border-purple-500/30"
+                                                    : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                                )}
+                                              >
+                                                {q.type}
+                                              </span>
+                                            </div>
+                                            {Array.isArray(q.options) && q.options.length > 0 && (
+                                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {q.options.map((opt: any, oIdx: number) => {
+                                                  const optText = typeof opt === "string" ? opt : opt?.text || JSON.stringify(opt);
+                                                  const isCorrect = q.correct_answer && q.correct_answer === optText;
+                                                  return (
+                                                    <span
+                                                      key={oIdx}
+                                                      className={cn(
+                                                        "px-2 py-0.5 rounded text-[10px] font-medium border",
+                                                        isCorrect
+                                                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold"
+                                                          : "bg-muted/60 text-muted-foreground border-border/40"
+                                                      )}
+                                                    >
+                                                      {optText} {isCorrect && "✓"}
+                                                    </span>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                               {/* View Student List Dialog */}
                               <Dialog>
                                 <DialogTrigger asChild>
@@ -1019,6 +1208,169 @@ function DeveloperDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          {/* TAB: QUESTIONS ADDED MONITOR */}
+          <TabsContent value="questions" className="space-y-4">
+            <div className="glass rounded-2xl overflow-hidden border border-border/60">
+              {/* Type Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground mr-1">Question Type:</span>
+                  <button
+                    onClick={() => setQuestionTypeFilter("ALL")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border",
+                      questionTypeFilter === "ALL"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-card/60 text-muted-foreground border-border hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    All ({filteredQuestionsByTime.length})
+                  </button>
+                  <button
+                    onClick={() => setQuestionTypeFilter("poll")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      questionTypeFilter === "poll"
+                        ? "bg-cyan-500 text-white border-cyan-500 shadow-sm"
+                        : "bg-cyan-500/10 text-cyan-500 border-cyan-500/30 hover:bg-cyan-500/20"
+                    )}
+                  >
+                    Polls ({pollQuestionsCount})
+                  </button>
+                  <button
+                    onClick={() => setQuestionTypeFilter("wordcloud")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      questionTypeFilter === "wordcloud"
+                        ? "bg-purple-500 text-white border-purple-500 shadow-sm"
+                        : "bg-purple-500/10 text-purple-500 border-purple-500/30 hover:bg-purple-500/20"
+                    )}
+                  >
+                    Word Clouds ({wordcloudQuestionsCount})
+                  </button>
+                  <button
+                    onClick={() => setQuestionTypeFilter("quiz")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition border flex items-center gap-1.5",
+                      questionTypeFilter === "quiz"
+                        ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20"
+                    )}
+                  >
+                    Quizzes ({quizQuestionsCount})
+                  </button>
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  Showing <span className="font-bold text-foreground">{searchedQuestions.length}</span> questions
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">Question Prompt / Title</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Session Name & Code</th>
+                      <th className="px-4 py-3">Faculty Creator</th>
+                      <th className="px-4 py-3">Options / Choices</th>
+                      <th className="px-4 py-3">Created At</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {searchedQuestions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No questions match filter query.
+                        </td>
+                      </tr>
+                    ) : (
+                      searchedQuestions.map((q) => {
+                        const parentSession = sessions.find((s) => s.id === q.session_id);
+                        const faculty = parentSession ? getFacultyInfo(parentSession.creator_id) : { name: "Faculty", email: "" };
+                        const optionsList = Array.isArray(q.options) ? q.options : [];
+
+                        return (
+                          <tr key={q.id} className="hover:bg-accent/40 transition">
+                            <td className="px-4 py-3 max-w-[260px]">
+                              <div className="font-bold text-foreground flex items-center gap-2">
+                                <HelpCircle className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                                <span className="truncate">{q.title}</span>
+                              </div>
+                              {q.image_url && (
+                                <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-500 font-bold">
+                                  <Sparkles className="h-3 w-3" /> Includes Attached Image
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
+                                  q.type === "poll"
+                                    ? "bg-cyan-500/10 text-cyan-500 border-cyan-500/30"
+                                    : q.type === "wordcloud"
+                                    ? "bg-purple-500/10 text-purple-500 border-purple-500/30"
+                                    : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                                )}
+                              >
+                                {q.type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px]">
+                              {parentSession ? (
+                                <>
+                                  <div className="font-semibold text-foreground truncate">{parentSession.title}</div>
+                                  <div className="font-mono text-[10px] text-primary font-black">{parentSession.code}</div>
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground italic">Session {q.session_id.slice(0, 6)}...</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px] truncate">
+                              <div className="font-bold text-foreground">{faculty.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">{faculty.email}</div>
+                            </td>
+                            <td className="px-4 py-3 max-w-[280px]">
+                              {optionsList.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {optionsList.map((opt: any, idx: number) => {
+                                    const text = typeof opt === "string" ? opt : opt?.text || JSON.stringify(opt);
+                                    const isCorrect = q.correct_answer && q.correct_answer === text;
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className={cn(
+                                          "px-2 py-0.5 rounded text-[10px] border",
+                                          isCorrect
+                                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold"
+                                            : "bg-card/80 text-muted-foreground border-border/40"
+                                        )}
+                                      >
+                                        {text} {isCorrect && "✓"}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : q.type === "wordcloud" ? (
+                                <span className="text-[10px] text-muted-foreground italic">Open-ended word responses</span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">No predefined choices</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground font-mono text-[11px]">
+                              {q.created_at ? new Date(q.created_at).toLocaleString() : "N/A"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </TabsContent>
 
