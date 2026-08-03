@@ -192,6 +192,12 @@ function DeveloperDashboard() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loginLogs, setLoginLogs] = useState<LoginLogRow[]>([]);
   const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "ALL">("ALL");
+  const [timeframeCounts, setTimeframeCounts] = useState<{
+    participants: number;
+    responses: number;
+    questions: number;
+    sessions: number;
+  }>({ participants: 0, responses: 0, questions: 0, sessions: 0 });
   const [statusFilter, setStatusFilter] = useState<"ALL" | "live" | "draft" | "ended">("ALL");
   const [questionTypeFilter, setQuestionTypeFilter] = useState<"ALL" | "poll" | "wordcloud" | "quiz">("ALL");
   const [logFilterTag, setLogFilterTag] = useState<string>("ALL");
@@ -502,6 +508,41 @@ function DeveloperDashboard() {
   const filteredParticipantsByTime = useMemo(() => filterByTimeframe(participants), [participants, timeframe]);
   const filteredResponsesByTime = useMemo(() => filterByTimeframe(responses), [responses, timeframe]);
 
+  // Fetch Uncapped Exact PostgreSQL Database Counts for selected timeframe
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchExactTimeframeCounts = async () => {
+      let dateIso: string | null = null;
+      if (timeframe !== "ALL") {
+        const days = timeframe === "1D" ? 1 : timeframe === "7D" ? 7 : 30;
+        dateIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      let pQuery = supabase.from("participants").select("*", { count: "exact", head: true });
+      let rQuery = supabase.from("responses").select("*", { count: "exact", head: true });
+      let qQuery = supabase.from("questions").select("*", { count: "exact", head: true });
+      let sQuery = supabase.from("sessions").select("*", { count: "exact", head: true });
+
+      if (dateIso) {
+        pQuery = pQuery.gte("joined_at", dateIso);
+        rQuery = rQuery.gte("created_at", dateIso);
+        qQuery = qQuery.gte("created_at", dateIso);
+        sQuery = sQuery.gte("created_at", dateIso);
+      }
+
+      const [pRes, rRes, qRes, sRes] = await Promise.all([pQuery, rQuery, qQuery, sQuery]);
+
+      setTimeframeCounts({
+        participants: pRes.count ?? filteredParticipantsByTime.length,
+        responses: rRes.count ?? filteredResponsesByTime.length,
+        questions: qRes.count ?? filteredQuestionsByTime.length,
+        sessions: sRes.count ?? filteredSessionsByTime.length,
+      });
+    };
+
+    fetchExactTimeframeCounts();
+  }, [timeframe, isAuthenticated, sessions.length, participants.length, responses.length, questions.length]);
+
   // Metrics Computations
   const liveSessionsCount = useMemo(() => filteredSessionsByTime.filter((s) => s.status === "live").length, [filteredSessionsByTime]);
   const draftSessionsCount = useMemo(() => filteredSessionsByTime.filter((s) => s.status === "draft").length, [filteredSessionsByTime]);
@@ -769,7 +810,7 @@ function DeveloperDashboard() {
             </div>
             <div>
               <div className="text-[11px] font-bold text-muted-foreground uppercase">Total Students Joined ({timeframe})</div>
-              <div className="text-lg font-black text-foreground">{filteredParticipantsByTime.length} Students</div>
+              <div className="text-lg font-black text-foreground">{timeframeCounts.participants || filteredParticipantsByTime.length} Students</div>
             </div>
           </div>
         </div>
@@ -784,7 +825,7 @@ function DeveloperDashboard() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">{filteredSessionsByTime.length}</span>
+              <span className="text-3xl font-black">{timeframeCounts.sessions || filteredSessionsByTime.length}</span>
               <span className="text-xs text-emerald-500 font-bold">({liveSessionsCount} Live Now)</span>
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
@@ -802,7 +843,7 @@ function DeveloperDashboard() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">{filteredQuestionsByTime.length}</span>
+              <span className="text-3xl font-black">{timeframeCounts.questions || filteredQuestionsByTime.length}</span>
               <span className="text-xs text-cyan-500 font-bold">Questions</span>
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
@@ -822,7 +863,7 @@ function DeveloperDashboard() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">{filteredParticipantsByTime.length}</span>
+              <span className="text-3xl font-black">{timeframeCounts.participants || filteredParticipantsByTime.length}</span>
               <span className="text-xs text-blue-500 font-bold">Students Joined</span>
             </div>
             <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
@@ -838,7 +879,7 @@ function DeveloperDashboard() {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">{filteredResponsesByTime.length}</span>
+              <span className="text-3xl font-black">{timeframeCounts.responses || filteredResponsesByTime.length}</span>
               <span className="text-xs text-purple-500 font-bold">Answers</span>
             </div>
             <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
@@ -861,10 +902,10 @@ function DeveloperDashboard() {
                 <Activity className="h-3.5 w-3.5 text-emerald-400" /> Login History ({loginLogs.length})
               </TabsTrigger>
               <TabsTrigger value="questions" className="gap-2 text-xs font-semibold">
-                <HelpCircle className="h-3.5 w-3.5 text-cyan-500" /> Questions Added ({filteredQuestionsByTime.length})
+                <HelpCircle className="h-3.5 w-3.5 text-cyan-500" /> Questions Added ({timeframeCounts.questions || filteredQuestionsByTime.length})
               </TabsTrigger>
               <TabsTrigger value="responses" className="gap-2 text-xs font-semibold">
-                <MessageSquare className="h-3.5 w-3.5" /> Submissions ({filteredResponsesByTime.length})
+                <MessageSquare className="h-3.5 w-3.5" /> Submissions ({timeframeCounts.responses || filteredResponsesByTime.length})
               </TabsTrigger>
               <TabsTrigger value="telemetry" className="gap-2 text-xs font-semibold">
                 <Terminal className="h-3.5 w-3.5" /> Telemetry Logs ({auditLogs.length})
@@ -1137,30 +1178,59 @@ function DeveloperDashboard() {
           {/* TAB 2: FACULTY CREATORS MONITOR */}
           <TabsContent value="creators" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {uniqueCreators.map((item) => (
-                <div key={item.creator_id} className="glass rounded-2xl p-5 border border-border/60 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base">
-                      {item.profile?.full_name?.charAt(0) || "F"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm truncate">{item.profile?.full_name || "Faculty Creator"}</h4>
-                      <p className="text-xs text-muted-foreground truncate">{item.profile?.email || item.creator_id}</p>
-                    </div>
-                  </div>
+              {uniqueCreators.map((item) => {
+                const facultySessions = filteredSessionsByTime.filter((s) => s.creator_id === item.creator_id);
+                const facultyLiveSessions = facultySessions.filter((s) => s.status === "live").length;
+                const facultySessIds = new Set(facultySessions.map((s) => s.id));
+                const facultyQuestions = questions.filter((q) => facultySessIds.has(q.session_id));
+                const facultyQIds = new Set(facultyQuestions.map((q) => q.id));
+                const facultyResponsesCount = responses.filter((r) => facultyQIds.has(r.question_id)).length;
+                const isOnline = loginLogs.some((l) => (l.user_id === item.creator_id || l.email === item.profile?.email) && !l.logout_time);
 
-                  <div className="pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground block text-[10px]">Sessions Created</span>
-                      <strong className="text-foreground text-sm font-extrabold">{item.count} Sessions</strong>
+                return (
+                  <div key={item.creator_id} className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base shrink-0">
+                          {item.profile?.full_name?.charAt(0) || "F"}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm truncate">{item.profile?.full_name || "Faculty Creator"}</h4>
+                          <p className="text-xs text-muted-foreground truncate">{item.profile?.email || item.creator_id}</p>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border shrink-0",
+                        isOnline ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-muted text-muted-foreground border-border"
+                      )}>
+                        {isOnline ? "● Online" : "Offline"}
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px]">Total Students Taught</span>
-                      <strong className="text-blue-500 text-sm font-extrabold">{item.totalStudents} Students</strong>
+
+                    <div className="pt-2 border-t border-border/40 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Sessions Created</span>
+                        <strong className="text-foreground text-sm font-extrabold">{item.count} Sessions</strong>
+                        {facultyLiveSessions > 0 && (
+                          <span className="text-[10px] text-emerald-400 block font-bold">({facultyLiveSessions} Live)</span>
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Total Students Taught</span>
+                        <strong className="text-blue-400 text-sm font-extrabold">{item.totalStudents} Students</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Questions Created</span>
+                        <strong className="text-cyan-400 text-sm font-extrabold">{facultyQuestions.length} Qs</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Responses Collected</span>
+                        <strong className="text-purple-400 text-sm font-extrabold">{facultyResponsesCount} Resp.</strong>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </TabsContent>
 
