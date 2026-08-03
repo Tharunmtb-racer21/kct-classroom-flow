@@ -81,7 +81,7 @@ function ReportsPage() {
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
 
   const [collegeName, setCollegeName] = useState("Kumaraguru College of Technology");
-  const [collegeLogoUrl, setCollegeLogoUrl] = useState("/kct-logo-opt.jpg");
+  const [collegeLogoUrl, setCollegeLogoUrl] = useState("/kct-logo-pdf.png");
   const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
   const [reportTitle, setReportTitle] = useState("Student Assessment Report");
   const [registerNumber, setRegisterNumber] = useState("");
@@ -177,8 +177,8 @@ function ReportsPage() {
     setSelectedSession(session);
     
     // Set sensible defaults
-    setCollegeName("KCT Engineering College");
-    setCollegeLogoUrl("");
+    setCollegeName("Kumaraguru College of Technology");
+    setCollegeLogoUrl("/kct-logo-pdf.png");
     setDepartmentName("Department of Computer Science and Engineering");
     setReportTitle("Session Engagement & Performance Report");
     setSemester("III Year / V Semester");

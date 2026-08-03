@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { KCT_LOGO_BASE64 } from "./kct-logo-b64";
 
 export interface SessionReportInfo {
   sessionName: string;
@@ -41,10 +42,10 @@ export interface QuestionAnalysisItem {
   wrongResponses: number;
 }
 
-// Utility to load image
-const loadImage = (url: string): Promise<HTMLImageElement | null> => {
+// Helper to load user-supplied image URL if present
+const loadUserImage = (url: string | null): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
-    if (!url) {
+    if (!url || url.trim() === "" || url.startsWith("/kct-logo")) {
       resolve(null);
       return;
     }
@@ -55,6 +56,7 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> => {
     img.src = url;
   });
 };
+
 
 // Helper to draw Fallback Logo (Academic Crest Shield)
 const drawFallbackLogo = (doc: jsPDF, x: number, y: number, size: number) => {
@@ -109,32 +111,59 @@ export async function generateSessionPDF(
   const pageWidth = doc.internal.pageSize.width;
   const margin = 15;
 
-  // Pre-load logo (Default to official Kumaraguru College of Technology permanent logo)
-  let logoImg: HTMLImageElement | null = null;
-  const targetLogoUrl = session.logoUrl || (typeof window !== "undefined" ? `${window.location.origin}/kct-logo-opt.jpg` : "/kct-logo-opt.jpg");
-  logoImg = await loadImage(targetLogoUrl);
+  // Pre-load custom user logo if specified
+  const customLogoImg = await loadUserImage(session.logoUrl);
 
-  // Pre-load background seal watermark image
-  let watermarkImg: HTMLImageElement | null = null;
-  const watermarkUrl = typeof window !== "undefined" ? `${window.location.origin}/kct-seal-watermark.jpg` : "/kct-seal-watermark.jpg";
-  watermarkImg = await loadImage(watermarkUrl);
+  // Track page numbers where watermark has been drawn to prevent duplicates
+  const watermarkedPages = new Set<number>();
 
-  // Watermark Background template (Low Transparency 8%)
-  const drawWatermark = (docInstance: jsPDF) => {
-    if (watermarkImg) {
+  // Watermark template — draws the KCT logo centered on every page at 8% opacity
+  const drawPageWatermark = (docInstance: jsPDF) => {
+    try {
+      const printableWidth = pageWidth - (margin * 2);
+      const watermarkSize = printableWidth * 0.70; // 70% of printable page width (~126mm)
+      
+      const drawX = (pageWidth - watermarkSize) / 2;
+      const drawY = (pageHeight - watermarkSize) / 2;
+      
+      docInstance.saveGraphicsState();
+      
       try {
-        docInstance.saveGraphicsState();
-        docInstance.setGState(new (docInstance as any).GState({ opacity: 0.08 }));
-        const wmSize = 110; // 110mm width & height centered in A4 page
-        const wmX = (pageWidth - wmSize) / 2;
-        const wmY = (pageHeight - wmSize) / 2;
-        docInstance.addImage(watermarkImg, "JPEG", wmX, wmY, wmSize, wmSize);
-        docInstance.restoreGraphicsState();
-      } catch (e) {
-        console.error("Watermark render error:", e);
+        let gState;
+        if (typeof (docInstance as any).GState === "function") {
+          gState = new (docInstance as any).GState({ opacity: 0.08 });
+        } else if (typeof (jsPDF as any).GState === "function") {
+          gState = new (jsPDF as any).GState({ opacity: 0.08 });
+        }
+        if (gState) {
+          docInstance.setGState(gState);
+        }
+      } catch (err) {
+        console.warn("GState opacity failed:", err);
       }
+      
+      if (customLogoImg) {
+        docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, watermarkSize, watermarkSize);
+      } else {
+        // Direct Base64 string rendering — 100% reliable, zero network overhead
+        docInstance.addImage(KCT_LOGO_BASE64, "PNG", drawX, drawY, watermarkSize, watermarkSize);
+      }
+      
+      docInstance.restoreGraphicsState();
+    } catch (e) {
+      console.error("Error drawing watermark:", e);
     }
   };
+
+  const drawWatermarkIfNeeded = (pageNum: number) => {
+    if (watermarkedPages.has(pageNum)) return;
+    doc.setPage(pageNum);
+    drawPageWatermark(doc);
+    watermarkedPages.add(pageNum);
+  };
+
+  // Draw watermark on the first page immediately
+  drawWatermarkIfNeeded(1);
 
   // Header template
   const drawPageHeader = (docInstance: jsPDF) => {
@@ -142,18 +171,27 @@ export async function generateSessionPDF(
     const logoX = margin;
     const logoY = 12;
 
-    if (logoImg) {
+    if (customLogoImg) {
       try {
-        docInstance.addImage(logoImg, "JPEG", logoX, logoY, logoSize, logoSize);
-      } catch (e) {
-        try {
-          docInstance.addImage(logoImg, "PNG", logoX, logoY, logoSize, logoSize);
-        } catch (e2) {
-          drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+        const imgWidth = customLogoImg.width;
+        const imgHeight = customLogoImg.height;
+        const aspectRatio = imgWidth / imgHeight;
+        let drawWidth = logoSize;
+        let drawHeight = logoSize;
+        if (aspectRatio > 1) {
+          drawHeight = logoSize / aspectRatio;
+        } else {
+          drawWidth = logoSize * aspectRatio;
         }
+        const drawX = logoX + (logoSize - drawWidth) / 2;
+        const drawY = logoY + (logoSize - drawHeight) / 2;
+        docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, drawWidth, drawHeight);
+      } catch (e) {
+        docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
       }
     } else {
-      drawFallbackLogo(docInstance, logoX, logoY, logoSize);
+      // Direct Base64 rendering — official KCT logo
+      docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
     }
 
     docInstance.setTextColor(15, 23, 42); // slate-900
@@ -188,7 +226,7 @@ export async function generateSessionPDF(
     docInstance.setFont("helvetica", "normal");
     docInstance.setFontSize(7.5);
 
-    docInstance.text(session.collegeName || "ABC Engineering College", margin, pageHeight - 10);
+    docInstance.text(session.collegeName || "Kumaraguru College of Technology", margin, pageHeight - 10);
     docInstance.text(`Generated On: ${new Date().toLocaleString()} | Generated By: ${session.facultyName || "Faculty"}`, pageWidth / 2, pageHeight - 10, {
       align: "center",
     });
@@ -238,6 +276,9 @@ export async function generateSessionPDF(
       3: { cellWidth: 58 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for summary box
@@ -303,6 +344,9 @@ export async function generateSessionPDF(
       5: { cellWidth: 28 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for student performance table
@@ -385,6 +429,9 @@ export async function generateSessionPDF(
       }
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
   // Calculate coordinates for Question analysis
@@ -447,13 +494,16 @@ export async function generateSessionPDF(
       5: { cellWidth: 18, fontStyle: "bold" },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
+    willDrawPage: (data) => {
+      drawWatermarkIfNeeded(data.pageNumber);
+    },
   });
 
-  // --- Add Page Numbers, Headers, Footers, and Watermarks to All Pages ---
+  // --- Add Watermarks, Page Numbers, Headers and Footers to All Pages ---
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    drawWatermark(doc);
+    drawWatermarkIfNeeded(i); // Ensure watermark is on every page
     drawPageHeader(doc);
     drawPageFooter(doc, i, totalPages);
   }
