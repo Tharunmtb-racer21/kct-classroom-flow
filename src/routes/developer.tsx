@@ -293,47 +293,41 @@ function DeveloperDashboard() {
     setLoading(true);
     const startPing = performance.now();
     try {
-      // 1. Fetch Sessions (latest 200)
+      // 1. Fetch Sessions
       const { data: sData } = await supabase
         .from("sessions")
         .select("id,title,code,status,creator_id,created_at,current_question_id,expires_at")
-        .order("created_at", { ascending: false })
-        .limit(200);
+        .order("created_at", { ascending: false });
 
-      // 2. Fetch Questions (latest 300)
+      // 2. Fetch Questions
       const { data: qData } = await supabase
         .from("questions")
         .select("id,session_id,type,title,options,correct_answer,image_url,created_at")
-        .order("created_at", { ascending: false })
-        .limit(300);
+        .order("created_at", { ascending: false });
 
-      // 3. Fetch Participants (latest 500)
+      // 3. Fetch Participants
       const { data: pData } = await supabase
         .from("participants")
         .select("id,session_id,name,joined_at")
-        .order("joined_at", { ascending: false })
-        .limit(500);
+        .order("joined_at", { ascending: false });
 
-      // 4. Fetch Responses (latest 500)
+      // 4. Fetch Responses
       const { data: rData } = await supabase
         .from("responses")
         .select("id,question_id,participant_id,answer,created_at,image_url")
-        .order("created_at", { ascending: false })
-        .limit(500);
+        .order("created_at", { ascending: false });
 
-      // 5. Fetch Profiles (latest 100)
+      // 5. Fetch Profiles
       const { data: profData } = await supabase
         .from("profiles")
         .select("id,full_name,email,avatar_url,created_at")
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
 
-      // 6. Fetch Login Logs (latest 200)
+      // 6. Fetch Login Logs
       const { data: logData } = await supabase
         .from("login_logs")
         .select("id,user_id,role,email,login_time,logout_time,session_duration,browser,device,operating_system,status")
-        .order("login_time", { ascending: false })
-        .limit(200);
+        .order("login_time", { ascending: false });
 
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
@@ -517,10 +511,10 @@ function DeveloperDashboard() {
   const wordcloudQuestionsCount = useMemo(() => filteredQuestionsByTime.filter((q) => q.type === "wordcloud").length, [filteredQuestionsByTime]);
   const quizQuestionsCount = useMemo(() => filteredQuestionsByTime.filter((q) => q.type === "quiz").length, [filteredQuestionsByTime]);
 
-  // Unique Faculty Creators with Total Students Taught
+  // Unique Faculty Creators with Total Students Taught (Filtered by Timeframe)
   const uniqueCreators = useMemo(() => {
     const map = new Map<string, { creator_id: string; profile?: ProfileRow; count: number; totalStudents: number; lastActive: string }>();
-    sessions.forEach((s) => {
+    filteredSessionsByTime.forEach((s) => {
       const cId = s.creator_id || "anonymous";
       const sessParts = participants.filter((p) => p.session_id === s.id).length;
       const existing = map.get(cId) || {
@@ -538,7 +532,7 @@ function DeveloperDashboard() {
       map.set(cId, existing);
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [sessions, profiles, participants]);
+  }, [filteredSessionsByTime, profiles, participants]);
 
   // Filtered Sessions for Search Input & Status Filters
   const searchedSessions = useMemo(() => {
@@ -764,7 +758,7 @@ function DeveloperDashboard() {
               <UserCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">Faculty Creators</div>
+              <div className="text-[11px] font-bold text-muted-foreground uppercase">Faculty Creators ({timeframe})</div>
               <div className="text-lg font-black text-foreground">{uniqueCreators.length} Faculty</div>
             </div>
           </div>
@@ -774,8 +768,8 @@ function DeveloperDashboard() {
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">Total Students Joined</div>
-              <div className="text-lg font-black text-foreground">{participants.length} Students</div>
+              <div className="text-[11px] font-bold text-muted-foreground uppercase">Total Students Joined ({timeframe})</div>
+              <div className="text-lg font-black text-foreground">{filteredParticipantsByTime.length} Students</div>
             </div>
           </div>
         </div>
@@ -793,7 +787,7 @@ function DeveloperDashboard() {
               <span className="text-3xl font-black">{filteredSessionsByTime.length}</span>
               <span className="text-xs text-emerald-500 font-bold">({liveSessionsCount} Live Now)</span>
             </div>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-3 pt-1 border-t border-border/40">
+            <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
               <span>{draftSessionsCount} Drafts</span>
               <span>•</span>
               <span>{endedSessionsCount} Completed</span>
@@ -802,7 +796,7 @@ function DeveloperDashboard() {
 
           <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Questions Created</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Questions Created ({timeframe})</span>
               <div className="h-9 w-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 grid place-items-center text-cyan-500">
                 <HelpCircle className="h-5 w-5" />
               </div>
@@ -838,7 +832,7 @@ function DeveloperDashboard() {
 
           <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Responses Submitted</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Responses Submitted ({timeframe})</span>
               <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500">
                 <MessageSquare className="h-5 w-5" />
               </div>
