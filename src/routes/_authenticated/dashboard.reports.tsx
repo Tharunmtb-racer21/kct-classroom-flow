@@ -506,32 +506,12 @@ function ReportsPage() {
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="collegeName" className="text-xs text-foreground">College Name</Label>
-                  <Input
-                    id="collegeName"
-                    value={collegeName}
-                    onChange={(e) => setCollegeName(e.target.value)}
-                    placeholder="Enter College Name"
-                    className="bg-card/40 border-border text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
                   <Label htmlFor="departmentName" className="text-xs text-foreground">Department Name</Label>
                   <Input
                     id="departmentName"
                     value={departmentName}
                     onChange={(e) => setDepartmentName(e.target.value)}
                     placeholder="Enter Department Name"
-                    className="bg-card/40 border-border text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="collegeLogoUrl" className="text-xs text-foreground">College Logo Image URL (Optional)</Label>
-                  <Input
-                    id="collegeLogoUrl"
-                    value={collegeLogoUrl}
-                    onChange={(e) => setCollegeLogoUrl(e.target.value)}
-                    placeholder="https://example.com/logo.png"
                     className="bg-card/40 border-border text-sm"
                   />
                 </div>
