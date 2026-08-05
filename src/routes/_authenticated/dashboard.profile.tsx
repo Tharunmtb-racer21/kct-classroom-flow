@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
 import { User, Calendar, Shield, Presentation, Mail, Upload, Loader2, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { formatDisplayName } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
   component: ProfilePage,
@@ -41,7 +42,7 @@ function ProfilePage() {
       .maybeSingle();
 
     if (profile) {
-      setFullName(profile.full_name ?? "");
+      setFullName(formatDisplayName(profile.full_name, user.email));
       setAvatarUrl(profile.avatar_url); // Remain null (empty placeholder) if no photo exists
 
       if (profile.created_at) {

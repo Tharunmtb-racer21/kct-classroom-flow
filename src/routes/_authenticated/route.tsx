@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDisplayName } from "@/lib/utils";
 
 const getFirebaseUser = (): Promise<any> => {
   return new Promise((resolve) => {
@@ -23,8 +25,6 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
-import { supabase } from "@/integrations/supabase/client";
-
 function AuthenticatedLayout() {
   const navigate = useNavigate();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,12 +33,11 @@ function AuthenticatedLayout() {
   useEffect(() => {
     const user = auth.currentUser;
     if (user && user.email) {
-      const nameFromEmail = user.email.split("@")[0].replace(/[._-]/g, " ");
-      const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+      const resolvedName = formatDisplayName(user.displayName, user.email);
       supabase.from("profiles").upsert({
         id: user.uid,
         email: user.email,
-        full_name: user.displayName || formattedName,
+        full_name: resolvedName,
         avatar_url: user.photoURL,
       }).then(({ error }) => {
         if (error) console.error("Auto profile sync error:", error.message);

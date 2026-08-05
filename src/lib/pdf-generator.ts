@@ -146,7 +146,7 @@ export async function generateSessionPDF(
         docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, watermarkSize, watermarkSize);
       } else {
         // Direct Base64 string rendering — 100% reliable, zero network overhead
-        docInstance.addImage(KCT_LOGO_BASE64, "PNG", drawX, drawY, watermarkSize, watermarkSize);
+        docInstance.addImage(KCT_LOGO_BASE64, "JPEG", drawX, drawY, watermarkSize, watermarkSize);
       }
       
       docInstance.restoreGraphicsState();
@@ -187,11 +187,11 @@ export async function generateSessionPDF(
         const drawY = logoY + (logoSize - drawHeight) / 2;
         docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, drawWidth, drawHeight);
       } catch (e) {
-        docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
+        docInstance.addImage(KCT_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
       }
     } else {
       // Direct Base64 rendering — official KCT logo
-      docInstance.addImage(KCT_LOGO_BASE64, "PNG", logoX, logoY, logoSize, logoSize);
+      docInstance.addImage(KCT_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
     }
 
     docInstance.setTextColor(15, 23, 42); // slate-900

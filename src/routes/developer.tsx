@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, formatDisplayName } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 
@@ -466,7 +466,7 @@ function DeveloperDashboard() {
     const prof = profiles.find((p) => p.id === creatorId);
     if (prof && (prof.full_name || prof.email)) {
       const email = prof.email || "";
-      const name = prof.full_name || (email ? email.split("@")[0].replace(/[._-]/g, " ") : "Faculty");
+      const name = formatDisplayName(prof.full_name, email, creatorId);
       return { name, email };
     }
 
@@ -474,25 +474,21 @@ function DeveloperDashboard() {
     const logMatch = loginLogs.find((l) => l.user_id === creatorId);
     if (logMatch && logMatch.email) {
       const email = logMatch.email;
-      const rawName = email.split("@")[0].replace(/[._-]/g, " ");
-      const formattedName = rawName
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-      return { name: formattedName, email };
+      const name = formatDisplayName(null, email, creatorId);
+      return { name, email };
     }
 
     // 3. Check Current Logged In Firebase User
     const currentFirebaseUser = auth.currentUser;
     if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
       const email = currentFirebaseUser.email || "";
-      const derivedName = currentFirebaseUser.displayName || (email ? email.split("@")[0].replace(/[._-]/g, " ") : "Faculty");
-      const formatted = derivedName ? derivedName.charAt(0).toUpperCase() + derivedName.slice(1) : "Faculty";
-      return { name: formatted, email };
+      const name = formatDisplayName(currentFirebaseUser.displayName, email, creatorId);
+      return { name, email };
     }
 
     // 4. Fallback for unlinked historical test sessions
-    return { name: `Faculty Member (${creatorId.slice(0, 6)})`, email: `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in` };
+    const formattedName = formatDisplayName(null, null, creatorId);
+    return { name: formattedName, email: `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in` };
   };
 
   // Map Session Participants Helper

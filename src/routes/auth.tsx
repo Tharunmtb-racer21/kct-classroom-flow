@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { logUserLogin } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { formatDisplayName } from "@/lib/utils";
 import {
   signInWithPopup,
   GoogleAuthProvider,
@@ -24,14 +25,18 @@ const isGoogleUser = (user: any): boolean => {
   return user.providerData?.some((p: any) => p.providerId === "google.com") || false;
 };
 
-// Allowed institutional email domains — enforced ONLY for Google sign-in path
-const KCT_DOMAINS = ["@kct.ac.in", "@kongu.edu"];
-const isKctEmail = (emailStr: string, user?: any) => {
-  // If the login type isn't Google, allow any personal account email
-  if (user && !isGoogleUser(user)) return true;
-  return KCT_DOMAINS.some((d) => emailStr.toLowerCase().endsWith(d));
+// Error message for non-KCT email login
+const KCT_DOMAIN_ERROR = "Only official KCT email addresses (@kct.ac.in) are authorized to access this platform.";
+
+// Helper to validate if email belongs to kct.ac.in domain
+const isKctEmail = (email: string | null, user?: any): boolean => {
+  if (!email) return false;
+  const isKct = email.trim().toLowerCase().endsWith("@kct.ac.in");
+  if (!isKct && user) {
+    signOut(auth).catch(() => {});
+  }
+  return isKct;
 };
-const KCT_DOMAIN_ERROR = "Access restricted to KCT institutional accounts (@kct.ac.in). Please use your college email.";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -55,10 +60,11 @@ function AuthPage() {
     if (!user.email || !isKctEmail(user.email, user)) {
       return;
     }
+    const resolvedName = formatDisplayName(user.displayName, user.email);
     const { error } = await supabase.from("profiles").upsert({
       id: user.uid,
       email: user.email,
-      full_name: user.displayName || user.email?.split("@")[0],
+      full_name: resolvedName,
       avatar_url: user.photoURL,
     });
     if (error) {

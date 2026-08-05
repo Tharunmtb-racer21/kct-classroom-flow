@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { formatDisplayName } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { generateSessionPDF } from "@/lib/pdf-generator";
@@ -184,7 +185,7 @@ function ReportsPage() {
     setSemester("III Year / V Semester");
     setCourseName("B.E. Computer Science and Engineering");
     setSubject(session.title);
-    setFacultyName(user?.displayName || user?.email || "Faculty Instructor");
+    setFacultyName(formatDisplayName(user?.displayName, user?.email));
 
     setModalOpen(true);
   };
