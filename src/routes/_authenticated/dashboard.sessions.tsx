@@ -103,27 +103,56 @@ function SessionsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    console.log("[CreateSession] Starting session creation flow. Title:", title);
     try {
       const user = auth.currentUser;
+      console.log("[CreateSession] Authenticated Firebase User:", user ? { uid: user.uid, email: user.email } : "NULL");
       if (!user) throw new Error("Not signed in");
+
+      // Verify if profiles table has this UID
+      console.log("[CreateSession] Checking if Firebase UID exists in profiles table...");
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .eq("id", user.uid)
+        .maybeSingle();
+      
+      console.log("[CreateSession] Profile check result:", { profile, profileErr });
+      if (profileErr) {
+        console.error("[CreateSession] Error querying profiles table:", profileErr);
+      }
+
       let code = generateSessionCode();
+      console.log("[CreateSession] Generated initial code:", code);
       for (let i = 0; i < 5; i++) {
-        const { data } = await supabase.from("sessions").select("id").eq("code", code).maybeSingle();
+        console.log(`[CreateSession] Checking uniqueness of code (attempt ${i + 1}):`, code);
+        const { data, error } = await supabase.from("sessions").select("id").eq("code", code).maybeSingle();
+        if (error) {
+          console.error("[CreateSession] Error checking code uniqueness:", error);
+        }
         if (!data) break;
         code = generateSessionCode();
+        console.log("[CreateSession] Regenerated code:", code);
       }
+
+      const payload = { title, code, creator_id: user.uid, status: "draft" as const };
+      console.log("[CreateSession] Submitting payload to Supabase sessions table:", payload);
+
       const { data: inserted, error } = await supabase
         .from("sessions")
-        .insert({ title, code, creator_id: user.uid, status: "draft" })
+        .insert(payload)
         .select("id")
         .single();
+      
+      console.log("[CreateSession] Supabase insert response:", { inserted, error });
+
       if (error) throw error;
       toast.success("Session created");
       setOpen(false);
       setTitle("");
       navigate({ to: "/dashboard/session/$id", params: { id: inserted.id } });
     } catch (err) {
-      console.error("Create session error:", err);
+      console.error("[CreateSession] Create session error caught:", err);
       toast.error(err instanceof Error ? err.message : "Failed to create session.");
     } finally {
       setSaving(false);
