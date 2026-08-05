@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { KCT_LOGO_BASE64 } from "./kct-logo-b64";
+import { KCT_HEADER_LOGO_BASE64 } from "./kct-header-logo-b64";
 
 export interface SessionReportInfo {
   sessionName: string;
@@ -187,11 +188,11 @@ export async function generateSessionPDF(
         const drawY = logoY + (logoSize - drawHeight) / 2;
         docInstance.addImage(customLogoImg, "JPEG", drawX, drawY, drawWidth, drawHeight);
       } catch (e) {
-        docInstance.addImage(KCT_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
+        docInstance.addImage(KCT_HEADER_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
       }
     } else {
-      // Direct Base64 rendering — official KCT logo
-      docInstance.addImage(KCT_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
+      // Dark navy square KCT logo for header
+      docInstance.addImage(KCT_HEADER_LOGO_BASE64, "JPEG", logoX, logoY, logoSize, logoSize);
     }
 
     docInstance.setTextColor(15, 23, 42); // slate-900
