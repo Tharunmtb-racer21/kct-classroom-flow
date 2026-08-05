@@ -121,7 +121,7 @@ export async function generateSessionPDF(
   const drawPageWatermark = (docInstance: jsPDF) => {
     try {
       const printableWidth = pageWidth - (margin * 2);
-      const watermarkSize = printableWidth * 0.70; // 70% of printable page width (~126mm)
+      const watermarkSize = printableWidth * 0.85; // 85% of printable page width (~153mm)
       
       const drawX = (pageWidth - watermarkSize) / 2;
       const drawY = (pageHeight - watermarkSize) / 2;
@@ -131,9 +131,9 @@ export async function generateSessionPDF(
       try {
         let gState;
         if (typeof (docInstance as any).GState === "function") {
-          gState = new (docInstance as any).GState({ opacity: 0.08 });
+          gState = new (docInstance as any).GState({ opacity: 0.13 });
         } else if (typeof (jsPDF as any).GState === "function") {
-          gState = new (jsPDF as any).GState({ opacity: 0.08 });
+          gState = new (jsPDF as any).GState({ opacity: 0.13 });
         }
         if (gState) {
           docInstance.setGState(gState);
