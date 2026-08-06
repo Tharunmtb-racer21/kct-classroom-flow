@@ -251,6 +251,52 @@ function JoinPage() {
     }
   };
 
+  const handleSubmitAll = async () => {
+    if (!participantId) return;
+
+    const responses = allQuestions
+      .filter((q) => !submittedFor.has(q.id))
+      .map((q) => ({
+        question: q,
+        answer: (answerMap[q.id] ?? "").trim(),
+      }))
+      .filter(({ answer }) => answer.length > 0);
+
+    if (responses.length === 0) {
+      toast.error("Please answer at least one question before submitting");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("responses").insert(
+        responses.map(({ question, answer }) => ({
+          question_id: question.id,
+          participant_id: participantId,
+          answer,
+          image_url: null,
+        })),
+      );
+
+      if (error) throw error;
+
+      setSubmittedFor((prev) => new Set([...prev, ...responses.map(({ question }) => question.id)]));
+      setAnswerMap((prev) => {
+        const next = { ...prev };
+        responses.forEach(({ question }) => {
+          next[question.id] = "";
+        });
+        return next;
+      });
+      toast.success(`${responses.length} ${responses.length === 1 ? "response" : "responses"} submitted`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to submit responses");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (notFound) {
     return (
       <Wrap secondsLeft={secondsLeft}>
@@ -295,6 +341,10 @@ function JoinPage() {
   // ── ALL mode or Multi-select mode: show multiple questions at once ─────────────────────────────────
   const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 1);
   if (hasMultipleActive && allQuestions.length > 0) {
+    const pendingQuestions = allQuestions.filter((q) => !submittedFor.has(q.id));
+    const answeredPendingCount = pendingQuestions.filter((q) => (answerMap[q.id] ?? "").trim()).length;
+    const hasAnsweredPending = answeredPendingCount > 0;
+
     return (
       <Wrap secondsLeft={secondsLeft}>
         <div className="space-y-6">
@@ -327,9 +377,6 @@ function JoinPage() {
                       rows={2}
                       maxLength={200}
                     />
-                    <Button onClick={() => handleSubmit(q.id, qAnswer)} disabled={submitting || !qAnswer.trim()} className="w-full gradient-bg font-semibold">
-                      {submitting ? "Submitting..." : "Submit"}
-                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -346,14 +393,22 @@ function JoinPage() {
                         {opt}
                       </button>
                     ))}
-                    <Button onClick={() => handleSubmit(q.id, qAnswer)} disabled={submitting || !qAnswer} className="w-full gradient-bg font-semibold">
-                      {submitting ? "Submitting..." : "Submit Answer"}
-                    </Button>
                   </div>
                 )}
               </div>
             );
           })}
+          <div className="sticky bottom-4 rounded-2xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
+            {pendingQuestions.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-2 text-sm font-semibold text-[color:var(--accent-emerald)]">
+                <CheckCircle2 className="h-4 w-4" /> All questions submitted
+              </div>
+            ) : (
+              <Button onClick={handleSubmitAll} disabled={submitting || !hasAnsweredPending} className="w-full h-14 gradient-bg font-semibold">
+                {submitting ? "Submitting..." : "Submit"}
+              </Button>
+            )}
+          </div>
         </div>
       </Wrap>
     );
