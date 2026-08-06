@@ -541,7 +541,13 @@ function ReportsPage() {
                     <SelectTrigger id="departmentName" className="bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Department Name" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent
+                      side="bottom"
+                      align="start"
+                      sideOffset={4}
+                      avoidCollisions={false}
+                      className="max-h-64"
+                    >
                       {PROGRAM_OPTIONS.map((program) => (
                         <SelectItem key={program.department} value={program.department}>
                           {program.department}
@@ -589,7 +595,13 @@ function ReportsPage() {
                     <SelectTrigger id="courseName" className="bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Course/Degree Name" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent
+                      side="bottom"
+                      align="start"
+                      sideOffset={4}
+                      avoidCollisions={false}
+                      className="max-h-64"
+                    >
                       {PROGRAM_OPTIONS.map((program) => (
                         <SelectItem key={program.degree} value={program.degree}>
                           {program.degree}
