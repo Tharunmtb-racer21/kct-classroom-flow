@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedDashboardSessionsRouteImport } from './routes/_authenticated/dashboard.sessions'
 import { Route as AuthenticatedDashboardReportsRouteImport } from './routes/_authenticated/dashboard.reports'
 import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_authenticated/dashboard.profile'
+import { Route as AuthenticatedDashboardGuideRouteImport } from './routes/_authenticated/dashboard.guide'
 import { Route as AuthenticatedDashboardSessionIdRouteImport } from './routes/_authenticated/dashboard.session.$id'
 
 const DeveloperRoute = DeveloperRouteImport.update({
@@ -80,6 +81,12 @@ const AuthenticatedDashboardProfileRoute =
     path: '/profile',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardGuideRoute =
+  AuthenticatedDashboardGuideRouteImport.update({
+    id: '/guide',
+    path: '/guide',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardSessionIdRoute =
   AuthenticatedDashboardSessionIdRouteImport.update({
     id: '/session/$id',
@@ -94,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
@@ -106,6 +114,7 @@ export interface FileRoutesByTo {
   '/developer': typeof DeveloperRoute
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
@@ -121,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/_authenticated/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/_authenticated/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/_authenticated/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/_authenticated/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/embed/$code'
     | '/join/$code'
+    | '/dashboard/guide'
     | '/dashboard/profile'
     | '/dashboard/reports'
     | '/dashboard/sessions'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/developer'
     | '/embed/$code'
     | '/join/$code'
+    | '/dashboard/guide'
     | '/dashboard/profile'
     | '/dashboard/reports'
     | '/dashboard/sessions'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/embed/$code'
     | '/join/$code'
+    | '/_authenticated/dashboard/guide'
     | '/_authenticated/dashboard/profile'
     | '/_authenticated/dashboard/reports'
     | '/_authenticated/dashboard/sessions'
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardProfileRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/dashboard/guide': {
+      id: '/_authenticated/dashboard/guide'
+      path: '/guide'
+      fullPath: '/dashboard/guide'
+      preLoaderRoute: typeof AuthenticatedDashboardGuideRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/dashboard/session/$id': {
       id: '/_authenticated/dashboard/session/$id'
       path: '/session/$id'
@@ -268,6 +288,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedDashboardRouteChildren {
+  AuthenticatedDashboardGuideRoute: typeof AuthenticatedDashboardGuideRoute
   AuthenticatedDashboardProfileRoute: typeof AuthenticatedDashboardProfileRoute
   AuthenticatedDashboardReportsRoute: typeof AuthenticatedDashboardReportsRoute
   AuthenticatedDashboardSessionsRoute: typeof AuthenticatedDashboardSessionsRoute
@@ -277,6 +298,7 @@ interface AuthenticatedDashboardRouteChildren {
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
+    AuthenticatedDashboardGuideRoute: AuthenticatedDashboardGuideRoute,
     AuthenticatedDashboardProfileRoute: AuthenticatedDashboardProfileRoute,
     AuthenticatedDashboardReportsRoute: AuthenticatedDashboardReportsRoute,
     AuthenticatedDashboardSessionsRoute: AuthenticatedDashboardSessionsRoute,

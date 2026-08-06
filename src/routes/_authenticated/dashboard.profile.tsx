@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
-import { User, Calendar, Shield, Presentation, Mail, Upload, Loader2, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { User, Calendar, Shield, Presentation, Upload, Loader2, Pencil, Trash2, CheckCircle2, BookOpen } from "lucide-react";
 import { formatDisplayName } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
@@ -181,6 +181,13 @@ function ProfilePage() {
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="text-3xl font-bold tracking-tight">Faculty Profile</h1>
       <p className="mt-1 text-sm text-muted-foreground">Your institutional profile details and account metadata.</p>
+
+      <Link to="/dashboard/guide" className="mt-5 inline-flex">
+        <Button className="gradient-bg font-semibold gap-2">
+          <BookOpen className="h-4 w-4" />
+          Open Faculty Guide
+        </Button>
+      </Link>
 
       {/* Chrome Profile Settings style Header Card */}
       <div className="mt-8 glass rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-border/40 bg-[#1c2230]/40">
