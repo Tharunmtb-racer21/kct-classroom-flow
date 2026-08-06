@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { formatDisplayName } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateSessionPDF } from "@/lib/pdf-generator";
 import { exportSessionToCSV, exportSessionToExcel } from "@/lib/export-utils";
 
@@ -67,6 +68,25 @@ type Row = {
   questions: Question[];
 };
 
+const OTHER_PROGRAM_VALUE = "others";
+
+const PROGRAM_OPTIONS = [
+  { degree: "B.E. Aeronautical Engineering", department: "Department of Aeronautical Engineering" },
+  { degree: "B.E. Automobile Engineering", department: "Department of Automobile Engineering" },
+  { degree: "B.E. Civil Engineering", department: "Department of Civil Engineering" },
+  { degree: "B.E. Computer Science and Engineering", department: "Department of Computer Science and Engineering" },
+  { degree: "B.E. Electrical and Electronics Engineering", department: "Department of Electrical and Electronics Engineering" },
+  { degree: "B.E. Electronics and Communication Engineering", department: "Department of Electronics and Communication Engineering" },
+  { degree: "B.E. Electronics and Instrumentation Engineering", department: "Department of Electronics and Instrumentation Engineering" },
+  { degree: "B.E. Mechanical Engineering", department: "Department of Mechanical Engineering" },
+  { degree: "B.E. Mechatronics Engineering", department: "Department of Mechatronics Engineering" },
+  { degree: "B.Tech. Artificial Intelligence and Data Science", department: "Department of Artificial Intelligence and Data Science" },
+  { degree: "B.Tech. Biotechnology", department: "Department of Biotechnology" },
+  { degree: "B.Tech. Fashion Technology", department: "Department of Fashion Technology" },
+  { degree: "B.Tech. Information Technology", department: "Department of Information Technology" },
+  { degree: "B.Tech. Textile Technology", department: "Department of Textile Technology" },
+];
+
 export const Route = createFileRoute("/_authenticated/dashboard/reports")({
   component: ReportsPage,
 });
@@ -83,10 +103,12 @@ function ReportsPage() {
 
   const [collegeName, setCollegeName] = useState("Kumaraguru College of Technology");
   const [collegeLogoUrl, setCollegeLogoUrl] = useState("/kct-logo-pdf.png");
+  const [departmentSelection, setDepartmentSelection] = useState("Department of Computer Science and Engineering");
   const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
   const [reportTitle, setReportTitle] = useState("Student Assessment Report");
   const [registerNumber, setRegisterNumber] = useState("");
   const [semester, setSemester] = useState("III Year / V Semester");
+  const [courseSelection, setCourseSelection] = useState("B.E. Computer Science and Engineering");
   const [courseName, setCourseName] = useState("B.E. Computer Science and Engineering");
   const [subject, setSubject] = useState("");
   const [facultyName, setFacultyName] = useState("");
@@ -180,9 +202,11 @@ function ReportsPage() {
     // Set sensible defaults
     setCollegeName("Kumaraguru College of Technology");
     setCollegeLogoUrl("/kct-logo-pdf.png");
+    setDepartmentSelection("Department of Computer Science and Engineering");
     setDepartmentName("Department of Computer Science and Engineering");
     setReportTitle("Session Engagement & Performance Report");
     setSemester("III Year / V Semester");
+    setCourseSelection("B.E. Computer Science and Engineering");
     setCourseName("B.E. Computer Science and Engineering");
     setSubject(session.title);
     setFacultyName(formatDisplayName(user?.displayName, user?.email));
@@ -507,13 +531,33 @@ function ReportsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="departmentName" className="text-xs text-foreground">Department Name</Label>
-                  <Input
-                    id="departmentName"
-                    value={departmentName}
-                    onChange={(e) => setDepartmentName(e.target.value)}
-                    placeholder="Enter Department Name"
-                    className="bg-card/40 border-border text-sm"
-                  />
+                  <Select
+                    value={departmentSelection}
+                    onValueChange={(value) => {
+                      setDepartmentSelection(value);
+                      setDepartmentName(value === OTHER_PROGRAM_VALUE ? "" : value);
+                    }}
+                  >
+                    <SelectTrigger id="departmentName" className="bg-card/40 border-border text-sm">
+                      <SelectValue placeholder="Select Department Name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROGRAM_OPTIONS.map((program) => (
+                        <SelectItem key={program.department} value={program.department}>
+                          {program.department}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={OTHER_PROGRAM_VALUE}>Others</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {departmentSelection === OTHER_PROGRAM_VALUE && (
+                    <Input
+                      value={departmentName}
+                      onChange={(e) => setDepartmentName(e.target.value)}
+                      placeholder="Type department name"
+                      className="bg-card/40 border-border text-sm"
+                    />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="reportTitle" className="text-xs text-foreground">Report Title</Label>
@@ -535,12 +579,33 @@ function ReportsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="courseName" className="text-xs text-foreground">Course/Degree Name</Label>
-                  <Input
-                    id="courseName"
-                    value={courseName}
-                    onChange={(e) => setCourseName(e.target.value)}
-                    className="bg-card/40 border-border text-sm"
-                  />
+                  <Select
+                    value={courseSelection}
+                    onValueChange={(value) => {
+                      setCourseSelection(value);
+                      setCourseName(value === OTHER_PROGRAM_VALUE ? "" : value);
+                    }}
+                  >
+                    <SelectTrigger id="courseName" className="bg-card/40 border-border text-sm">
+                      <SelectValue placeholder="Select Course/Degree Name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROGRAM_OPTIONS.map((program) => (
+                        <SelectItem key={program.degree} value={program.degree}>
+                          {program.degree}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={OTHER_PROGRAM_VALUE}>Others</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {courseSelection === OTHER_PROGRAM_VALUE && (
+                    <Input
+                      value={courseName}
+                      onChange={(e) => setCourseName(e.target.value)}
+                      placeholder="Type course/degree name"
+                      className="bg-card/40 border-border text-sm"
+                    />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="facultyName" className="text-xs text-foreground">Faculty/Instructor Name</Label>
