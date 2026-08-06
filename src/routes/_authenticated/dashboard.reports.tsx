@@ -69,6 +69,7 @@ type Row = {
 };
 
 const OTHER_PROGRAM_VALUE = "others";
+const SEMESTER_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 const PROGRAM_OPTIONS = [
   { degree: "B.E. Aeronautical Engineering", department: "Department of Aeronautical Engineering" },
@@ -107,7 +108,7 @@ function ReportsPage() {
   const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
   const [reportTitle, setReportTitle] = useState("Student Assessment Report");
   const [registerNumber, setRegisterNumber] = useState("");
-  const [semester, setSemester] = useState("III Year / V Semester");
+  const [semester, setSemester] = useState("Semester 5");
   const [courseSelection, setCourseSelection] = useState("B.E. Computer Science and Engineering");
   const [courseName, setCourseName] = useState("B.E. Computer Science and Engineering");
   const [subject, setSubject] = useState("");
@@ -205,7 +206,7 @@ function ReportsPage() {
     setDepartmentSelection("Department of Computer Science and Engineering");
     setDepartmentName("Department of Computer Science and Engineering");
     setReportTitle("Session Engagement & Performance Report");
-    setSemester("III Year / V Semester");
+    setSemester("Semester 5");
     setCourseSelection("B.E. Computer Science and Engineering");
     setCourseName("B.E. Computer Science and Engineering");
     setSubject(session.title);
@@ -576,12 +577,23 @@ function ReportsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="semester" className="text-xs text-foreground">Year / Semester</Label>
-                  <Input
-                    id="semester"
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                    className="bg-card/40 border-border text-sm"
-                  />
+                  <Select value={semester} onValueChange={setSemester}>
+                    <SelectTrigger id="semester" className="bg-card/40 border-border text-sm">
+                      <SelectValue placeholder="Select Semester" />
+                    </SelectTrigger>
+                    <SelectContent
+                      side="bottom"
+                      align="start"
+                      sideOffset={4}
+                      avoidCollisions={false}
+                    >
+                      {SEMESTER_OPTIONS.map((semesterNumber) => (
+                        <SelectItem key={semesterNumber} value={`Semester ${semesterNumber}`}>
+                          Semester {semesterNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="courseName" className="text-xs text-foreground">Course/Degree Name</Label>
