@@ -40,6 +40,7 @@ function JoinPage() {
   const [answer, setAnswer] = useState("");
   const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
   const [answerMap, setAnswerMap] = useState<Record<string, string>>({});
+  const [unansweredQuestionIds, setUnansweredQuestionIds] = useState<Set<string>>(new Set());
 
   console.log("JoinPage Render:", {
     session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
@@ -259,19 +260,27 @@ function JoinPage() {
     if (submitting) return;
     if (!participantId) return;
 
-    const responses = allQuestions
-      .filter((q) => !submittedFor.has(q.id))
-      .map((q) => ({
-        question: q,
-        answer: (answerMap[q.id] ?? "").trim(),
-      }))
-      .filter(({ answer }) => answer.length > 0);
+    const pendingQuestions = allQuestions.filter((q) => !submittedFor.has(q.id));
+    const missingQuestions = pendingQuestions.filter((q) => !(answerMap[q.id] ?? "").trim());
 
-    if (responses.length === 0) {
-      toast.error("Please answer at least one question before submitting");
+    if (missingQuestions.length > 0) {
+      setUnansweredQuestionIds(new Set(missingQuestions.map((q) => q.id)));
+      toast.error(`Please answer ${missingQuestions.length === 1 ? "the highlighted question" : "all highlighted questions"} before submitting`);
       return;
     }
 
+    const responses = pendingQuestions.map((q) => ({
+        question: q,
+        answer: (answerMap[q.id] ?? "").trim(),
+      }));
+
+    if (responses.length === 0) {
+      setUnansweredQuestionIds(new Set());
+      toast.success("All questions are already submitted");
+      return;
+    }
+
+    setUnansweredQuestionIds(new Set());
     setSubmitting(true);
     try {
       const { error } = await supabase.from("responses").insert(
@@ -348,7 +357,6 @@ function JoinPage() {
   if (hasMultipleActive && allQuestions.length > 0) {
     const pendingQuestions = allQuestions.filter((q) => !submittedFor.has(q.id));
     const answeredPendingCount = pendingQuestions.filter((q) => (answerMap[q.id] ?? "").trim()).length;
-    const hasAnsweredPending = answeredPendingCount > 0;
 
     return (
       <Wrap secondsLeft={secondsLeft}>
@@ -367,8 +375,17 @@ function JoinPage() {
           {allQuestions.map((q, i) => {
             const submitted = submittedFor.has(q.id);
             const qAnswer = answerMap[q.id] ?? "";
+            const isUnanswered = unansweredQuestionIds.has(q.id) && !submitted && !qAnswer.trim();
             return (
-              <div key={q.id} className="rounded-2xl border border-border bg-card/40 p-4 space-y-3">
+              <div
+                key={q.id}
+                className={cn(
+                  "rounded-2xl border bg-card/40 p-4 space-y-3 transition",
+                  isUnanswered
+                    ? "border-destructive bg-destructive/10 shadow-[0_0_0_3px_color-mix(in_oklab,var(--destructive)_24%,transparent)]"
+                    : "border-border",
+                )}
+              >
                 <div className="flex items-center gap-2">
                   <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">{i + 1}</span>
                   <span className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</span>
@@ -383,10 +400,19 @@ function JoinPage() {
                   <div className="space-y-2">
                     <Textarea
                       value={qAnswer}
-                      onChange={e => setAnswerMap(p => ({ ...p, [q.id]: e.target.value }))}
+                      onChange={e => {
+                        setAnswerMap(p => ({ ...p, [q.id]: e.target.value }));
+                        setUnansweredQuestionIds(prev => {
+                          if (!prev.has(q.id)) return prev;
+                          const next = new Set(prev);
+                          next.delete(q.id);
+                          return next;
+                        });
+                      }}
                       placeholder="Type your thoughts..."
                       rows={2}
                       maxLength={200}
+                      aria-invalid={isUnanswered}
                     />
                   </div>
                 ) : (
@@ -395,7 +421,15 @@ function JoinPage() {
                       <button
                         key={opt}
                         type="button"
-                        onClick={() => setAnswerMap(p => ({ ...p, [q.id]: opt }))}
+                        onClick={() => {
+                          setAnswerMap(p => ({ ...p, [q.id]: opt }));
+                          setUnansweredQuestionIds(prev => {
+                            if (!prev.has(q.id)) return prev;
+                            const next = new Set(prev);
+                            next.delete(q.id);
+                            return next;
+                          });
+                        }}
                         className={cn(
                           "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
                           qAnswer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40"
@@ -406,6 +440,9 @@ function JoinPage() {
                     ))}
                   </div>
                 )}
+                {isUnanswered && (
+                  <div className="text-xs font-semibold text-destructive">Answer required before submitting.</div>
+                )}
               </div>
             );
           })}
@@ -415,9 +452,9 @@ function JoinPage() {
                 <CheckCircle2 className="h-4 w-4" /> All questions submitted
               </div>
             ) : (
-              <Button type="submit" disabled={submitting || !hasAnsweredPending} className={microsoftSubmitButton}>
+              <Button type="submit" disabled={submitting} className={microsoftSubmitButton}>
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {submitting ? "Submitting..." : "Submit"}
+                {submitting ? "Submitting..." : `Submit (${answeredPendingCount}/${pendingQuestions.length})`}
               </Button>
             )}
           </div>
