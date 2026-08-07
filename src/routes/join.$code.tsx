@@ -383,6 +383,8 @@ function JoinPage() {
                   "rounded-2xl border bg-card/40 p-4 space-y-3 transition",
                   isUnanswered
                     ? "border-destructive bg-destructive/10 shadow-[0_0_0_3px_color-mix(in_oklab,var(--destructive)_24%,transparent)]"
+                    : submitted
+                      ? "border-[color:var(--accent-emerald)] bg-[color:var(--accent-emerald)]/10 shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent-emerald)_22%,transparent)]"
                     : "border-border",
                 )}
               >
