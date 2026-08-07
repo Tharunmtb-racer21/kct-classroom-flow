@@ -41,6 +41,7 @@ function JoinPage() {
   const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
   const [answerMap, setAnswerMap] = useState<Record<string, string>>({});
   const [unansweredQuestionIds, setUnansweredQuestionIds] = useState<Set<string>>(new Set());
+  const [allQuestionsComplete, setAllQuestionsComplete] = useState(false);
 
   console.log("JoinPage Render:", {
     session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
@@ -186,6 +187,9 @@ function JoinPage() {
       if (!error && data) {
         const answeredIds = data.map((r) => r.question_id);
         setSubmittedFor(new Set(answeredIds));
+        if (allQuestions.length > 0 && allQuestions.every((q) => answeredIds.includes(q.id))) {
+          setAllQuestionsComplete(true);
+        }
       }
     })();
   }, [participantId, question?.id, allQuestions.length]);
@@ -302,6 +306,7 @@ function JoinPage() {
         });
         return next;
       });
+      setAllQuestionsComplete(true);
       toast.success(`${responses.length} ${responses.length === 1 ? "response" : "responses"} submitted`);
     } catch (err: any) {
       console.error(err);
@@ -357,6 +362,24 @@ function JoinPage() {
   if (hasMultipleActive && allQuestions.length > 0) {
     const pendingQuestions = allQuestions.filter((q) => !submittedFor.has(q.id));
     const answeredPendingCount = pendingQuestions.filter((q) => (answerMap[q.id] ?? "").trim()).length;
+
+    if (allQuestionsComplete || pendingQuestions.length === 0) {
+      return (
+        <Wrap secondsLeft={secondsLeft}>
+          <div className="mx-auto flex min-h-[58vh] w-full max-w-md flex-col items-center justify-center text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-[color:var(--accent-emerald)]/15 text-[color:var(--accent-emerald)]">
+              <CheckCircle2 className="h-9 w-9" />
+            </div>
+            <h1 className="mt-6 text-2xl font-semibold tracking-tight">Your response was saved.</h1>
+            <p className="mt-2 text-base text-muted-foreground">Thank you.</p>
+            <div className="mt-8 w-full rounded-md border border-border bg-card/50 px-4 py-3 text-left">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Session</div>
+              <div className="mt-1 font-semibold">{session.title}</div>
+            </div>
+          </div>
+        </Wrap>
+      );
+    }
 
     return (
       <Wrap secondsLeft={secondsLeft}>
