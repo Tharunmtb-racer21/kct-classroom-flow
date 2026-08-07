@@ -13,6 +13,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
 
+const microsoftSubmitButton =
+  "w-full h-14 rounded-[4px] border border-[#005a9e] bg-[#0078d4] text-white shadow-sm font-semibold hover:bg-[#106ebe] active:bg-[#005a9e] focus-visible:ring-[#0078d4]/45 disabled:border-[#a6a6a6] disabled:bg-[#c8c8c8] disabled:text-[#666666]";
+
 export const Route = createFileRoute("/join/$code")({
   head: () => ({
     meta: [
@@ -223,6 +226,7 @@ function JoinPage() {
   };
 
   const handleSubmit = async (qid?: string, ans?: string) => {
+    if (submitting) return;
     const targetQ = qid ? (allQuestions.find(q => q.id === qid) ?? question) : question;
     const targetAnswer = ans ?? answer;
     if (!targetQ || !participantId || !targetAnswer.trim()) return;
@@ -252,6 +256,7 @@ function JoinPage() {
   };
 
   const handleSubmitAll = async () => {
+    if (submitting) return;
     if (!participantId) return;
 
     const responses = allQuestions
@@ -347,7 +352,13 @@ function JoinPage() {
 
     return (
       <Wrap secondsLeft={secondsLeft}>
-        <div className="space-y-6">
+        <form
+          className="space-y-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmitAll();
+          }}
+        >
           <div className="text-center">
             <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">All Questions</div>
             <h1 className="mt-1 text-xl font-bold">{session.title}</h1>
@@ -404,12 +415,13 @@ function JoinPage() {
                 <CheckCircle2 className="h-4 w-4" /> All questions submitted
               </div>
             ) : (
-              <Button onClick={handleSubmitAll} disabled={submitting || !hasAnsweredPending} className="w-full h-14 gradient-bg font-semibold">
+              <Button type="submit" disabled={submitting || !hasAnsweredPending} className={microsoftSubmitButton}>
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {submitting ? "Submitting..." : "Submit"}
               </Button>
             )}
           </div>
-        </div>
+        </form>
       </Wrap>
     );
   }
@@ -457,7 +469,13 @@ function JoinPage() {
           <p className="mt-1 text-sm text-muted-foreground">Waiting for the next question…</p>
         </div>
       ) : question.type === "wordcloud" ? (
-        <div className="mt-6 space-y-4">
+        <form
+          className="mt-6 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
+        >
           <Textarea value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Type your thoughts..." rows={4} maxLength={200} />
           
           <div className="space-y-2">
@@ -475,12 +493,19 @@ function JoinPage() {
             </div>
           </div>
 
-          <Button onClick={() => handleSubmit()} disabled={submitting || !answer.trim()} className="w-full h-14 gradient-bg font-semibold">
+          <Button type="submit" disabled={submitting || !answer.trim()} className={microsoftSubmitButton}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Submitting..." : "Submit"}
           </Button>
-        </div>
+        </form>
       ) : (
-        <div className="mt-6 space-y-4">
+        <form
+          className="mt-6 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
+        >
           <div className="space-y-3">
             {question.options.map((opt) => (
               <button
@@ -512,10 +537,11 @@ function JoinPage() {
             </div>
           </div>
 
-          <Button onClick={() => handleSubmit()} disabled={submitting || !answer} className="w-full h-14 gradient-bg font-semibold">
+          <Button type="submit" disabled={submitting || !answer} className={microsoftSubmitButton}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Submitting..." : "Submit Answer"}
           </Button>
-        </div>
+        </form>
       )}
     </Wrap>
   );
