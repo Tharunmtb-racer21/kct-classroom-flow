@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -744,6 +744,30 @@ function QuestionsPanel({
     }
   };
 
+  const handleRetakeSelected = async () => {
+    if (checkedIds.length === 0) {
+      toast.error("Please select at least one question to retake");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to let students retake the selected ${checkedIds.length} question(s)? This will permanently delete their existing responses for these questions.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("responses")
+        .delete()
+        .in("question_id", checkedIds);
+
+      if (error) throw error;
+      toast.success("Selected question(s) reset. Students can now retake them!");
+      onReload();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reset selected questions");
+    }
+  };
+
   const uploadImage = async (file: File): Promise<string | null> => {
     const user = auth.currentUser;
     if (!user) throw new Error("Authentication required");
@@ -1273,14 +1297,26 @@ function QuestionsPanel({
         {/* ── ONE-CLICK Activate / Deactivate Selected / All ── */}
         {questions.length > 0 && (
           <div className="space-y-2">
-            <Button
-              onClick={handleActivateSelected}
-              disabled={checkedIds.length === 0}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 text-sm shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
-            >
-              <Play className="h-4 w-4 fill-current" />
-              Activate Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={handleActivateSelected}
+                disabled={checkedIds.length === 0}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                <Play className="h-3.5 w-3.5 fill-current" />
+                Activate Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleRetakeSelected}
+                disabled={checkedIds.length === 0}
+                variant="outline"
+                className="flex items-center justify-center gap-1.5 rounded-xl border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Retake Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={async () => {

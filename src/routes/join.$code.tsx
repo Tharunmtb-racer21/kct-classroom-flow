@@ -132,6 +132,56 @@ function JoinPage() {
     return () => { supabase.removeChannel(ch); };
   }, [question?.id]);
 
+  // realtime responses updates (to support real-time Retake/Reset)
+  useEffect(() => {
+    if (!participantId || !session?.id) return;
+
+    const ch = supabase
+      .channel(`join-responses-${participantId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "responses",
+          filter: `participant_id=eq.${participantId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedQid = (payload.old as any).question_id;
+            if (deletedQid) {
+              setSubmittedFor((prev) => {
+                const next = new Set(prev);
+                next.delete(deletedQid);
+                return next;
+              });
+              setSubmittedAnswers((prev) => {
+                const next = { ...prev };
+                delete next[deletedQid];
+                return next;
+              });
+              if (question && question.id === deletedQid) {
+                setAnswer("");
+              }
+              setAllQuestionsComplete(false);
+            }
+          } else if (payload.eventType === "INSERT") {
+            const newResp = payload.new as any;
+            setSubmittedFor((prev) => new Set([...prev, newResp.question_id]));
+            setSubmittedAnswers((prev) => ({
+              ...prev,
+              [newResp.question_id]: newResp.answer ?? "",
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [participantId, session?.id, question?.id]);
+
   // countdown timer state
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
