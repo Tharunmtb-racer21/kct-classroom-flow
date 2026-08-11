@@ -411,19 +411,47 @@ function QuestionsPanel({
 
       // Sheet 1: Instructions
       const instructionsData = [
-        ["Classroom Quiz Import Template - Instructions"],
+        ["", "MCQ Quiz Upload Template"],
+        ["", "Fill in the 'Questions' sheet, then upload this file to create your quiz."],
         [],
-        ["1. Do not modify the column headers in the 'Questions' sheet."],
-        ["2. Enter your questions and options in the 'Questions' sheet."],
-        ["3. Required columns: Question Text, Option A, Option B, Correct Answer."],
-        ["4. Option C, Option D, and Option E are optional. Leave them blank if not needed."],
-        ["5. Correct Answer MUST match one of your options EXACTLY."],
+        ["", "How to use this template"],
+        ["", "1. Open the \"Questions\" sheet (second tab at the bottom)."],
+        ["", "2. Row 2 is a filled-in EXAMPLE (shaded green). Do not delete the header row (row 1). You may delete the example row"],
+        ["", "   before uploading, or leave it — it will be ignored if you follow the format."],
+        ["", "3. Add one question per row, starting from row 2 (or row 3 if you kept the example)."],
+        ["", "4. Fill in Option A and Option B at minimum. Option C, D and E are optional — leave blank if not needed."],
+        ["", "5. In the \"Correct Answer\" column, enter the letter of the correct option (A, B, C, D, or E)."],
+        ["", "6. \"Points\" is the score awarded for a correct answer. Defaults to 1 if left blank."],
+        ["", "7. \"Question Type\" should be Single Correct or Multiple Correct. For Multiple Correct questions, list all"],
+        ["", "   correct letters separated by commas in \"Correct Answer\" (e.g. A,C)."],
+        ["", "8. \"Explanation\" is optional and shown to the user after answering (if your portal supports it)."],
+        ["", "9. Do not rename column headers, do not reorder columns, and do not add extra columns — the upload parser depends on this exact layout."],
+        ["", "10. Save the file as .xlsx and upload it back to the portal."],
+        [],
+        ["", "Formatting legend"],
+        ["", "Cells you fill in (light yellow/beige)"],
+        ["", "Example row (light green)"],
+        [],
+        ["", "Column reference"],
+        ["", "• Question No: Auto-numbered. Do not edit — formula fills this automatically."],
+        ["", "• Question Text: The question shown to the quiz taker. Required."],
+        ["", "• Option A: First answer choice. Required."],
+        ["", "• Option B: Second answer choice. Required."],
+        ["", "• Option C: Third answer choice. Optional."],
+        ["", "• Option D: Fourth answer choice. Optional."],
+        ["", "• Option E: Fifth answer choice. Optional."],
+        ["", "• Correct Answer: Letter of the correct option, e.g., 'A' or 'B'."],
+        ["", "• Question Type: Single Correct or Multiple Correct."],
+        ["", "• Points: Score for a correct answer. Defaults to 1 if blank."],
+        ["", "• Explanation: Optional. Shown after the question is answered."],
       ];
       const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+      wsInstructions["!cols"] = [{ wch: 3 }, { wch: 110 }];
       XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
 
       // Sheet 2: Questions
       const headers = [
+        "Question No.",
         "Question Text",
         "Option A",
         "Option B",
@@ -431,32 +459,61 @@ function QuestionsPanel({
         "Option D",
         "Option E",
         "Correct Answer",
+        "Question Type",
+        "Points",
+        "Explanation"
       ];
       const sampleData = [
         headers,
         [
-          "What is the capital of Tamil Nadu?",
-          "Chennai",
-          "Coimbatore",
-          "Madurai",
-          "Salem",
+          1,
+          "What is the capital of France?",
+          "Paris",
+          "Berlin",
+          "London",
+          "Rome",
           "",
-          "Chennai",
-        ],
-        [
-          "Which of these is a programming language?",
-          "HTML",
-          "Python",
-          "CSS",
-          "Markdown",
-          "",
-          "Python",
-        ],
+          "A",
+          "Single Correct",
+          1,
+          "Paris has been the capital of France since the 16th century."
+        ]
       ];
       const wsQuestions = XLSX.utils.aoa_to_sheet(sampleData);
+      wsQuestions["!cols"] = [
+        { wch: 12 }, { wch: 45 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+        { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 }
+      ];
       XLSX.utils.book_append_sheet(wb, wsQuestions, "Questions");
 
-      XLSX.writeFile(wb, "classroom-quiz-template.xlsx");
+      // Sheet 3: Answer Key Summary
+      const summaryHeaders = [
+        "Question No.",
+        "Question Text",
+        "Correct Answer",
+        "Question Type",
+        "Points"
+      ];
+      const summaryData = [
+        ["Answer Key Summary"],
+        ["Auto-generated from the Questions sheet. This is for your review only — do not edit."],
+        [],
+        summaryHeaders,
+        [
+          1,
+          "What is the capital of France?",
+          "A",
+          "Single Correct",
+          1
+        ]
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary["!cols"] = [
+        { wch: 12 }, { wch: 45 }, { wch: 15 }, { wch: 15 }, { wch: 10 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Answer Key Summary");
+
+      XLSX.writeFile(wb, "mcq_quiz_upload_template.xlsx");
     })();
   };
 
@@ -496,6 +553,7 @@ function QuestionsPanel({
           return normalized;
         });
 
+        // Filter out example rows or empty question texts
         const activeRows = normalizedRows.filter((r) => {
           const text = r["Question Text"];
           return text !== undefined && text !== null && String(text).trim() !== "";
@@ -518,7 +576,7 @@ function QuestionsPanel({
           const optC = r["Option C"] ? String(r["Option C"]).trim() : "";
           const optD = r["Option D"] ? String(r["Option D"]).trim() : "";
           const optE = r["Option E"] ? String(r["Option E"]).trim() : "";
-          const correctAns = r["Correct Answer"] ? String(r["Correct Answer"]).trim() : "";
+          const correctAns = r["Correct Answer"] ? String(r["Correct Answer"]).trim().toUpperCase() : "";
 
           if (!qText) {
             errorsList.push(`Row ${rowNum}: Question Text is required.`);
@@ -535,18 +593,25 @@ function QuestionsPanel({
           if (!correctAns) {
             errorsList.push(`Row ${rowNum}: Correct Answer is required.`);
           } else {
-            const matches = optionsList.some(o => o.toLowerCase() === correctAns.toLowerCase());
-            if (!matches) {
-              errorsList.push(`Row ${rowNum}: Correct Answer "${correctAns}" does not match any options exactly.`);
-            }
-          }
+            // Check if correct answer letter is valid and references a filled option
+            let mappedCorrectOptionText = "";
+            if (correctAns === "A") mappedCorrectOptionText = optA;
+            else if (correctAns === "B") mappedCorrectOptionText = optB;
+            else if (correctAns === "C") mappedCorrectOptionText = optC;
+            else if (correctAns === "D") mappedCorrectOptionText = optD;
+            else if (correctAns === "E") mappedCorrectOptionText = optE;
 
-          if (errorsList.length === 0) {
-            parsedQuestionsList.push({
-              title: qText,
-              options: optionsList,
-              correct_answer: correctAns,
-            });
+            if (!mappedCorrectOptionText) {
+              errorsList.push(`Row ${rowNum}: Correct Answer "${correctAns}" is invalid or references an empty option.`);
+            } else {
+              if (errorsList.length === 0) {
+                parsedQuestionsList.push({
+                  title: qText,
+                  options: optionsList,
+                  correct_answer: mappedCorrectOptionText,
+                });
+              }
+            }
           }
         });
 
