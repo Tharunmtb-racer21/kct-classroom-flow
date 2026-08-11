@@ -71,7 +71,7 @@ function DashboardLayout() {
         <main className="flex-1 flex flex-col justify-between overflow-x-hidden">
           <Outlet />
           <footer className="mt-auto border-t border-border/40 py-4 px-6 text-center text-xs text-muted-foreground">
-            Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">DESIGNED BY THARUN NE</span>
+            Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">designed by THARUN NE</span>
           </footer>
         </main>
       </div>

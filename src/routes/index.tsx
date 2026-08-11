@@ -49,7 +49,7 @@ function Index() {
       <section className="mx-auto max-w-7xl px-6 pt-12 pb-20 text-center">
         <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur">
           <Sparkles className="h-3.5 w-3.5 text-[color:var(--primary-glow)]" />
-          Built for Kumaraguru College of Technology · <span className="font-bold text-foreground">DESIGNED BY THARUN NE</span>
+          Built for Kumaraguru College of Technology · <span className="font-bold text-foreground">designed by THARUN NE</span>
         </div>
         <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
           Transform classrooms into <br />
@@ -96,7 +96,7 @@ function Index() {
       </section>
 
       <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} KCT PULSE · Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">DESIGNED BY THARUN NE</span>
+        © {new Date().getFullYear()} KCT PULSE · Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">designed by THARUN NE</span>
       </footer>
       </div>
     </div>

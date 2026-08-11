@@ -61,7 +61,7 @@ export function AppSidebar() {
       </div>
       <div className="p-3 border-t border-border/40 text-center text-[11px] leading-tight text-muted-foreground">
         Built for <span className="font-semibold text-foreground/80">Kumaraguru College of Technology</span>
-        <div className="mt-1 font-bold text-primary tracking-wider uppercase text-[10px]">DESIGNED BY THARUN NE</div>
+        <div className="mt-1 font-bold text-primary tracking-wider uppercase text-[10px]">designed by THARUN NE</div>
       </div>
     </aside>
   );

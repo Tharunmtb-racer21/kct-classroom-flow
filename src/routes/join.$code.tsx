@@ -809,7 +809,7 @@ function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLef
         <div className="w-full max-w-md">{children}</div>
       </main>
       <footer className="border-t border-border/40 py-4 text-center text-xs text-muted-foreground">
-        Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">DESIGNED BY THARUN NE</span>
+        Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">designed by THARUN NE</span>
       </footer>
     </div>
   );
