@@ -241,6 +241,8 @@ function JoinPage() {
         );
         if (allQuestions.length > 0 && allQuestions.every((q) => answeredIds.includes(q.id))) {
           setAllQuestionsComplete(true);
+        } else {
+          setAllQuestionsComplete(false);
         }
       }
     })();
