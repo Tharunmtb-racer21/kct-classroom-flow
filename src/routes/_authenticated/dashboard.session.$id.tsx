@@ -419,18 +419,6 @@ function QuestionsPanel({
   const [excelValidated, setExcelValidated] = useState(false);
   const [excelQuestions, setExcelQuestions] = useState<any[]>([]);
 
-  // Manual Quiz Question Type and Correct Answer helper states
-  const [questionType, setQuestionType] = useState<string>("Single Correct");
-  const [editQuestionType, setEditQuestionType] = useState<string>("Single Correct");
-
-  const parsedOptions = useMemo(() => {
-    return optionsText.split("\n").map((o) => o.trim()).filter(Boolean);
-  }, [optionsText]);
-
-  const parsedEditOptions = useMemo(() => {
-    return editOptionsText.split("\n").map((o) => o.trim()).filter(Boolean);
-  }, [editOptionsText]);
-
   const handleDownloadTemplate = () => {
     (async () => {
       const XLSX = await import("xlsx");
@@ -841,7 +829,6 @@ function QuestionsPanel({
         title,
         options,
         correct_answer: type === "quiz" ? correct : null,
-        question_type: type === "quiz" ? questionType : "Single Correct",
         order_index: questions.length,
         image_url,
       });
@@ -853,7 +840,6 @@ function QuestionsPanel({
       setTitle(""); 
       setOptionsText(""); 
       setCorrect("");
-      setQuestionType("Single Correct");
       setImageFile(null);
     } catch (error: any) {
       console.error("Create question error:", error);
@@ -880,7 +866,6 @@ function QuestionsPanel({
     setEditTitle(q.title);
     setEditOptionsText(q.options?.join("\n") ?? "");
     setEditCorrect(q.correct_answer ?? "");
-    setEditQuestionType(q.question_type ?? "Single Correct");
     setEditImageUrl(q.image_url ?? null);
     setEditImageFile(null);
     setRemoveExistingImage(false);
@@ -911,7 +896,6 @@ function QuestionsPanel({
           title: editTitle,
           options,
           correct_answer: editType === "quiz" ? editCorrect : null,
-          question_type: editType === "quiz" ? editQuestionType : "Single Correct",
           image_url: finalImageUrl,
         })
         .eq("id", editingQuestion.id);
@@ -1090,64 +1074,8 @@ function QuestionsPanel({
                         <Textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={4} required placeholder={"Option A\nOption B\nOption C"} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Question Type</Label>
-                        <select
-                          value={questionType}
-                          onChange={(e) => {
-                            setQuestionType(e.target.value);
-                            setCorrect("");
-                          }}
-                          className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                          <option value="Single Correct">Single Correct</option>
-                          <option value="Multiple Correct">Multiple Correct</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Correct Answer(s)</Label>
-                        {parsedOptions.length === 0 ? (
-                          <div className="text-xs text-muted-foreground border border-dashed rounded-lg p-3 text-center bg-card/25">
-                            Please add options above first to select the correct answer.
-                          </div>
-                        ) : questionType === "Multiple Correct" ? (
-                          <div className="space-y-2 border border-border rounded-lg p-3 bg-muted/10 max-h-40 overflow-y-auto">
-                            {parsedOptions.map((opt) => {
-                              const selectedList = correct.split(",").map(s => s.trim()).filter(Boolean);
-                              const isChecked = selectedList.includes(opt);
-                              return (
-                                <label key={opt} className="flex items-center gap-2.5 text-sm cursor-pointer select-none py-1 hover:text-primary transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={(e) => {
-                                      let nextList = [...selectedList];
-                                      if (e.target.checked) {
-                                        nextList.push(opt);
-                                      } else {
-                                        nextList = nextList.filter(s => s !== opt);
-                                      }
-                                      setCorrect(nextList.join(", "));
-                                    }}
-                                    className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                                  />
-                                  <span>{opt}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <select
-                            value={correct}
-                            onChange={(e) => setCorrect(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          >
-                            <option value="">Select correct option</option>
-                            {parsedOptions.map((opt) => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
-                        )}
+                        <Label>Correct answer (must match option exactly)</Label>
+                        <Input value={correct} onChange={(e) => setCorrect(e.target.value)} required placeholder="Paris" />
                       </div>
                       <div className="space-y-2">
                         <Label>Question Image (Optional)</Label>
@@ -1320,68 +1248,10 @@ function QuestionsPanel({
                 </div>
               )}
               {editType === "quiz" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Question Type</Label>
-                    <select
-                      value={editQuestionType}
-                      onChange={(e) => {
-                        setEditQuestionType(e.target.value);
-                        setEditCorrect("");
-                      }}
-                      className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="Single Correct">Single Correct</option>
-                      <option value="Multiple Correct">Multiple Correct</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Correct Answer(s)</Label>
-                    {parsedEditOptions.length === 0 ? (
-                      <div className="text-xs text-muted-foreground border border-dashed rounded-lg p-3 text-center bg-card/25">
-                        Please add options above first to select the correct answer.
-                      </div>
-                    ) : editQuestionType === "Multiple Correct" ? (
-                      <div className="space-y-2 border border-border rounded-lg p-3 bg-muted/10 max-h-40 overflow-y-auto">
-                        {parsedEditOptions.map((opt) => {
-                          const selectedList = editCorrect.split(",").map(s => s.trim()).filter(Boolean);
-                          const isChecked = selectedList.includes(opt);
-                          return (
-                            <label key={opt} className="flex items-center gap-2.5 text-sm cursor-pointer select-none py-1 hover:text-primary transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  let nextList = [...selectedList];
-                                  if (e.target.checked) {
-                                    nextList.push(opt);
-                                  } else {
-                                    nextList = nextList.filter(s => s !== opt);
-                                  }
-                                  setEditCorrect(nextList.join(", "));
-                                }}
-                                className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                              />
-                              <span>{opt}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <select
-                        value={editCorrect}
-                        onChange={(e) => setEditCorrect(e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        <option value="">Select correct option</option>
-                        {parsedEditOptions.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                </>
+                <div className="space-y-2">
+                  <Label>Correct answer (must match option exactly)</Label>
+                  <Input value={editCorrect} onChange={(e) => setEditCorrect(e.target.value)} required />
+                </div>
               )}
               
               {editImageUrl && !removeExistingImage && (
