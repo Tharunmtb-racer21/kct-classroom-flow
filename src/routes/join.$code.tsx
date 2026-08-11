@@ -217,15 +217,12 @@ function JoinPage() {
   // Load existing database submissions for this participant to prevent reload duplicate submissions
   useEffect(() => {
     if (!participantId) return;
-    
-    // Collect all question IDs we care about
-    const questionIds: string[] = [];
-    if (question?.id) {
-      questionIds.push(question.id);
-    }
-    allQuestions.forEach((q) => {
-      if (q.id) questionIds.push(q.id);
-    });
+    const activeIds = session?.active_question_ids || [];
+    const questionIds = [
+      session?.current_question_id,
+      ...activeIds,
+      ...allQuestions.map((q) => q.id),
+    ].filter(Boolean) as string[];
 
     if (questionIds.length === 0) return;
 
@@ -247,7 +244,7 @@ function JoinPage() {
         }
       }
     })();
-  }, [participantId, question?.id, allQuestions.length]);
+  }, [participantId, question?.id, allQuestions.length, session]);
 
 
   const handleJoin = async (e: React.FormEvent) => {

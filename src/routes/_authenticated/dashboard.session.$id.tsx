@@ -776,6 +776,13 @@ function QuestionsPanel({
         .in("question_id", checkedIds);
 
       if (error) throw error;
+
+      // Touch session to broadcast a realtime update to all student clients
+      await supabase
+        .from("sessions")
+        .update({ status: session.status })
+        .eq("id", sessionId);
+
       toast.success("Selected question(s) reset. Students can now retake them!");
       onReload();
     } catch (e: any) {
