@@ -1,7 +1,8 @@
 -- Allow faculty/session creators to delete responses for their session questions
+DROP POLICY IF EXISTS "Faculty delete responses of own sessions" ON public.responses;
+
 CREATE POLICY "Faculty delete responses of own sessions" ON public.responses 
 FOR DELETE 
-TO authenticated 
 USING (
   EXISTS (
     SELECT 1 FROM public.questions q
