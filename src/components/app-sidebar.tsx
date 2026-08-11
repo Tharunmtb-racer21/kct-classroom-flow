@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, LogOut, Presentation, User, BookOpen } from "lucide-react";
+import { BarChart3, LayoutDashboard, LogOut, Presentation, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
@@ -8,7 +8,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const items: { title: string; url: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
   { title: "Sessions", url: "/dashboard/sessions", icon: Presentation },
-  { title: "Quizzes", url: "/teacher/quizzes/create", icon: BookOpen },
   { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
   { title: "Profile", url: "/dashboard/profile", icon: User },
 ];

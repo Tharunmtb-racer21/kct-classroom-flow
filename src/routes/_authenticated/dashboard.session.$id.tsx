@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
 import { toast } from "sonner";
@@ -397,6 +398,212 @@ function QuestionsPanel({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Excel upload/parsing states for Quiz import
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [excelParsingErrors, setExcelParsingErrors] = useState<string[]>([]);
+  const [excelValidated, setExcelValidated] = useState(false);
+  const [excelQuestions, setExcelQuestions] = useState<any[]>([]);
+
+  const handleDownloadTemplate = () => {
+    (async () => {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Instructions
+      const instructionsData = [
+        ["Classroom Quiz Import Template - Instructions"],
+        [],
+        ["1. Do not modify the column headers in the 'Questions' sheet."],
+        ["2. Enter your questions and options in the 'Questions' sheet."],
+        ["3. Required columns: Question Text, Option A, Option B, Correct Answer."],
+        ["4. Option C, Option D, and Option E are optional. Leave them blank if not needed."],
+        ["5. Correct Answer MUST match one of your options EXACTLY."],
+      ];
+      const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+      XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
+
+      // Sheet 2: Questions
+      const headers = [
+        "Question Text",
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D",
+        "Option E",
+        "Correct Answer",
+      ];
+      const sampleData = [
+        headers,
+        [
+          "What is the capital of Tamil Nadu?",
+          "Chennai",
+          "Coimbatore",
+          "Madurai",
+          "Salem",
+          "",
+          "Chennai",
+        ],
+        [
+          "Which of these is a programming language?",
+          "HTML",
+          "Python",
+          "CSS",
+          "Markdown",
+          "",
+          "Python",
+        ],
+      ];
+      const wsQuestions = XLSX.utils.aoa_to_sheet(sampleData);
+      XLSX.utils.book_append_sheet(wb, wsQuestions, "Questions");
+
+      XLSX.writeFile(wb, "classroom-quiz-template.xlsx");
+    })();
+  };
+
+  const handleValidateExcel = () => {
+    if (!excelFile) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const XLSX = await import("xlsx");
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const questionsSheetName = workbook.SheetNames.find(
+          (name) => name.toLowerCase() === "questions"
+        );
+        if (!questionsSheetName) {
+          setExcelParsingErrors(["Sheet named 'Questions' was not found in the Excel template."]);
+          setExcelValidated(false);
+          return;
+        }
+
+        const worksheet = workbook.Sheets[questionsSheetName];
+        const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        if (!jsonData || jsonData.length === 0) {
+          setExcelParsingErrors(["The 'Questions' sheet is empty."]);
+          setExcelValidated(false);
+          return;
+        }
+
+        const normalizedRows = jsonData.map((row: any) => {
+          const normalized: any = {};
+          Object.keys(row).forEach((key) => {
+            normalized[key.trim()] = row[key];
+          });
+          return normalized;
+        });
+
+        const activeRows = normalizedRows.filter((r) => {
+          const text = r["Question Text"];
+          return text !== undefined && text !== null && String(text).trim() !== "";
+        });
+
+        if (activeRows.length === 0) {
+          setExcelParsingErrors(["No questions found (all rows had empty 'Question Text')."]);
+          setExcelValidated(false);
+          return;
+        }
+
+        const errorsList: string[] = [];
+        const parsedQuestionsList: any[] = [];
+
+        activeRows.forEach((r, idx) => {
+          const rowNum = idx + 2;
+          const qText = r["Question Text"] ? String(r["Question Text"]).trim() : "";
+          const optA = r["Option A"] ? String(r["Option A"]).trim() : "";
+          const optB = r["Option B"] ? String(r["Option B"]).trim() : "";
+          const optC = r["Option C"] ? String(r["Option C"]).trim() : "";
+          const optD = r["Option D"] ? String(r["Option D"]).trim() : "";
+          const optE = r["Option E"] ? String(r["Option E"]).trim() : "";
+          const correctAns = r["Correct Answer"] ? String(r["Correct Answer"]).trim() : "";
+
+          if (!qText) {
+            errorsList.push(`Row ${rowNum}: Question Text is required.`);
+          }
+          if (!optA || !optB) {
+            errorsList.push(`Row ${rowNum}: Option A and Option B are required.`);
+          }
+
+          const optionsList = [optA, optB, optC, optD, optE].filter(Boolean);
+          if (optionsList.length < 2) {
+            errorsList.push(`Row ${rowNum}: At least 2 options are required.`);
+          }
+
+          if (!correctAns) {
+            errorsList.push(`Row ${rowNum}: Correct Answer is required.`);
+          } else {
+            const matches = optionsList.some(o => o.toLowerCase() === correctAns.toLowerCase());
+            if (!matches) {
+              errorsList.push(`Row ${rowNum}: Correct Answer "${correctAns}" does not match any options exactly.`);
+            }
+          }
+
+          if (errorsList.length === 0) {
+            parsedQuestionsList.push({
+              title: qText,
+              options: optionsList,
+              correct_answer: correctAns,
+            });
+          }
+        });
+
+        if (errorsList.length > 0) {
+          setExcelParsingErrors(errorsList);
+          setExcelValidated(false);
+          setExcelQuestions([]);
+        } else {
+          setExcelParsingErrors([]);
+          setExcelValidated(true);
+          setExcelQuestions(parsedQuestionsList);
+          toast.success("Excel template validation successful!");
+        }
+      } catch (err: any) {
+        setExcelParsingErrors([err.message || "Failed to parse file."]);
+        setExcelValidated(false);
+        setExcelQuestions([]);
+      }
+    };
+    reader.readAsArrayBuffer(excelFile);
+  };
+
+  const handleImportExcelQuestions = async () => {
+    if (!excelValidated || excelQuestions.length === 0) {
+      toast.error("Please validate the Excel template successfully first.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const questionsPayload = excelQuestions.map((q, idx) => ({
+        session_id: sessionId,
+        type: "quiz" as const,
+        title: q.title,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        order_index: questions.length + idx,
+      }));
+
+      const { error } = await supabase.from("questions").insert(questionsPayload);
+      if (error) throw error;
+
+      toast.success(`${excelQuestions.length} questions imported successfully!`);
+      
+      setExcelFile(null);
+      setExcelParsingErrors([]);
+      setExcelValidated(false);
+      setExcelQuestions([]);
+      setOpen(false);
+      onReload();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to import questions.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   // Calculate currently live question IDs from database status
@@ -638,12 +845,19 @@ function QuestionsPanel({
             <DialogTrigger asChild>
               <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
             </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>New Question</DialogTitle></DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Select value={type} onValueChange={(v) => setType(v as QType)}>
+                <Select value={type} onValueChange={(v) => {
+                  setType(v as QType);
+                  // Reset Excel states when type changes
+                  setExcelFile(null);
+                  setExcelParsingErrors([]);
+                  setExcelValidated(false);
+                  setExcelQuestions([]);
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="poll">Poll (MCQ)</SelectItem>
@@ -652,48 +866,177 @@ function QuestionsPanel({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Question</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="What is..." />
-              </div>
-              {type !== "wordcloud" && (
-                <div className="space-y-2">
-                  <Label>Options (one per line)</Label>
-                  <Textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={4} required placeholder={"Option A\nOption B\nOption C"} />
-                </div>
-              )}
-              {type === "quiz" && (
-                <div className="space-y-2">
-                  <Label>Correct answer (must match option exactly)</Label>
-                  <Input value={correct} onChange={(e) => setCorrect(e.target.value)} required />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Question Image (Optional)</Label>
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-                    className="cursor-pointer"
-                  />
-                  {imageFile && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setImageFile(null)}
-                      className="text-destructive"
-                    >
-                      Clear
-                    </Button>
+
+              {type !== "quiz" ? (
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Question</Label>
+                    <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="What is..." />
+                  </div>
+                  {type !== "wordcloud" && (
+                    <div className="space-y-2">
+                      <Label>Options (one per line)</Label>
+                      <Textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={4} required placeholder={"Option A\nOption B\nOption C"} />
+                    </div>
                   )}
-                </div>
-              </div>
-              <Button type="submit" disabled={saving} className="w-full gradient-bg">
-                {saving ? "Saving..." : "Create question"}
-              </Button>
-            </form>
+                  <div className="space-y-2">
+                    <Label>Question Image (Optional)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                        className="cursor-pointer"
+                      />
+                      {imageFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setImageFile(null)}
+                          className="text-destructive"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={saving} className="w-full gradient-bg">
+                    {saving ? "Saving..." : "Create question"}
+                  </Button>
+                </form>
+              ) : (
+                <Tabs defaultValue="manual" className="w-full">
+                  <TabsList className="grid grid-cols-2 p-0.5 bg-muted rounded-lg border">
+                    <TabsTrigger value="manual" className="text-xs font-semibold py-1.5">Add Manually</TabsTrigger>
+                    <TabsTrigger value="excel" className="text-xs font-semibold py-1.5">Upload Excel</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="manual" className="space-y-4 mt-4">
+                    <form onSubmit={handleCreate} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Question</Label>
+                        <Input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="What is..." />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Options (one per line)</Label>
+                        <Textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} rows={4} required placeholder={"Option A\nOption B\nOption C"} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Correct answer (must match option exactly)</Label>
+                        <Input value={correct} onChange={(e) => setCorrect(e.target.value)} required placeholder="Paris" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Question Image (Optional)</Label>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                            className="cursor-pointer"
+                          />
+                          {imageFile && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setImageFile(null)}
+                              className="text-destructive"
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <Button type="submit" disabled={saving} className="w-full gradient-bg">
+                        {saving ? "Saving..." : "Create question"}
+                      </Button>
+                    </form>
+                  </TabsContent>
+
+                  <TabsContent value="excel" className="space-y-4 mt-4">
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border border-primary/20 bg-primary/5 gap-3">
+                        <div className="space-y-0.5">
+                          <h4 className="font-semibold text-xs flex items-center gap-1">
+                            <FileSpreadsheet className="h-3.5 w-3.5 text-primary" />
+                            Import Template
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground">
+                            Use our Excel sheet template to import multiple quiz questions.
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" type="button" onClick={handleDownloadTemplate} className="gap-1 text-xs shrink-0 h-8 font-bold">
+                          <Download className="h-3.5 w-3.5" />
+                          Download
+                        </Button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="excel-upload-file">Select Spreadsheet (.xlsx)</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            id="excel-upload-file" 
+                            type="file" 
+                            accept=".xlsx" 
+                            onChange={(e) => {
+                              setExcelFile(e.target.files?.[0] ?? null);
+                              setExcelValidated(false);
+                              setExcelParsingErrors([]);
+                              setExcelQuestions([]);
+                            }}
+                            className="text-xs file:bg-primary file:text-primary-foreground file:border-0 file:rounded file:px-2.5 file:py-0.5 hover:file:bg-primary/90 file:cursor-pointer cursor-pointer"
+                          />
+                          {excelFile && (
+                            <Button 
+                              type="button" 
+                              variant="secondary" 
+                              onClick={handleValidateExcel}
+                              className="font-bold border text-xs h-9 shrink-0 shadow-sm"
+                            >
+                              Validate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {excelParsingErrors.length > 0 && (
+                        <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 space-y-1.5">
+                          <h5 className="font-bold text-destructive text-xs flex items-center gap-1">
+                            <AlertCircle className="h-4 w-4" />
+                            Validation Errors ({excelParsingErrors.length})
+                          </h5>
+                          <ul className="text-[10px] text-destructive/95 space-y-1 max-h-28 overflow-y-auto pr-1">
+                            {excelParsingErrors.map((err, i) => (
+                              <li key={i} className="list-disc ml-3">{err}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {excelValidated && (
+                        <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 flex items-center gap-2">
+                          <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500 shrink-0" />
+                          <div>
+                            <h5 className="font-bold text-emerald-500 text-xs">Validation Success</h5>
+                            <p className="text-[10px] text-muted-foreground">Ready to import {excelQuestions.length} quiz questions.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <Button 
+                        type="button"
+                        onClick={handleImportExcelQuestions}
+                        disabled={saving || !excelValidated}
+                        className="w-full gradient-bg font-bold shadow-md shadow-primary/20"
+                      >
+                        {saving ? "Importing..." : `Import ${excelQuestions.length || ""} Questions`}
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 
