@@ -259,6 +259,9 @@ function AuthPage() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Students don't need an account — <Link to="/" className="underline">join with a code</Link>.
         </p>
+        <p className="mt-3 text-center text-xs text-muted-foreground/80 font-medium">
+          Built for Kumaraguru College of Technology · <span className="font-bold text-foreground/80">DESIGNED BY THARUN NE</span>
+        </p>
       </div>
     </div>
   );
