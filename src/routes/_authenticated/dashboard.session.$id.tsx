@@ -1091,16 +1091,17 @@ function QuestionsPanel({
                       </div>
                       <div className="space-y-2">
                         <Label>Question Type</Label>
-                        <Select value={questionType} onValueChange={(v) => {
-                          setQuestionType(v);
-                          setCorrect("");
-                        }}>
-                          <SelectTrigger className="w-full bg-card border-border"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Single Correct">Single Correct</SelectItem>
-                            <SelectItem value="Multiple Correct">Multiple Correct</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <select
+                          value={questionType}
+                          onChange={(e) => {
+                            setQuestionType(e.target.value);
+                            setCorrect("");
+                          }}
+                          className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="Single Correct">Single Correct</option>
+                          <option value="Multiple Correct">Multiple Correct</option>
+                        </select>
                       </div>
 
                       <div className="space-y-2">
@@ -1136,14 +1137,16 @@ function QuestionsPanel({
                             })}
                           </div>
                         ) : (
-                          <Select value={correct} onValueChange={setCorrect}>
-                            <SelectTrigger className="w-full bg-card border-border"><SelectValue placeholder="Select correct option" /></SelectTrigger>
-                            <SelectContent>
-                              {parsedOptions.map((opt) => (
-                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <select
+                            value={correct}
+                            onChange={(e) => setCorrect(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            <option value="">Select correct option</option>
+                            {parsedOptions.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
                         )}
                       </div>
                       <div className="space-y-2">
@@ -1320,16 +1323,17 @@ function QuestionsPanel({
                 <>
                   <div className="space-y-2">
                     <Label>Question Type</Label>
-                    <Select value={editQuestionType} onValueChange={(v) => {
-                      setEditQuestionType(v);
-                      setEditCorrect("");
-                    }}>
-                      <SelectTrigger className="w-full bg-card border-border"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Single Correct">Single Correct</SelectItem>
-                        <SelectItem value="Multiple Correct">Multiple Correct</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <select
+                      value={editQuestionType}
+                      onChange={(e) => {
+                        setEditQuestionType(e.target.value);
+                        setEditCorrect("");
+                      }}
+                      className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="Single Correct">Single Correct</option>
+                      <option value="Multiple Correct">Multiple Correct</option>
+                    </select>
                   </div>
 
                   <div className="space-y-2">
@@ -1365,14 +1369,16 @@ function QuestionsPanel({
                         })}
                       </div>
                     ) : (
-                      <Select value={editCorrect} onValueChange={setEditCorrect}>
-                        <SelectTrigger className="w-full bg-card border-border"><SelectValue placeholder="Select correct option" /></SelectTrigger>
-                        <SelectContent>
-                          {parsedEditOptions.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        value={editCorrect}
+                        onChange={(e) => setEditCorrect(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="">Select correct option</option>
+                        {parsedEditOptions.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
                     )}
                   </div>
                 </>
