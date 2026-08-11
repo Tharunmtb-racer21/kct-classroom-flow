@@ -16,6 +16,15 @@ type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string
 const microsoftSubmitButton =
   "w-full h-14 rounded-[4px] border border-[#005a9e] bg-[#0078d4] text-white shadow-sm font-semibold hover:bg-[#106ebe] active:bg-[#005a9e] focus-visible:ring-[#0078d4]/45 disabled:border-[#a6a6a6] disabled:bg-[#c8c8c8] disabled:text-[#666666]";
 
+const isMultipleCorrect = (q: Question | null | undefined): boolean => {
+  if (!q) return false;
+  if (q.question_type === "Multiple Correct") return true;
+  const titleLower = (q.title || "").toLowerCase();
+  return titleLower.includes("select all") || 
+         titleLower.includes("multiple correct") || 
+         titleLower.includes("choose multiple");
+};
+
 export const Route = createFileRoute("/join/$code")({
   head: () => ({
     meta: [
@@ -545,7 +554,7 @@ function JoinPage() {
                         key={opt}
                         type="button"
                         onClick={() => {
-                          if (q.question_type === "Multiple Correct") {
+                          if (isMultipleCorrect(q)) {
                             const currentSelected = qAnswer.split(",").map(s => s.trim()).filter(Boolean);
                             let updatedSelected = [];
                             if (currentSelected.includes(opt.trim())) {
@@ -573,7 +582,7 @@ function JoinPage() {
                         }}
                         className={cn(
                           "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
-                          q.question_type === "Multiple Correct"
+                          isMultipleCorrect(q)
                             ? qAnswer.split(",").map(s => s.trim()).includes(opt.trim())
                               ? "border-primary bg-primary/15"
                               : "border-border bg-card/40"
@@ -696,7 +705,7 @@ function JoinPage() {
                 key={opt}
                 type="button"
                 onClick={() => {
-                  if (question.question_type === "Multiple Correct") {
+                  if (isMultipleCorrect(question)) {
                     const currentSelected = answer.split(",").map(s => s.trim()).filter(Boolean);
                     if (currentSelected.includes(opt.trim())) {
                       const updated = currentSelected.filter(s => s !== opt.trim());
@@ -711,7 +720,7 @@ function JoinPage() {
                 }}
                 className={cn(
                   "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",
-                  question.question_type === "Multiple Correct"
+                  isMultipleCorrect(question)
                     ? answer.split(",").map(s => s.trim()).includes(opt.trim())
                       ? "border-primary bg-primary/15"
                       : "border-border bg-card/40"
