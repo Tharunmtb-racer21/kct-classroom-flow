@@ -20,7 +20,7 @@ import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType } from "
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type QType = "wordcloud" | "poll" | "quiz";
-type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null; points?: number; explanation?: string | null; question_type?: string };
+type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null; created_at?: string; creator_id?: string };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
@@ -686,9 +686,6 @@ function QuestionsPanel({
         options: q.options,
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
-        points: q.points,
-        explanation: q.explanation,
-        question_type: q.question_type,
       }));
 
       const { error } = await supabase.from("questions").insert(questionsPayload);

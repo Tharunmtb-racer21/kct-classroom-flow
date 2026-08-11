@@ -78,9 +78,6 @@ export type Database = {
           session_id: string
           title: string
           type: Database["public"]["Enums"]["question_type"]
-          points: number
-          explanation: string | null
-          question_type: string
         }
         Insert: {
           correct_answer?: string | null
@@ -92,9 +89,6 @@ export type Database = {
           session_id: string
           title: string
           type: Database["public"]["Enums"]["question_type"]
-          points?: number
-          explanation?: string | null
-          question_type?: string
         }
         Update: {
           correct_answer?: string | null
@@ -106,9 +100,6 @@ export type Database = {
           session_id?: string
           title?: string
           type?: Database["public"]["Enums"]["question_type"]
-          points?: number
-          explanation?: string | null
-          question_type?: string
         }
         Relationships: [
           {
