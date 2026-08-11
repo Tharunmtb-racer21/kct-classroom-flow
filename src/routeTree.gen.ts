@@ -13,14 +13,18 @@ import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StudentQuizzesRouteImport } from './routes/student.quizzes'
+import { Route as QuizIdRouteImport } from './routes/quiz.$id'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as EmbedCodeRouteImport } from './routes/embed.$code'
+import { Route as AuthenticatedTeacherRouteImport } from './routes/_authenticated/teacher'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as AuthenticatedDashboardSessionsRouteImport } from './routes/_authenticated/dashboard.sessions'
 import { Route as AuthenticatedDashboardReportsRouteImport } from './routes/_authenticated/dashboard.reports'
 import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_authenticated/dashboard.profile'
 import { Route as AuthenticatedDashboardGuideRouteImport } from './routes/_authenticated/dashboard.guide'
+import { Route as AuthenticatedTeacherQuizzesCreateRouteImport } from './routes/_authenticated/teacher.quizzes.create'
 import { Route as AuthenticatedDashboardSessionIdRouteImport } from './routes/_authenticated/dashboard.session.$id'
 
 const DeveloperRoute = DeveloperRouteImport.update({
@@ -42,6 +46,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudentQuizzesRoute = StudentQuizzesRouteImport.update({
+  id: '/student/quizzes',
+  path: '/student/quizzes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizIdRoute = QuizIdRouteImport.update({
+  id: '/quiz/$id',
+  path: '/quiz/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JoinCodeRoute = JoinCodeRouteImport.update({
   id: '/join/$code',
   path: '/join/$code',
@@ -51,6 +65,11 @@ const EmbedCodeRoute = EmbedCodeRouteImport.update({
   id: '/embed/$code',
   path: '/embed/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTeacherRoute = AuthenticatedTeacherRouteImport.update({
+  id: '/teacher',
+  path: '/teacher',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
@@ -87,6 +106,12 @@ const AuthenticatedDashboardGuideRoute =
     path: '/guide',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedTeacherQuizzesCreateRoute =
+  AuthenticatedTeacherQuizzesCreateRouteImport.update({
+    id: '/quizzes/create',
+    path: '/quizzes/create',
+    getParentRoute: () => AuthenticatedTeacherRoute,
+  } as any)
 const AuthenticatedDashboardSessionIdRoute =
   AuthenticatedDashboardSessionIdRouteImport.update({
     id: '/session/$id',
@@ -99,27 +124,35 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/quiz/$id': typeof QuizIdRoute
+  '/student/quizzes': typeof StudentQuizzesRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
+  '/teacher/quizzes/create': typeof AuthenticatedTeacherQuizzesCreateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
+  '/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/quiz/$id': typeof QuizIdRoute
+  '/student/quizzes': typeof StudentQuizzesRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
+  '/teacher/quizzes/create': typeof AuthenticatedTeacherQuizzesCreateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -128,14 +161,18 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/_authenticated/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
+  '/quiz/$id': typeof QuizIdRoute
+  '/student/quizzes': typeof StudentQuizzesRoute
   '/_authenticated/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/_authenticated/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/_authenticated/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
   '/_authenticated/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
+  '/_authenticated/teacher/quizzes/create': typeof AuthenticatedTeacherQuizzesCreateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -144,27 +181,35 @@ export interface FileRouteTypes {
     | '/auth'
     | '/developer'
     | '/dashboard'
+    | '/teacher'
     | '/embed/$code'
     | '/join/$code'
+    | '/quiz/$id'
+    | '/student/quizzes'
     | '/dashboard/guide'
     | '/dashboard/profile'
     | '/dashboard/reports'
     | '/dashboard/sessions'
     | '/dashboard/'
     | '/dashboard/session/$id'
+    | '/teacher/quizzes/create'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/developer'
+    | '/teacher'
     | '/embed/$code'
     | '/join/$code'
+    | '/quiz/$id'
+    | '/student/quizzes'
     | '/dashboard/guide'
     | '/dashboard/profile'
     | '/dashboard/reports'
     | '/dashboard/sessions'
     | '/dashboard'
     | '/dashboard/session/$id'
+    | '/teacher/quizzes/create'
   id:
     | '__root__'
     | '/'
@@ -172,14 +217,18 @@ export interface FileRouteTypes {
     | '/auth'
     | '/developer'
     | '/_authenticated/dashboard'
+    | '/_authenticated/teacher'
     | '/embed/$code'
     | '/join/$code'
+    | '/quiz/$id'
+    | '/student/quizzes'
     | '/_authenticated/dashboard/guide'
     | '/_authenticated/dashboard/profile'
     | '/_authenticated/dashboard/reports'
     | '/_authenticated/dashboard/sessions'
     | '/_authenticated/dashboard/'
     | '/_authenticated/dashboard/session/$id'
+    | '/_authenticated/teacher/quizzes/create'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -189,6 +238,8 @@ export interface RootRouteChildren {
   DeveloperRoute: typeof DeveloperRoute
   EmbedCodeRoute: typeof EmbedCodeRoute
   JoinCodeRoute: typeof JoinCodeRoute
+  QuizIdRoute: typeof QuizIdRoute
+  StudentQuizzesRoute: typeof StudentQuizzesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -221,6 +272,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/student/quizzes': {
+      id: '/student/quizzes'
+      path: '/student/quizzes'
+      fullPath: '/student/quizzes'
+      preLoaderRoute: typeof StudentQuizzesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/$id': {
+      id: '/quiz/$id'
+      path: '/quiz/$id'
+      fullPath: '/quiz/$id'
+      preLoaderRoute: typeof QuizIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/join/$code': {
       id: '/join/$code'
       path: '/join/$code'
@@ -234,6 +299,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/embed/$code'
       preLoaderRoute: typeof EmbedCodeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/teacher': {
+      id: '/_authenticated/teacher'
+      path: '/teacher'
+      fullPath: '/teacher'
+      preLoaderRoute: typeof AuthenticatedTeacherRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
@@ -277,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardGuideRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/teacher/quizzes/create': {
+      id: '/_authenticated/teacher/quizzes/create'
+      path: '/quizzes/create'
+      fullPath: '/teacher/quizzes/create'
+      preLoaderRoute: typeof AuthenticatedTeacherQuizzesCreateRouteImport
+      parentRoute: typeof AuthenticatedTeacherRoute
+    }
     '/_authenticated/dashboard/session/$id': {
       id: '/_authenticated/dashboard/session/$id'
       path: '/session/$id'
@@ -311,12 +390,26 @@ const AuthenticatedDashboardRouteWithChildren =
     AuthenticatedDashboardRouteChildren,
   )
 
+interface AuthenticatedTeacherRouteChildren {
+  AuthenticatedTeacherQuizzesCreateRoute: typeof AuthenticatedTeacherQuizzesCreateRoute
+}
+
+const AuthenticatedTeacherRouteChildren: AuthenticatedTeacherRouteChildren = {
+  AuthenticatedTeacherQuizzesCreateRoute:
+    AuthenticatedTeacherQuizzesCreateRoute,
+}
+
+const AuthenticatedTeacherRouteWithChildren =
+  AuthenticatedTeacherRoute._addFileChildren(AuthenticatedTeacherRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
+  AuthenticatedTeacherRoute: typeof AuthenticatedTeacherRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
+  AuthenticatedTeacherRoute: AuthenticatedTeacherRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -329,6 +422,8 @@ const rootRouteChildren: RootRouteChildren = {
   DeveloperRoute: DeveloperRoute,
   EmbedCodeRoute: EmbedCodeRoute,
   JoinCodeRoute: JoinCodeRoute,
+  QuizIdRoute: QuizIdRoute,
+  StudentQuizzesRoute: StudentQuizzesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
