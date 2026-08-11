@@ -518,9 +518,21 @@ function JoinPage() {
                     : "border-border",
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">{i + 1}</span>
-                  <span className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</span>
+                <div className="flex items-center gap-2 justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">{i + 1}</span>
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</span>
+                  </div>
+                  {q.type === "quiz" && (
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full font-semibold border",
+                      isMultipleCorrect(q)
+                        ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                        : "bg-primary/10 border-primary/20 text-primary"
+                    )}>
+                      {isMultipleCorrect(q) ? "Multiple Answers" : "Single Answer"}
+                    </span>
+                  )}
                 </div>
                 {q.image_url && <img src={q.image_url} alt="" className="rounded-xl max-h-40 object-contain w-full border border-border" />}
                 <p className="font-semibold leading-snug">{q.title}</p>
@@ -652,7 +664,19 @@ function JoinPage() {
           <img src={question.image_url} alt="Question visual" className="w-full h-full object-contain" />
         </div>
       )}
-      <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">{question.type}</div>
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">{question.type}</div>
+        {question.type === "quiz" && (
+          <span className={cn(
+            "text-xs px-2.5 py-0.5 rounded-full font-semibold border",
+            isMultipleCorrect(question)
+              ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+              : "bg-primary/10 border-primary/20 text-primary"
+          )}>
+            {isMultipleCorrect(question) ? "Multiple Answers" : "Single Answer"}
+          </span>
+        )}
+      </div>
       <h1 className="mt-1 text-2xl font-bold leading-tight">{question.title}</h1>
 
       {alreadySubmitted ? (
