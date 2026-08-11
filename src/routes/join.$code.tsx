@@ -89,8 +89,13 @@ function JoinPage() {
       setQuestion(null);
       (async () => {
         const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
-        if (error) console.error("Error fetching all questions:", error);
-        if (data) setAllQuestions(data as unknown as Question[]);
+        if (error) {
+          console.error("Error fetching all questions:", error);
+          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+          if (fbData) setAllQuestions(fbData as unknown as Question[]);
+        } else if (data) {
+          setAllQuestions(data as unknown as Question[]);
+        }
       })();
       return;
     }
@@ -100,8 +105,13 @@ function JoinPage() {
       setQuestion(null);
       (async () => {
         const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
-        if (error) console.error("Error fetching active questions:", error);
-        if (data) setAllQuestions(data as unknown as Question[]);
+        if (error) {
+          console.error("Error fetching active questions:", error);
+          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+          if (fbData) setAllQuestions(fbData as unknown as Question[]);
+        } else if (data) {
+          setAllQuestions(data as unknown as Question[]);
+        }
       })();
       return;
     }
@@ -112,8 +122,14 @@ function JoinPage() {
     setAllQuestions([]);
     (async () => {
       const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
-      if (error) console.error("Error fetching single question:", error);
-      if (data) {
+      if (error) {
+        console.error("Error fetching single question:", error);
+        const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", singleActiveId).maybeSingle();
+        if (fbData) {
+          setQuestion(fbData as unknown as Question);
+          setAnswer("");
+        }
+      } else if (data) {
         setQuestion(data as unknown as Question);
         setAnswer("");
       }
