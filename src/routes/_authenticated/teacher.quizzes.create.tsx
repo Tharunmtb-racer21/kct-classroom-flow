@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/teacher/quizzes/create")({
   head: () => ({
@@ -96,27 +97,114 @@ function CreateQuizPage() {
   // Manual Question Addition Form Hook
   const manualQuestionsForm = useForm({
     defaultValues: {
-      questions: [
-        {
-          question_text: "",
-          option_a: "",
-          option_b: "",
-          option_c: "",
-          option_d: "",
-          option_e: "",
-          correct_answer: "",
-          question_type: "Single Correct" as const,
-          points: 1,
-          explanation: "",
-        }
-      ]
+      questions: [] as any[]
     }
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: manualQuestionsForm.control,
-    name: "questions"
-  });
+  // Dialog state for manual question adding/editing
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  
+  // Dialog input states
+  const [modalQuestionText, setModalQuestionText] = useState("");
+  const [modalQuestionType, setModalQuestionType] = useState<"Single Correct" | "Multiple Correct">("Single Correct");
+  const [modalOptionsText, setModalOptionsText] = useState("");
+  const [modalPoints, setModalPoints] = useState(1);
+  const [modalExplanation, setModalExplanation] = useState("");
+  const [modalCorrectKeys, setModalCorrectKeys] = useState<string[]>([]);
+
+  // Split options by newline and trim
+  const parsedOptions = modalOptionsText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+
+  const handleOpenAddModal = () => {
+    setEditingIndex(null);
+    setModalQuestionText("");
+    setModalQuestionType("Single Correct");
+    setModalOptionsText("");
+    setModalPoints(1);
+    setModalExplanation("");
+    setModalCorrectKeys([]);
+    setModalOpen(true);
+  };
+
+  const handleOpenEditModal = (idx: number) => {
+    const q = manualQuestionsForm.getValues("questions")[idx];
+    setEditingIndex(idx);
+    setModalQuestionText(q.question_text);
+    setModalQuestionType(q.question_type as any);
+    
+    const optionsArray = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e].filter(
+      (opt) => opt !== null && opt !== undefined && String(opt).trim() !== ""
+    );
+    setModalOptionsText(optionsArray.join("\n"));
+    setModalPoints(q.points);
+    setModalExplanation(q.explanation || "");
+    setModalCorrectKeys(q.correct_answer.split(","));
+    setModalOpen(true);
+  };
+
+  const handleRemoveQuestion = (idx: number) => {
+    const current = manualQuestionsForm.getValues("questions");
+    const updated = current.filter((_, i) => i !== idx);
+    manualQuestionsForm.setValue("questions", updated);
+    toast.success("Question deleted.");
+  };
+
+  const handleSaveModalQuestion = () => {
+    if (!modalQuestionText.trim()) {
+      toast.error("Question text is required.");
+      return;
+    }
+    if (parsedOptions.length < 2) {
+      toast.error("Please enter at least 2 options (one per line).");
+      return;
+    }
+    if (parsedOptions.length > 5) {
+      toast.error("Maximum 5 options (A to E) are supported.");
+      return;
+    }
+    if (modalCorrectKeys.length === 0) {
+      toast.error("Please select at least one correct answer.");
+      return;
+    }
+    if (modalQuestionType === "Single Correct" && modalCorrectKeys.length !== 1) {
+      toast.error("For Single Correct questions, select exactly one correct answer.");
+      return;
+    }
+    if (modalQuestionType === "Multiple Correct" && modalCorrectKeys.length < 2) {
+      toast.error("For Multiple Correct questions, select at least 2 correct answers.");
+      return;
+    }
+
+    const compiledQuestion = {
+      question_text: modalQuestionText.trim(),
+      question_type: modalQuestionType,
+      option_a: parsedOptions[0] || "",
+      option_b: parsedOptions[1] || "",
+      option_c: parsedOptions[2] || null,
+      option_d: parsedOptions[3] || null,
+      option_e: parsedOptions[4] || null,
+      correct_answer: modalCorrectKeys.join(","),
+      points: Number(modalPoints) || 1,
+      explanation: modalExplanation.trim() || null,
+    };
+
+    const currentQuestions = manualQuestionsForm.getValues("questions") || [];
+    if (editingIndex !== null) {
+      const updated = [...currentQuestions];
+      updated[editingIndex] = compiledQuestion as any;
+      manualQuestionsForm.setValue("questions", updated);
+      toast.success("Question updated!");
+    } else {
+      manualQuestionsForm.setValue("questions", [...currentQuestions, compiledQuestion as any]);
+      toast.success("Question added!");
+    }
+
+    setModalOpen(false);
+  };
 
   // Handle Excel file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -455,18 +543,7 @@ function CreateQuizPage() {
                     </h2>
                     <Button 
                       type="button" 
-                      onClick={() => append({
-                        question_text: "",
-                        option_a: "",
-                        option_b: "",
-                        option_c: "",
-                        option_d: "",
-                        option_e: "",
-                        correct_answer: "",
-                        question_type: "Single Correct",
-                        points: 1,
-                        explanation: ""
-                      })} 
+                      onClick={handleOpenAddModal} 
                       variant="outline" 
                       size="sm"
                       className="gap-1.5"
@@ -476,102 +553,72 @@ function CreateQuizPage() {
                     </Button>
                   </div>
 
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="p-5 rounded-xl border border-border/60 bg-card/20 space-y-4 relative shadow-sm">
-                      <div className="absolute top-4 right-4 flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground bg-accent px-2.5 py-1 rounded-lg">
-                          Q{index + 1}
-                        </span>
-                        {fields.length > 1 && (
-                          <button 
+                  <div className="space-y-4">
+                    {manualQuestionsForm.watch("questions") && manualQuestionsForm.watch("questions").map((q, idx) => (
+                      <div key={idx} className="flex items-start justify-between p-5 rounded-xl border border-border/60 bg-card/20 shadow-sm gap-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-muted-foreground bg-accent px-2.5 py-1 rounded-lg">
+                              Q{idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
+                              {q.question_type}
+                            </span>
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              Points: {q.points}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm leading-relaxed">{q.question_text}</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs text-muted-foreground pt-1">
+                            <div>A. {q.option_a}</div>
+                            <div>B. {q.option_b}</div>
+                            {q.option_c && <div>C. {q.option_c}</div>}
+                            {q.option_d && <div>D. {q.option_d}</div>}
+                            {q.option_e && <div>E. {q.option_e}</div>}
+                          </div>
+                          <div className="text-xs font-semibold text-emerald-500 pt-1">
+                            Correct: {q.correct_answer}
+                          </div>
+                          {q.explanation && (
+                            <p className="text-[11px] text-muted-foreground italic leading-relaxed">
+                              Explanation: {q.explanation}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button 
                             type="button" 
-                            onClick={() => remove(index)} 
-                            className="text-muted-foreground hover:text-destructive p-1 rounded transition hover:bg-destructive/10"
-                            title="Delete question"
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleOpenEditModal(idx)}
+                            className="h-8 px-2.5 font-bold"
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-3 space-y-2">
-                          <Label>Question Text *</Label>
-                          <Input 
-                            placeholder="Type question here..." 
-                            {...manualQuestionsForm.register(`questions.${index}.question_text` as const, { required: "Question text is required" })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Question Type</Label>
-                          <Select 
-                            onValueChange={(val: any) => manualQuestionsForm.setValue(`questions.${index}.question_type` as const, val)}
-                            defaultValue={field.question_type}
+                            Edit
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleRemoveQuestion(idx)}
+                            className="h-8 px-2.5 text-destructive hover:bg-destructive/10"
                           >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Single Correct">Single Correct</SelectItem>
-                              <SelectItem value="Multiple Correct">Multiple Correct</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            Delete
+                          </Button>
                         </div>
                       </div>
+                    ))}
 
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Option A *</Label>
-                          <Input placeholder="Option A" {...manualQuestionsForm.register(`questions.${index}.option_a` as const, { required: "Option A is required" })} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Option B *</Label>
-                          <Input placeholder="Option B" {...manualQuestionsForm.register(`questions.${index}.option_b` as const, { required: "Option B is required" })} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Option C</Label>
-                          <Input placeholder="Option C (Optional)" {...manualQuestionsForm.register(`questions.${index}.option_c` as const)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Option D</Label>
-                          <Input placeholder="Option D (Optional)" {...manualQuestionsForm.register(`questions.${index}.option_d` as const)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Option E</Label>
-                          <Input placeholder="Option E (Optional)" {...manualQuestionsForm.register(`questions.${index}.option_e` as const)} />
-                        </div>
+                    {(!manualQuestionsForm.watch("questions") || manualQuestionsForm.watch("questions").length === 0) && (
+                      <div className="text-center py-8 border border-dashed border-border rounded-xl text-muted-foreground text-sm">
+                        No questions added yet. Click "+ Add Question" to start building your quiz.
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-                        <div className="space-y-2">
-                          <Label>Correct Answer(s) *</Label>
-                          <Input 
-                            placeholder="e.g. A or A,C" 
-                            {...manualQuestionsForm.register(`questions.${index}.correct_answer` as const, { required: "Correct answer is required" })} 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Points</Label>
-                          <Input 
-                            type="number" 
-                            {...manualQuestionsForm.register(`questions.${index}.points` as const, { valueAsNumber: true })} 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Explanation</Label>
-                          <Input 
-                            placeholder="e.g. Option A is correct because..." 
-                            {...manualQuestionsForm.register(`questions.${index}.explanation` as const)} 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
 
                   <div className="flex gap-3 justify-end border-t border-border/40 pt-4">
                     <Button 
                       type="submit" 
-                      disabled={submitting} 
+                      disabled={submitting || !manualQuestionsForm.watch("questions") || manualQuestionsForm.watch("questions").length === 0} 
                       className="gradient-bg gap-2 px-6 font-bold shadow-md shadow-primary/20"
                     >
                       {submitting ? "Saving..." : "Create Quiz"}
@@ -580,6 +627,152 @@ function CreateQuizPage() {
                   </div>
                 </div>
               </form>
+
+              {/* Popup Dialog Modal for Question Creator (Image 2 style) */}
+              <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+                <DialogContent className="max-w-lg glass border border-border/60 shadow-2xl rounded-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg font-bold">
+                      {editingIndex !== null ? "Edit Question" : "New Question"}
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="q-type">Type</Label>
+                      <Select 
+                        onValueChange={(val: any) => {
+                          setModalQuestionType(val);
+                          setModalCorrectKeys([]);
+                        }} 
+                        value={modalQuestionType}
+                      >
+                        <SelectTrigger id="q-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Single Correct">Single Correct</SelectItem>
+                          <SelectItem value="Multiple Correct">Multiple Correct</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="q-text">Question</Label>
+                      <Input 
+                        id="q-text" 
+                        value={modalQuestionText} 
+                        onChange={(e) => setModalQuestionText(e.target.value)} 
+                        placeholder="What is..." 
+                        required 
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="q-options">Options (one per line)</Label>
+                      <Textarea 
+                        id="q-options" 
+                        value={modalOptionsText} 
+                        onChange={(e) => {
+                          setModalOptionsText(e.target.value);
+                          // Clear answer keys that might exceed the new options length
+                          const lines = e.target.value.split("\n").map(l => l.trim()).filter(Boolean).length;
+                          setModalCorrectKeys(prev => prev.filter(key => {
+                            const index = ["A", "B", "C", "D", "E"].indexOf(key);
+                            return index >= 0 && index < lines;
+                          }));
+                        }} 
+                        rows={4} 
+                        required 
+                        placeholder={"Option A\nOption B\nOption C (Optional)"} 
+                      />
+                    </div>
+
+                    {parsedOptions.length >= 2 && (
+                      <div className="space-y-2">
+                        <Label>Correct answer(s) (select all that apply)</Label>
+                        <div className="grid gap-2 border border-border/40 rounded-xl p-3 bg-accent/10">
+                          {parsedOptions.slice(0, 5).map((opt, idx) => {
+                            const letter = ["A", "B", "C", "D", "E"][idx];
+                            const isChecked = modalCorrectKeys.includes(letter);
+                            return (
+                              <button
+                                key={letter}
+                                type="button"
+                                onClick={() => {
+                                  if (modalQuestionType === "Single Correct") {
+                                    setModalCorrectKeys([letter]);
+                                  } else {
+                                    if (isChecked) {
+                                      setModalCorrectKeys(prev => prev.filter(k => k !== letter));
+                                    } else {
+                                      setModalCorrectKeys(prev => [...prev, letter].sort());
+                                    }
+                                  }
+                                }}
+                                className={cn(
+                                  "w-full flex items-center justify-between p-2.5 rounded-lg border text-left transition-all text-xs font-semibold",
+                                  isChecked
+                                    ? "border-primary bg-primary/10 text-foreground"
+                                    : "border-border/60 bg-transparent hover:bg-muted/10 text-muted-foreground"
+                                )}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className="text-primary font-bold">{letter}.</span>
+                                  <span>{opt}</span>
+                                </span>
+                                <span className="w-4 h-4 rounded-full border border-muted-foreground/40 grid place-items-center">
+                                  {isChecked && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="q-points">Points</Label>
+                        <Input 
+                          id="q-points" 
+                          type="number" 
+                          value={modalPoints} 
+                          onChange={(e) => setModalPoints(Number(e.target.value) || 1)} 
+                          min={0}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="q-explanation">Explanation (Optional)</Label>
+                        <Input 
+                          id="q-explanation" 
+                          value={modalExplanation} 
+                          onChange={(e) => setModalExplanation(e.target.value)} 
+                          placeholder="e.g. Option A is correct because..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="mt-2">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={() => setModalOpen(false)}
+                      className="font-semibold"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="button" 
+                      onClick={handleSaveModalQuestion}
+                      className="gradient-bg font-bold shadow-md shadow-primary/10"
+                    >
+                      {editingIndex !== null ? "Save Changes" : "Create question"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* Tab 2: Upload from Excel */}
