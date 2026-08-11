@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -353,13 +353,28 @@ function SessionControl() {
               <QRCodeSVG value={joinLink} size={180} level="M" />
             </div>
           </div>
-          <div className="mt-4 break-all text-center text-xs text-muted-foreground">{joinLink}</div>
-          <button
-            onClick={() => { navigator.clipboard.writeText(joinLink); toast.success("Link copied"); }}
-            className="mt-3 w-full text-xs text-muted-foreground hover:text-foreground"
-          >
-            Copy join link
-          </button>
+          <div className="mt-4 break-all text-center text-xs font-mono text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">{joinLink}</div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(joinLink); toast.success("Join link copied! 📋"); }}
+              variant="outline"
+              size="sm"
+              className="flex items-center justify-center gap-1.5 rounded-xl border-border bg-card hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy Link
+            </Button>
+            <a
+              href={joinLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold py-2.5 shadow-sm transition"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open Link
+            </a>
+          </div>
           <button
             onClick={() => {
               const embedUrl = `${window.location.origin}/embed/${session.code}`;
