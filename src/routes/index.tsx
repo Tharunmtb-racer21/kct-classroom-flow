@@ -47,10 +47,10 @@ function Index() {
         </header>
 
         <section className="mx-auto max-w-7xl px-6 pt-12 pb-20 text-center">
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-1.5 text-xs font-bold text-foreground backdrop-blur shadow-sm">
-          <Sparkles className="h-3.5 w-3.5 text-[color:var(--primary-glow)]" />
-          designed by THARUN NE
-        </div>
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur">
+            <Sparkles className="h-3.5 w-3.5 text-[color:var(--primary-glow)]" />
+            Built for Kumaraguru College of Technology
+          </div>
           <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
             Transform classrooms into <br />
             <span className="gradient-text">interactive experiences</span>
@@ -96,7 +96,11 @@ function Index() {
         </section>
 
         <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} KCT PULSE · Built for Kumaraguru College of Technology · <span className="font-semibold text-foreground/80">designed by THARUN NE</span>
+          <p>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</p>
+          <p className="mt-1.5 text-muted-foreground/70 tracking-wide">
+            Designed &amp; Developed by{" "}
+            <span className="font-semibold text-[color:var(--primary-glow)]/80">THARUN N E</span>
+          </p>
         </footer>
       </div>
     </div>
