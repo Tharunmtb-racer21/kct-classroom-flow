@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
-type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null };
+type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null; question_type?: string };
 
 const microsoftSubmitButton =
   "w-full h-14 rounded-[4px] border border-[#005a9e] bg-[#0078d4] text-white shadow-sm font-semibold hover:bg-[#106ebe] active:bg-[#005a9e] focus-visible:ring-[#0078d4]/45 disabled:border-[#a6a6a6] disabled:bg-[#c8c8c8] disabled:text-[#666666]";
@@ -88,7 +88,7 @@ function JoinPage() {
     if (session?.all_active) {
       setQuestion(null);
       (async () => {
-        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
         if (error) console.error("Error fetching all questions:", error);
         if (data) setAllQuestions(data as unknown as Question[]);
       })();
@@ -99,7 +99,7 @@ function JoinPage() {
     if (activeIds.length > 1) {
       setQuestion(null);
       (async () => {
-        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
         if (error) console.error("Error fetching active questions:", error);
         if (data) setAllQuestions(data as unknown as Question[]);
       })();
@@ -111,7 +111,7 @@ function JoinPage() {
     if (!singleActiveId) { setQuestion(null); setAllQuestions([]); return; }
     setAllQuestions([]);
     (async () => {
-      const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", singleActiveId).maybeSingle();
+      const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
       if (error) console.error("Error fetching single question:", error);
       if (data) {
         setQuestion(data as unknown as Question);
@@ -480,17 +480,41 @@ function JoinPage() {
                         key={opt}
                         type="button"
                         onClick={() => {
-                          setAnswerMap(p => ({ ...p, [q.id]: opt }));
-                          setUnansweredQuestionIds(prev => {
-                            if (!prev.has(q.id)) return prev;
-                            const next = new Set(prev);
-                            next.delete(q.id);
-                            return next;
-                          });
+                          if (q.question_type === "Multiple Correct") {
+                            const currentSelected = qAnswer.split(",").map(s => s.trim()).filter(Boolean);
+                            let updatedSelected = [];
+                            if (currentSelected.includes(opt.trim())) {
+                              updatedSelected = currentSelected.filter(s => s !== opt.trim());
+                            } else {
+                              updatedSelected = [...currentSelected, opt.trim()];
+                            }
+                            const updatedAnswer = updatedSelected.join(", ");
+                            setAnswerMap(p => ({ ...p, [q.id]: updatedAnswer }));
+                            setUnansweredQuestionIds(prev => {
+                              if (!prev.has(q.id) || !updatedAnswer.trim()) return prev;
+                              const next = new Set(prev);
+                              next.delete(q.id);
+                              return next;
+                            });
+                          } else {
+                            setAnswerMap(p => ({ ...p, [q.id]: opt }));
+                            setUnansweredQuestionIds(prev => {
+                              if (!prev.has(q.id)) return prev;
+                              const next = new Set(prev);
+                              next.delete(q.id);
+                              return next;
+                            });
+                          }
                         }}
                         className={cn(
                           "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
-                          qAnswer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40"
+                          q.question_type === "Multiple Correct"
+                            ? qAnswer.split(",").map(s => s.trim()).includes(opt.trim())
+                              ? "border-primary bg-primary/15"
+                              : "border-border bg-card/40"
+                            : qAnswer === opt
+                              ? "border-primary bg-primary/15"
+                              : "border-border bg-card/40"
                         )}
                       >
                         {opt}
@@ -606,10 +630,29 @@ function JoinPage() {
               <button
                 key={opt}
                 type="button"
-                onClick={() => setAnswer(opt)}
+                onClick={() => {
+                  if (question.question_type === "Multiple Correct") {
+                    const currentSelected = answer.split(",").map(s => s.trim()).filter(Boolean);
+                    if (currentSelected.includes(opt.trim())) {
+                      const updated = currentSelected.filter(s => s !== opt.trim());
+                      setAnswer(updated.join(", "));
+                    } else {
+                      const updated = [...currentSelected, opt.trim()];
+                      setAnswer(updated.join(", "));
+                    }
+                  } else {
+                    setAnswer(opt);
+                  }
+                }}
                 className={cn(
                   "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",
-                  answer === opt ? "border-primary bg-primary/15" : "border-border bg-card/40",
+                  question.question_type === "Multiple Correct"
+                    ? answer.split(",").map(s => s.trim()).includes(opt.trim())
+                      ? "border-primary bg-primary/15"
+                      : "border-border bg-card/40"
+                    : answer === opt
+                      ? "border-primary bg-primary/15"
+                      : "border-border bg-card/40",
                 )}
               >
                 {opt}
