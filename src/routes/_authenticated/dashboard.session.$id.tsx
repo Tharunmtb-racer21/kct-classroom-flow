@@ -20,7 +20,7 @@ import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType } from "
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type QType = "wordcloud" | "poll" | "quiz";
-type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null };
+type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null; points?: number; explanation?: string | null; question_type?: string };
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null; created_at?: string; creator_id?: string };
 type Participant = { id: string; name: string; joined_at: string };
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
@@ -576,7 +576,10 @@ function QuestionsPanel({
           const optC = r["Option C"] ? String(r["Option C"]).trim() : "";
           const optD = r["Option D"] ? String(r["Option D"]).trim() : "";
           const optE = r["Option E"] ? String(r["Option E"]).trim() : "";
-          const correctAns = r["Correct Answer"] ? String(r["Correct Answer"]).trim().toUpperCase() : "";
+          const correctAnsRaw = r["Correct Answer"] ? String(r["Correct Answer"]).trim() : "";
+          const qTypeRaw = r["Question Type"] ? String(r["Question Type"]).trim() : "";
+          const pointsRaw = r["Points"];
+          const explanation = r["Explanation"] ? String(r["Explanation"]).trim() : "";
 
           if (!qText) {
             errorsList.push(`Row ${rowNum}: Question Text is required.`);
@@ -585,32 +588,66 @@ function QuestionsPanel({
             errorsList.push(`Row ${rowNum}: Option A and Option B are required.`);
           }
 
+          const optionsMap: Record<string, string> = {
+            A: optA,
+            B: optB,
+            C: optC,
+            D: optD,
+            E: optE,
+          };
           const optionsList = [optA, optB, optC, optD, optE].filter(Boolean);
           if (optionsList.length < 2) {
             errorsList.push(`Row ${rowNum}: At least 2 options are required.`);
           }
 
-          if (!correctAns) {
+          if (qTypeRaw !== "Single Correct" && qTypeRaw !== "Multiple Correct") {
+            errorsList.push(`Row ${rowNum}: Question Type must be exactly 'Single Correct' or 'Multiple Correct'. Got '${qTypeRaw}'.`);
+          }
+
+          let points = 1;
+          if (pointsRaw !== undefined && pointsRaw !== null && String(pointsRaw).trim() !== "") {
+            const parsedPoints = Number(pointsRaw);
+            if (isNaN(parsedPoints) || parsedPoints < 0 || !Number.isInteger(parsedPoints)) {
+              errorsList.push(`Row ${rowNum}: Points must be a non-negative whole number. Got '${pointsRaw}'.`);
+            } else {
+              points = parsedPoints;
+            }
+          }
+
+          if (!correctAnsRaw) {
             errorsList.push(`Row ${rowNum}: Correct Answer is required.`);
           } else {
-            // Check if correct answer letter is valid and references a filled option
-            let mappedCorrectOptionText = "";
-            if (correctAns === "A") mappedCorrectOptionText = optA;
-            else if (correctAns === "B") mappedCorrectOptionText = optB;
-            else if (correctAns === "C") mappedCorrectOptionText = optC;
-            else if (correctAns === "D") mappedCorrectOptionText = optD;
-            else if (correctAns === "E") mappedCorrectOptionText = optE;
+            // Split correct answer by commas to support multiple choices (e.g. A,C or B,D)
+            const letters = correctAnsRaw.split(",").map(l => l.trim().toUpperCase()).filter(Boolean);
+            
+            if (qTypeRaw === "Single Correct" && letters.length !== 1) {
+              errorsList.push(`Row ${rowNum}: For Single Correct questions, Correct Answer must be exactly one letter. Got '${correctAnsRaw}'.`);
+            } else if (qTypeRaw === "Multiple Correct" && letters.length < 2) {
+              errorsList.push(`Row ${rowNum}: For Multiple Correct questions, Correct Answer must contain 2+ comma-separated valid letters. Got '${correctAnsRaw}'.`);
+            }
 
-            if (!mappedCorrectOptionText) {
-              errorsList.push(`Row ${rowNum}: Correct Answer "${correctAns}" is invalid or references an empty option.`);
+            const invalidLetters = letters.filter(l => !["A", "B", "C", "D", "E"].includes(l));
+            if (invalidLetters.length > 0) {
+              errorsList.push(`Row ${rowNum}: Correct Answer contains invalid option letters: ${invalidLetters.join(", ")}.`);
             } else {
-              if (errorsList.length === 0) {
-                parsedQuestionsList.push({
-                  title: qText,
-                  options: optionsList,
-                  correct_answer: mappedCorrectOptionText,
-                });
+              const emptyOptionLetters = letters.filter(l => !optionsMap[l]);
+              if (emptyOptionLetters.length > 0) {
+                errorsList.push(`Row ${rowNum}: Correct Answer references empty option(s): ${emptyOptionLetters.join(", ")}.`);
               }
+            }
+
+            if (errorsList.length === 0) {
+              const correctAnswers = letters.map(l => optionsMap[l]);
+              const correct_answer_str = correctAnswers.join(", ");
+
+              parsedQuestionsList.push({
+                title: qText,
+                options: optionsList,
+                correct_answer: correct_answer_str,
+                question_type: qTypeRaw,
+                points,
+                explanation,
+              });
             }
           }
         });
@@ -649,6 +686,9 @@ function QuestionsPanel({
         options: q.options,
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
+        points: q.points,
+        explanation: q.explanation,
+        question_type: q.question_type,
       }));
 
       const { error } = await supabase.from("questions").insert(questionsPayload);
@@ -910,7 +950,7 @@ function QuestionsPanel({
             <DialogTrigger asChild>
               <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
             </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md sm:max-w-xl transition-all duration-300">
             <DialogHeader><DialogTitle>New Question</DialogTitle></DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
@@ -1079,12 +1119,43 @@ function QuestionsPanel({
                         </div>
                       )}
 
-                      {excelValidated && (
-                        <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 flex items-center gap-2">
-                          <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500 shrink-0" />
-                          <div>
-                            <h5 className="font-bold text-emerald-500 text-xs">Validation Success</h5>
-                            <p className="text-[10px] text-muted-foreground">Ready to import {excelQuestions.length} quiz questions.</p>
+                      {excelValidated && excelQuestions.length > 0 && (
+                        <div className="space-y-2 border rounded-lg p-2.5 bg-card">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-bold text-xs flex items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500 shrink-0" />
+                              Parsed Questions Preview
+                            </h5>
+                            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold px-2 py-0.5 rounded-full">
+                              {excelQuestions.length} Questions Validated
+                            </span>
+                          </div>
+                          
+                          <div className="overflow-x-auto border rounded max-h-48">
+                            <table className="min-w-full divide-y divide-border text-[10px]">
+                              <thead className="bg-muted text-muted-foreground sticky top-0">
+                                <tr>
+                                  <th className="px-2 py-1.5 text-left font-bold w-12">No.</th>
+                                  <th className="px-2 py-1.5 text-left font-bold">Question Text</th>
+                                  <th className="px-2 py-1.5 text-left font-bold">Type</th>
+                                  <th className="px-2 py-1.5 text-left font-bold w-12">Points</th>
+                                  <th className="px-2 py-1.5 text-left font-bold">Correct</th>
+                                  <th className="px-2 py-1.5 text-left font-bold">Explanation</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border bg-background">
+                                {excelQuestions.map((q, idx) => (
+                                  <tr key={idx} className="hover:bg-accent/40 transition-colors">
+                                    <td className="px-2 py-1.5 font-mono text-muted-foreground">{idx + 1}</td>
+                                    <td className="px-2 py-1.5 font-medium truncate max-w-[120px]" title={q.title}>{q.title}</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground">{q.question_type}</td>
+                                    <td className="px-2 py-1.5 font-mono">{q.points}</td>
+                                    <td className="px-2 py-1.5 font-semibold text-primary">{q.correct_answer}</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[100px]" title={q.explanation}>{q.explanation || "—"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       )}
