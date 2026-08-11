@@ -397,6 +397,41 @@ function QuestionsPanel({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
+
+  // Calculate currently live question IDs from database status
+  const liveQuestionIds = useMemo(() => {
+    if (session.status !== "live") return [];
+    if (session.all_active) return questions.map(q => q.id);
+    const ids = new Set<string>();
+    if (currentId) ids.add(currentId);
+    activeQuestionIds.forEach(id => ids.add(id));
+    return Array.from(ids);
+  }, [session.status, session.all_active, currentId, activeQuestionIds, questions]);
+
+  // Keep checkboxes in sync with live status from the database
+  useEffect(() => {
+    setCheckedIds(liveQuestionIds);
+  }, [liveQuestionIds]);
+
+  const handleActivateSelected = async () => {
+    try {
+      const patch: any = {
+        all_active: false,
+        current_question_id: checkedIds.length > 0 ? checkedIds[0] : null,
+        active_question_ids: checkedIds,
+      };
+      if (session.status !== "live" && checkedIds.length > 0) {
+        patch.status = "live";
+      }
+      const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
+      if (error) throw error;
+      toast.success("Selected question(s) activated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to activate selected questions");
+    }
+  };
+
   const uploadImage = async (file: File): Promise<string | null> => {
     const user = auth.currentUser;
     if (!user) throw new Error("Authentication required");
@@ -756,41 +791,51 @@ function QuestionsPanel({
       )}
 
       <div className="mt-4 space-y-2">
-        {/* ── ONE-CLICK Activate / Deactivate All ── */}
+        {/* ── ONE-CLICK Activate / Deactivate Selected / All ── */}
         {questions.length > 0 && (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const allIds = questions.map(q => q.id);
-                  const patch: any = { all_active: true, active_question_ids: allIds };
-                  if (session.status !== "live") patch.status = "live";
-                  const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
-                  if (error) throw error;
-                } catch (e: any) {
-                  toast.error(e.message || "Failed to activate all questions");
-                }
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-primary/50 bg-primary/10 hover:bg-primary/20 hover:border-primary/80 text-primary font-semibold py-2.5 text-sm transition-all active:scale-[0.98]"
+          <div className="space-y-2">
+            <Button
+              onClick={handleActivateSelected}
+              disabled={checkedIds.length === 0}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 text-sm shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
             >
-              <Play className="h-4 w-4" />
-              Activate All
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const { error } = await supabase.from("sessions").update({ all_active: false, current_question_id: null, active_question_ids: [] } as any).eq("id", sessionId);
-                  if (error) throw error;
-                  toast.success("All questions deactivated");
-                } catch (e: any) {
-                  toast.error(e.message || "Failed to deactivate questions");
-                }
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl border-2 border-destructive/50 bg-destructive/10 hover:bg-destructive/20 hover:border-destructive/80 text-destructive font-semibold py-2.5 text-sm transition-all active:scale-[0.98]"
-            >
-              <Square className="h-4 w-4" />
-              Deactivate All
-            </button>
+              <Play className="h-4 w-4 fill-current" />
+              Activate Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const allIds = questions.map(q => q.id);
+                    const patch: any = { all_active: true, active_question_ids: allIds };
+                    if (session.status !== "live") patch.status = "live";
+                    const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
+                    if (error) throw error;
+                  } catch (e: any) {
+                    toast.error(e.message || "Failed to activate all questions");
+                  }
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-medium py-2 text-xs transition-all active:scale-[0.98]"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Activate All
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase.from("sessions").update({ all_active: false, current_question_id: null, active_question_ids: [] } as any).eq("id", sessionId);
+                    if (error) throw error;
+                    toast.success("All questions deactivated");
+                  } catch (e: any) {
+                    toast.error(e.message || "Failed to deactivate questions");
+                  }
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-medium py-2 text-xs transition-all active:scale-[0.98]"
+              >
+                <Square className="h-3.5 w-3.5" />
+                Deactivate All
+              </button>
+            </div>
           </div>
         )}
 
@@ -807,13 +852,44 @@ function QuestionsPanel({
           return (
             <div 
               key={q.id} 
+              onClick={() => {
+                setCheckedIds(prev => 
+                  prev.includes(q.id) 
+                    ? prev.filter(id => id !== q.id) 
+                    : [...prev, q.id]
+                );
+              }} 
               className={cn(
-                "flex items-center gap-3 rounded-xl border p-3 transition shadow-sm", 
+                "flex items-center gap-3 rounded-xl border p-3 transition shadow-sm cursor-pointer select-none", 
                 isLive 
                   ? "border-primary/80 bg-primary/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] ring-1 ring-primary/30" 
                   : "border-border bg-card/40 hover:bg-card/60"
               )}
             >
+              {/* Custom Checkbox */}
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCheckedIds(prev => 
+                    prev.includes(q.id) 
+                      ? prev.filter(id => id !== q.id) 
+                      : [...prev, q.id]
+                  );
+                }} 
+                className={cn(
+                  "h-5 w-5 rounded border flex items-center justify-center cursor-pointer transition shrink-0",
+                  checkedIds.includes(q.id)
+                    ? "bg-primary border-primary text-primary-foreground"
+                    : "border-muted-foreground/30 bg-transparent hover:border-primary/50"
+                )}
+              >
+                {checkedIds.includes(q.id) && (
+                  <svg className="h-3.5 w-3.5 fill-none stroke-current stroke-[3px]" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+
               <div className={cn(
                 "grid h-8 w-8 place-items-center rounded-lg text-sm font-semibold transition-colors shrink-0",
                 isLive ? "bg-primary text-primary-foreground" : "bg-accent"
@@ -839,23 +915,24 @@ function QuestionsPanel({
                   )}
                 </div>
               </div>
-              <Button 
-                size="sm" 
-                variant={isLive ? "default" : "outline"} 
-                className={cn(isLive && "bg-primary hover:bg-primary/80")}
-                onClick={async () => {
-                  // If teacher manually activates single question, set active ids to just this one
-                  const patch: any = { all_active: false, current_question_id: q.id, active_question_ids: [q.id] };
-                  if (session.status !== "live") patch.status = "live";
-                  await supabase.from("sessions").update(patch as any).eq("id", sessionId);
-                }}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEdit(q);
+                }} 
+                className="text-muted-foreground hover:text-foreground p-1" 
+                title="Edit Question"
               >
-                {isLive ? "Live" : "Activate"}
-              </Button>
-              <button onClick={() => startEdit(q)} className="text-muted-foreground hover:text-foreground" title="Edit Question">
                 <Pencil className="h-4 w-4" />
               </button>
-              <button onClick={() => remove(q.id)} className="text-muted-foreground hover:text-destructive" title="Delete Question">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(q.id);
+                }} 
+                className="text-muted-foreground hover:text-destructive p-1" 
+                title="Delete Question"
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

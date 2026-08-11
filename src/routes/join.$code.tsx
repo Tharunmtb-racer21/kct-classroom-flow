@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Upload, Timer } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, Upload, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,8 +40,10 @@ function JoinPage() {
   const [answer, setAnswer] = useState("");
   const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
   const [answerMap, setAnswerMap] = useState<Record<string, string>>({});
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({});
   const [unansweredQuestionIds, setUnansweredQuestionIds] = useState<Set<string>>(new Set());
   const [allQuestionsComplete, setAllQuestionsComplete] = useState(false);
+  const [showSavedResponses, setShowSavedResponses] = useState(false);
 
   console.log("JoinPage Render:", {
     session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
@@ -180,13 +182,16 @@ function JoinPage() {
     (async () => {
       const { data, error } = await supabase
         .from("responses")
-        .select("question_id")
+        .select("question_id,answer")
         .eq("participant_id", participantId)
         .in("question_id", questionIds);
 
       if (!error && data) {
         const answeredIds = data.map((r) => r.question_id);
         setSubmittedFor(new Set(answeredIds));
+        setSubmittedAnswers(
+          Object.fromEntries(data.map((r) => [r.question_id, r.answer ?? ""])),
+        );
         if (allQuestions.length > 0 && allQuestions.every((q) => answeredIds.includes(q.id))) {
           setAllQuestionsComplete(true);
         }
@@ -299,6 +304,10 @@ function JoinPage() {
       if (error) throw error;
 
       setSubmittedFor((prev) => new Set([...prev, ...responses.map(({ question }) => question.id)]));
+      setSubmittedAnswers((prev) => ({
+        ...prev,
+        ...Object.fromEntries(responses.map(({ question, answer }) => [question.id, answer])),
+      }));
       setAnswerMap((prev) => {
         const next = { ...prev };
         responses.forEach(({ question }) => {
@@ -376,6 +385,30 @@ function JoinPage() {
               <div className="text-xs uppercase tracking-wider text-muted-foreground">Session</div>
               <div className="mt-1 font-semibold">{session.title}</div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 w-full rounded-[4px] gap-2"
+              onClick={() => setShowSavedResponses((value) => !value)}
+            >
+              <Eye className="h-4 w-4" />
+              {showSavedResponses ? "Hide responses" : "View responses"}
+            </Button>
+            {showSavedResponses && (
+              <div className="mt-4 w-full space-y-3 text-left">
+                {allQuestions.map((q, index) => (
+                  <div key={q.id} className="rounded-md border border-border bg-card/60 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Question {index + 1}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold">{q.title}</div>
+                    <div className="mt-3 rounded-md bg-background/70 px-3 py-2 text-sm">
+                      {submittedAnswers[q.id] || "No answer saved"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Wrap>
       );
