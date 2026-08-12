@@ -19,7 +19,7 @@ function DashboardLayout() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col md:flex-row overflow-hidden bg-background">
+    <div className="relative flex min-h-screen md:h-screen w-full flex-col md:flex-row overflow-hidden bg-background">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-cover bg-center bg-fixed bg-no-repeat"
@@ -66,9 +66,9 @@ function DashboardLayout() {
         })}
       </nav>
 
-      <div className="relative z-10 flex min-h-screen w-full pb-14 md:pb-0">
+      <div className="relative z-10 flex min-h-screen md:h-screen w-full pb-14 md:pb-0 overflow-hidden">
         <AppSidebar />
-        <main className="flex-1 flex flex-col justify-between overflow-x-hidden">
+        <main className="flex-1 flex flex-col justify-between overflow-x-hidden md:h-screen md:overflow-y-auto">
           <Outlet />
           <footer className="mt-auto border-t border-border/40 py-4 px-6 text-center text-xs text-muted-foreground space-y-1">
             <div>Built for Kumaraguru College of Technology</div>
