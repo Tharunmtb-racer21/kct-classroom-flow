@@ -1669,10 +1669,6 @@ function AIGenerateDialog({
       toast.error("Please select a document file.");
       return;
     }
-    // Allow proceeding without API key; ai-service.ts will fall back locally
-    if (!apiKey.trim()) {
-      toast.info("No API key entered. Questions will be generated locally in your browser.");
-    }
     if (selectedTypes.length === 0) {
       toast.error("Select at least one question type.");
       return;
