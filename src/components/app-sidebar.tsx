@@ -23,14 +23,14 @@ export function AppSidebar() {
   };
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border/60 bg-sidebar/60 backdrop-blur-xl">
+    <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border/60 bg-sidebar/60 backdrop-blur-xl md:h-screen md:sticky md:top-0">
       <div className="flex h-16 items-center gap-3 px-6 border-b border-border/60">
         <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
           <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
         </div>
         <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
         {items.map((item) => {
           const active = item.exact ? pathname === item.url : pathname.startsWith(item.url);
           return (
