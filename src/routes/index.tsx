@@ -95,8 +95,19 @@ function Index() {
         </div>
       </section>
 
-      <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology
+      <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground space-y-1">
+        <div>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</div>
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1">
+            <span className="text-[color:var(--accent-emerald)] font-semibold">✦ Designed by</span>
+            <span className="font-bold text-foreground/80 tracking-wide">THARUN N E</span>
+          </span>
+          <span className="text-border/60">·</span>
+          <span className="flex items-center gap-1">
+            <span className="text-primary font-semibold">⚡ Developed by</span>
+            <span className="font-bold text-foreground/80 tracking-wide">NAVNEETH V</span>
+          </span>
+        </div>
       </footer>
       </div>
     </div>
