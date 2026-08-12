@@ -73,9 +73,9 @@ function DashboardLayout() {
           <footer className="mt-auto border-t border-border/40 py-4 px-6 text-center text-xs text-muted-foreground space-y-1">
             <div>Built for Kumaraguru College of Technology</div>
             <div className="flex items-center justify-center gap-2 flex-wrap text-[11px]">
-              <span>👑 Founder & Designed by <span className="font-semibold text-foreground/80">THARUN N E</span></span>
+              <span>Founder & Designed by <span className="font-semibold text-foreground/80">THARUN N E</span></span>
               <span className="text-border/60">·</span>
-              <span>⚡ Developed by <span className="font-semibold text-foreground/80">NAVNEETH V</span></span>
+              <span>Developed by <span className="font-semibold text-foreground/80">NAVNEETH V</span></span>
             </div>
           </footer>
         </main>

@@ -851,12 +851,12 @@ function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLef
         <div>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</div>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="text-[color:var(--accent-emerald)] font-semibold">👑 Founder & Designed by</span>
+            <span className="text-[color:var(--accent-emerald)] font-semibold">Founder & Designed by</span>
             <span className="font-bold text-foreground/70 tracking-wide">THARUN N E</span>
           </span>
           <span className="text-border/50">·</span>
           <span className="flex items-center gap-1">
-            <span className="text-primary font-semibold">⚡ Developed by</span>
+            <span className="text-primary font-semibold">Developed by</span>
             <span className="font-bold text-foreground/70 tracking-wide">NAVNEETH V</span>
           </span>
         </div>

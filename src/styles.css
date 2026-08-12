@@ -231,6 +231,6 @@
 }
 
 @utility animate-ai-pulse {
-  animation: ai-generate-pulse 10s infinite ease-in-out;
+  animation: ai-generate-pulse 5s infinite ease-in-out;
 }
 
