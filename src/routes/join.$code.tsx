@@ -100,7 +100,7 @@ function JoinPage() {
         const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
         if (error) {
           console.error("Error fetching all questions:", error);
-          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").eq("session_id", session.id).order("order_index");
+          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
           setAllQuestions(data as unknown as Question[]);
@@ -116,7 +116,7 @@ function JoinPage() {
         const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
         if (error) {
           console.error("Error fetching active questions:", error);
-          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").in("id", activeIds);
+          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
           setAllQuestions(data as unknown as Question[]);
@@ -133,7 +133,7 @@ function JoinPage() {
       const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
       if (error) {
         console.error("Error fetching single question:", error);
-        const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url").eq("id", singleActiveId).maybeSingle();
+        const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
         if (fbData) {
           setQuestion(fbData as unknown as Question);
           setAnswer("");
@@ -234,8 +234,31 @@ function JoinPage() {
     const saved = localStorage.getItem(`kctpulse-${session.id}`);
     if (saved) {
       const parsed = JSON.parse(saved) as { id: string; name: string };
-      setParticipantId(parsed.id);
-      setName(parsed.name);
+      // Verify if the participant still exists in the database to prevent foreign key errors
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from("participants")
+            .select("id")
+            .eq("id", parsed.id)
+            .maybeSingle();
+
+          if (!error && data) {
+            setParticipantId(parsed.id);
+            setName(parsed.name);
+          } else {
+            console.warn("Stale participant ID found in localStorage. Clearing.");
+            localStorage.removeItem(`kctpulse-${session.id}`);
+            setParticipantId(null);
+            setName("");
+          }
+        } catch (e) {
+          console.error("Error verifying participant ID:", e);
+          // Fallback to restore in case of network issues so we don't lock students out
+          setParticipantId(parsed.id);
+          setName(parsed.name);
+        }
+      })();
     }
   }, [session?.id]);
 
@@ -417,6 +440,22 @@ function JoinPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold">{session.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">This session has ended. Thanks for joining!</p>
+        </div>
+      </Wrap>
+    );
+  }
+
+  if (session.status === "draft") {
+    return (
+      <Wrap secondsLeft={secondsLeft}>
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold">{session.title}</h1>
+          <p className="text-sm text-muted-foreground">This session is not active yet. Waiting for the faculty to start it...</p>
+          <div className="flex justify-center pt-2">
+            <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
+              <div className="h-full w-1/2 gradient-bg animate-pulse" />
+            </div>
+          </div>
         </div>
       </Wrap>
     );

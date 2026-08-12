@@ -712,6 +712,14 @@ function DeveloperDashboard() {
           <div>
             <h1 className="text-2xl font-black tracking-tight">KCT PULSE Developer Portal</h1>
             <p className="mt-1 text-sm text-muted-foreground">Internal system monitoring & live telemetry dashboard.</p>
+            <div className="mt-3 flex items-center justify-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-medium bg-muted/60 px-2 py-0.5 rounded-full border border-border text-foreground/70">
+                Designed by <span className="font-extrabold text-foreground">THARUN N E</span>
+              </span>
+              <span className="text-[10px] font-medium bg-muted/60 px-2 py-0.5 rounded-full border border-border text-foreground/70">
+                Developed by <span className="font-extrabold text-foreground">NAVNEETH V</span>
+              </span>
+            </div>
           </div>
 
           <form onSubmit={handleAuthenticate} className="space-y-4 text-left">
@@ -763,7 +771,16 @@ function DeveloperDashboard() {
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> DEVELOPER TELEMETRY SUITE
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">Real-time Faculty, Session & Student Join Analytics</p>
+            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>Real-time Faculty, Session & Student Join Analytics</span>
+              <span className="hidden sm:inline text-muted-foreground/30">|</span>
+              <span className="text-[10px] font-medium bg-muted/60 px-2 py-0.5 rounded-full border border-border text-foreground/70">
+                Designed by <span className="font-extrabold text-foreground">THARUN N E</span>
+              </span>
+              <span className="text-[10px] font-medium bg-muted/60 px-2 py-0.5 rounded-full border border-border text-foreground/70">
+                Developed by <span className="font-extrabold text-foreground">NAVNEETH V</span>
+              </span>
+            </p>
           </div>
         </div>
 

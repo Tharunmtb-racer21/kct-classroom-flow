@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateSessionCode, autoDraftStaleSessions } from "@/lib/session-utils";
 import { toast } from "sonner";
@@ -77,6 +78,7 @@ function SessionsPage() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedShareSession, setSelectedShareSession] = useState<Row | null>(null);
   const [coHostEmail, setCoHostEmail] = useState("");
+  const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
 
   const navigate = Route.useNavigate();
 
@@ -199,14 +201,21 @@ function SessionsPage() {
     setShareModalOpen(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this session and all its data?")) return;
-    const { error } = await supabase.from("sessions").delete().eq("id", id);
-    if (error) {
-      console.error("Delete session error:", error);
-      toast.error("Failed to delete session. Please try again.");
-    } else {
+  const handleDelete = (id: string) => {
+    setDeleteSessionId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteSessionId) return;
+    try {
+      const { error } = await supabase.from("sessions").delete().eq("id", deleteSessionId);
+      if (error) throw error;
       toast.success("Session deleted");
+    } catch (err: any) {
+      console.error("Delete session error:", err);
+      toast.error("Failed to delete session. Please try again.");
+    } finally {
+      setDeleteSessionId(null);
     }
   };
 
@@ -355,6 +364,23 @@ function SessionsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteSessionId} onOpenChange={(open) => !open && setDeleteSessionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this session and all its data? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

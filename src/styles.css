@@ -213,3 +213,24 @@
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(1.4); }
 }
+
+@keyframes ai-generate-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent);
+    transform: scale(1);
+  }
+  5% {
+    box-shadow: 0 0 14px 4px color-mix(in oklab, var(--primary) 50%, transparent);
+    border-color: var(--primary);
+    transform: scale(1.05);
+  }
+  10% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent);
+    transform: scale(1);
+  }
+}
+
+@utility animate-ai-pulse {
+  animation: ai-generate-pulse 10s infinite ease-in-out;
+}
+

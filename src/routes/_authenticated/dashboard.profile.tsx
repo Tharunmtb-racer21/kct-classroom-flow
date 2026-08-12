@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
 import { User, Calendar, Shield, Presentation, Upload, Loader2, Pencil, Trash2, CheckCircle2, BookOpen } from "lucide-react";
@@ -27,6 +28,7 @@ function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
 
   const loadProfile = async () => {
     const user = auth.currentUser;
@@ -153,8 +155,12 @@ function ProfilePage() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!confirm("WARNING: Are you sure you want to delete your profile? This cannot be undone.")) return;
+  const handleDeleteAccount = () => {
+    setIsDeleteAccountOpen(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    setIsDeleteAccountOpen(false);
     const user = auth.currentUser;
     if (!user) return;
 
@@ -321,6 +327,23 @@ function ProfilePage() {
           </div>
         </div>
       )}
+
+      <AlertDialog open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account Profile</AlertDialogTitle>
+            <AlertDialogDescription className="text-destructive font-semibold">
+              WARNING: Are you sure you want to delete your profile? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteAccount} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete Account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

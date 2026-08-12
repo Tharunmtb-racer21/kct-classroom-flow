@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
@@ -423,6 +424,9 @@ function QuestionsPanel({
   const [excelValidated, setExcelValidated] = useState(false);
   const [excelQuestions, setExcelQuestions] = useState<any[]>([]);
 
+  const [isRetakeConfirmOpen, setIsRetakeConfirmOpen] = useState(false);
+  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null);
+
   const handleDownloadTemplate = () => {
     (async () => {
       const XLSX = await import("xlsx");
@@ -763,16 +767,16 @@ function QuestionsPanel({
     }
   };
 
-  const handleRetakeSelected = async () => {
+  const handleRetakeSelected = () => {
     if (checkedIds.length === 0) {
       toast.error("Please select at least one question to retake");
       return;
     }
+    setIsRetakeConfirmOpen(true);
+  };
 
-    if (!confirm(`Are you sure you want to let students retake the selected ${checkedIds.length} question(s)? This will permanently delete their existing responses for these questions.`)) {
-      return;
-    }
-
+  const confirmRetakeSelected = async () => {
+    setIsRetakeConfirmOpen(false);
     try {
       const { error } = await supabase
         .from("responses")
@@ -925,19 +929,22 @@ function QuestionsPanel({
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this question? This will also delete all student responses to this question.")) {
-      return;
-    }
-    
+  const remove = (id: string) => {
+    setDeleteQuestionId(id);
+  };
+
+  const confirmDeleteQuestion = async () => {
+    if (!deleteQuestionId) return;
     try {
-      const { error } = await supabase.from("questions").delete().eq("id", id);
+      const { error } = await supabase.from("questions").delete().eq("id", deleteQuestionId);
       if (error) throw error;
       toast.success("Question deleted successfully");
       onReload();
     } catch (err: any) {
       console.error("Delete question error:", err);
       toast.error(err.message || "Failed to delete question");
+    } finally {
+      setDeleteQuestionId(null);
     }
   };
 
@@ -1000,10 +1007,6 @@ function QuestionsPanel({
               </label>
             </Button>
           </div>
-
-          {/* AI Generate from Document */}
-          <AIGenerateDialog sessionId={sessionId} questionsCount={questions.length} onReload={onReload} />
-
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gradient-bg"><Plus className="mr-2 h-4 w-4" /> Add</Button>
@@ -1287,6 +1290,9 @@ function QuestionsPanel({
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* AI Generate from Document */}
+        <AIGenerateDialog sessionId={sessionId} questionsCount={questions.length} onReload={onReload} />
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
@@ -1598,6 +1604,40 @@ function QuestionsPanel({
           );
         })}
       </div>
+
+      <AlertDialog open={isRetakeConfirmOpen} onOpenChange={setIsRetakeConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retake Questions</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to let students retake the selected {checkedIds.length} question(s)? This will permanently delete their existing responses for these questions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRetakeSelected} className="bg-amber-500 hover:bg-amber-600 text-white">
+              Retake
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteQuestionId} onOpenChange={(open) => !open && setDeleteQuestionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Question</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this question? This will also delete all student responses to this question.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteQuestion} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1747,7 +1787,7 @@ function AIGenerateDialog({
         <Button
           size="sm"
           variant="outline"
-          className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all"
+          className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all animate-ai-pulse"
         >
           <Sparkles className="h-4 w-4" />
           AI Generate
