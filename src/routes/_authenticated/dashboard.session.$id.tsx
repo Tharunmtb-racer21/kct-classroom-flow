@@ -1021,6 +1021,9 @@ function QuestionsPanel({
                     <Sparkles className="h-4 w-4 text-primary animate-pulse" /> AI Question Generator
                   </h3>
                   <p className="text-xs text-muted-foreground">Generate multiple questions automatically from a document.</p>
+                  <p className="text-[10px] text-amber-500/80 font-medium flex items-center gap-1">
+                    <span>⚠️ AI can make mistakes; please verify questions.</span>
+                  </p>
                 </div>
                 <AIGenerateDialog
                   sessionId={sessionId}
@@ -1816,6 +1819,13 @@ function AIGenerateDialog({
             Generate Questions from Document
           </DialogTitle>
         </DialogHeader>
+
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2 text-xs text-amber-500/90 mt-1 select-none">
+          <span className="text-sm shrink-0">⚠️</span>
+          <p className="leading-normal font-medium">
+            <strong>Disclaimer:</strong> AI can make mistakes. Please verify facts, options, and correct answers before publishing questions to students.
+          </p>
+        </div>
 
         {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
         {step === "upload" && (
