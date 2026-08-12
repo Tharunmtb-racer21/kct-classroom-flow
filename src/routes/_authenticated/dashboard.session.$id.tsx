@@ -1014,6 +1014,24 @@ function QuestionsPanel({
           <DialogContent className="max-w-md sm:max-w-xl transition-all duration-300">
             <DialogHeader><DialogTitle>New Question</DialogTitle></DialogHeader>
             <div className="space-y-4 py-2">
+              {/* AI Question Generator Card inside Add Question Dialog */}
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 shadow-sm">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-bold flex items-center gap-1.5 text-primary">
+                    <Sparkles className="h-4 w-4 text-primary animate-pulse" /> AI Question Generator
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Generate multiple questions automatically from a document.</p>
+                </div>
+                <AIGenerateDialog
+                  sessionId={sessionId}
+                  questionsCount={questions.length}
+                  onReload={() => {
+                    onReload();
+                    setOpen(false);
+                  }}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select value={type} onValueChange={(v) => {
@@ -1290,9 +1308,6 @@ function QuestionsPanel({
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* AI Generate from Document */}
-        <AIGenerateDialog sessionId={sessionId} questionsCount={questions.length} onReload={onReload} />
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>

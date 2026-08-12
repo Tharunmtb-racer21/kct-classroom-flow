@@ -217,20 +217,15 @@
 @keyframes ai-generate-pulse {
   0%, 100% {
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent);
-    transform: scale(1);
+    border-color: rgba(var(--color-primary), 0.3);
   }
-  5% {
-    box-shadow: 0 0 14px 4px color-mix(in oklab, var(--primary) 50%, transparent);
+  50% {
+    box-shadow: 0 0 16px 4px color-mix(in oklab, var(--primary) 35%, transparent);
     border-color: var(--primary);
-    transform: scale(1.05);
-  }
-  10% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent);
-    transform: scale(1);
   }
 }
 
 @utility animate-ai-pulse {
-  animation: ai-generate-pulse 5s infinite ease-in-out;
+  animation: ai-generate-pulse 4s infinite ease-in-out;
 }
 
