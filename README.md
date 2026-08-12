@@ -113,5 +113,5 @@ This project is built and maintained with ⚡ by:
 ---
 
 <div align="center">
-Built for <b>Kumaraguru College of Technology</b>. Character is life.
+Built for <b>Kumaraguru College of Technology</b> · <b>DESIGNED BY THARUN NE</b>. Character is life.
 </div>

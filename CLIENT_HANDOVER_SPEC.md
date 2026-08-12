@@ -3,7 +3,7 @@
 
 **Prepared For**: Executive Stakeholders, Department Heads, and Institutional Clients  
 **Platform Version**: v2.5.0 (Production Release)  
-**Deployment URL**: [https://kct-classroom-flow.vercel.app](https://kct-classroom-flow.vercel.app)
+**Deployment URL**: [https://kct-classroom-flow-pulse.vercel.app](https://kct-classroom-flow-pulse.vercel.app)
 
 ---
 
@@ -86,8 +86,8 @@ Students join instantly from their smartphones using a 6-character shortcode or 
 ### 5. Deployment & System Verification
 
 The platform has been built, stress-tested, and deployed to production.
-- **Production URL**: `https://kct-classroom-flow.vercel.app`
-- **Developer Telemetry**: `https://kct-classroom-flow.vercel.app/developer` *(Password: `Pulse_2026`)*
+- **Production URL**: `https://kct-classroom-flow-pulse.vercel.app`
+- **Developer Telemetry**: `https://kct-classroom-flow-pulse.vercel.app/developer` *(Password: `Pulse_2026`)*
 - **Build Status**: Verified 0 compilation errors (~900ms build time).
 
 ---
