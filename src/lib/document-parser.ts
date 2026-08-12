@@ -3,6 +3,8 @@
  * Extracts plain text from uploaded PDF, DOCX, or TXT files — runs entirely in the browser.
  */
 
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 export type SupportedFileType = "pdf" | "docx" | "txt";
 
 export function getFileType(file: File): SupportedFileType | null {
@@ -38,24 +40,8 @@ async function extractFromPdf(file: File): Promise<string> {
   const pdfjsLib = await import("pdfjs-dist");
 
   const arrayBuffer = await file.arrayBuffer();
-  let pdf;
-  try {
-    // Try unpkg first (direct NPM mirror - guaranteed to have the exact installed version)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-    pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  } catch (err) {
-    console.warn("Failed to load PDF worker from unpkg, trying jsdelivr...", err);
-    try {
-      // Try jsdelivr second
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-      pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    } catch (err2) {
-      console.warn("Failed to load PDF worker from jsdelivr, trying cdnjs...", err2);
-      // Fallback to cdnjs third
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-      pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    }
-  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
   const textParts: string[] = [];
 
