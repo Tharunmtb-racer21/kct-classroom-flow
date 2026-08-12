@@ -59,13 +59,7 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4" /> Logout
         </button>
       </div>
-      <div className="p-3 border-t border-border/40 text-center text-[10px] leading-relaxed text-muted-foreground">
-        Built for <span className="font-semibold text-foreground/80">Kumaraguru College of Technology</span>
-        <div className="mt-1.5 flex flex-col gap-0.5 font-bold tracking-wide uppercase text-[9px]">
-          <div className="text-[color:var(--accent-emerald)]">✦ Designed by THARUN NE</div>
-          <div className="text-primary">⚡ Developed by NAVNEETH V</div>
-        </div>
-      </div>
+
     </aside>
   );
 }
