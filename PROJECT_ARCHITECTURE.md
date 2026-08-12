@@ -23,7 +23,7 @@
 | `/dashboard/session/$id` | Live Session Control Room (Poll controls, charts, QR code) | Session Creator |
 | `/join/$code` | Student Live Join & Answering Interface | Students (No Login Required) |
 | `/embed/$code` | PowerPoint / Google Slides Live iFrame Embed View | Public / Embedded iFrame |
-| `/developer` | System Telemetry, Faculty Monitor & Database Health | **Password Protected: `Pulse_2026`** |
+| `/developer` | System Telemetry, Faculty Monitor & Database Health |
 
 > [!NOTE]
 > The `/developer` route is hidden from the sidebar menu and can only be accessed by manually entering `/developer` in the browser URL bar.

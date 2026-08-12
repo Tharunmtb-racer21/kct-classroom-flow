@@ -1769,23 +1769,6 @@ function AIGenerateDialog({
         {/* ── STEP 1: Upload ─────────────────────────────────────────────── */}
         {step === "upload" && (
           <div className="space-y-5 mt-2">
-            {/* API Key */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5 justify-between">
-                <span>AI Provider API Key (Google, NVIDIA, or Groq)</span>
-                <span className="text-xs text-muted-foreground font-normal">
-                  Leave empty for local (offline) generation
-                </span>
-              </Label>
-              <Input
-                type="password"
-                placeholder="Google (AIzaSy...), Groq (gsk_...), NVIDIA (nvapi-...) or empty"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="font-mono text-sm"
-              />
-            </div>
-
             {/* File Upload */}
             <div className="space-y-2">
               <Label>Upload Document</Label>
