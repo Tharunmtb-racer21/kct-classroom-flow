@@ -113,5 +113,5 @@ This project is built and maintained with ⚡ by:
 ---
 
 <div align="center">
-Built for <b>Kumaraguru College of Technology</b> · <b>DESIGNED BY THARUN NE</b> · <b>DEVELOPED BY NAVNEETH V</b>. Character is life.
+Built for <b>Kumaraguru College of Technology</b> · 👑 <b>FOUNDER & DESIGNED BY THARUN N E</b> · ⚡ <b>DEVELOPED BY NAVNEETH V</b>. Character is life.
 </div>

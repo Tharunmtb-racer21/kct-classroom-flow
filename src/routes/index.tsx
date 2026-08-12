@@ -99,7 +99,7 @@ function Index() {
         <div>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</div>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="text-[color:var(--accent-emerald)] font-semibold">✦ Designed by</span>
+            <span className="text-[color:var(--accent-emerald)] font-semibold">👑 Founder & Designed by</span>
             <span className="font-bold text-foreground/80 tracking-wide">THARUN N E</span>
           </span>
           <span className="text-border/60">·</span>
