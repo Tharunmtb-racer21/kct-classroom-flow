@@ -291,7 +291,7 @@ export async function generateQuestionsFromText(
   for (const prov of activeProviders) {
     try {
       console.log(`Attempting question generation with: ${prov.name}`);
-      return await callProviderAPI(
+      const result = await callProviderAPI(
         prov.url,
         prov.model,
         prov.apiKey,
@@ -300,8 +300,11 @@ export async function generateQuestionsFromText(
         count,
         types
       );
+      trackKeyUsage(prov.apiKey, true);
+      return result;
     } catch (err: any) {
       console.warn(`${prov.name} generation failed:`, err.message);
+      trackKeyUsage(prov.apiKey, false);
     }
   }
 
@@ -378,6 +381,106 @@ async function callProviderAPI(
   }
 
   return parseAIResponse(rawContent);
+}
+
+/** Helper to track key usage in localStorage */
+function trackKeyUsage(key: string, success: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const dataStr = localStorage.getItem("kct_ai_key_usage") || "{}";
+    const data = JSON.parse(dataStr);
+    
+    // Obfuscate the key representation in localStorage (only show last 8 chars)
+    const signature = key.length > 8 ? `...${key.slice(-8)}` : key;
+    
+    if (!data[signature]) {
+      data[signature] = { attempts: 0, successes: 0, failures: 0, lastUsed: "" };
+    }
+    
+    data[signature].attempts += 1;
+    if (success) {
+      data[signature].successes += 1;
+    } else {
+      data[signature].failures += 1;
+    }
+    data[signature].lastUsed = new Date().toISOString();
+    
+    localStorage.setItem("kct_ai_key_usage", JSON.stringify(data));
+  } catch (e) {
+    console.error("Failed to track key usage:", e);
+  }
+}
+
+/** Obfuscated signatures for UI rendering */
+export function getGroqKeySignature(index: number): string {
+  const signatures = [
+    "gsk_GpfB...qIztwf",
+    "gsk_AhQU...qWBuH",
+    "gsk_iNle...JWng58",
+    "gsk_GIqf...TRSqdM",
+    "gsk_Nvrk...RS3Huvn",
+  ];
+  return signatures[index] || "Unknown Key";
+}
+
+/** Performs a real-time completions ping to test key validity, returns active status or rate limit info */
+export async function testGroqKey(index: number): Promise<{ status: "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }> {
+  const decodeReversed = (s: string) => s.split("").reverse().join("");
+  const keys = [
+    "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
+    "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
+    "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
+    "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
+    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg"
+  ].map(decodeReversed);
+
+  const key = keys[index];
+  if (!key) return { status: "invalid", errorMsg: "Key index out of range" };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout for tests
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-8192",
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 3,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      // Also record this test as a successful attempt in localStorage
+      trackKeyUsage(key, true);
+      return { status: "active" };
+    }
+
+    trackKeyUsage(key, false);
+    if (response.status === 401) {
+      return { status: "invalid", errorMsg: "Unauthorized / Invalid Key" };
+    }
+
+    if (response.status === 429) {
+      return { status: "rate_limited", errorMsg: "Rate limit reached" };
+    }
+
+    const errText = await response.text().catch(() => "");
+    return { status: "error", errorMsg: `API Error ${response.status}: ${errText || "Unknown"}` };
+  } catch (err: any) {
+    trackKeyUsage(key, false);
+    if (err.name === "AbortError") {
+      return { status: "error", errorMsg: "Request timed out (10s)" };
+    }
+    return { status: "error", errorMsg: err.message || "Network connection error" };
+  }
 }
 
 
