@@ -120,6 +120,17 @@ type FailedAttemptRecord = {
   userAgent: string;
 };
 
+type ContactMessageRow = {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  user_id: string | null;
+  status: string;
+};
+
 export const Route = createFileRoute("/developer")({
   head: () => ({
     meta: [
@@ -133,6 +144,8 @@ export const Route = createFileRoute("/developer")({
 
 function DeveloperDashboard() {
   const [passkey, setPasskey] = useState("");
+  const [contactMessages, setContactMessages] = useState<ContactMessageRow[]>([]);
+  const [selectedContactMessage, setSelectedContactMessage] = useState<ContactMessageRow | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
 
@@ -380,6 +393,12 @@ function DeveloperDashboard() {
         .select("id,user_id,role,email,login_time,logout_time,session_duration,browser,device,operating_system,status")
         .order("login_time", { ascending: false });
 
+      // 7. Fetch Contact Messages
+      const { data: cmData } = await supabase
+        .from("contact_messages")
+        .select("id,created_at,name,email,subject,message,user_id,status")
+        .order("created_at", { ascending: false });
+
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
 
@@ -389,6 +408,7 @@ function DeveloperDashboard() {
       const rRows = (rData as ResponseRow[]) || [];
       const profRows = (profData as ProfileRow[]) || [];
       const lRows = (logData as LoginLogRow[]) || [];
+      const cmRows = (cmData as ContactMessageRow[]) || [];
 
       setSessions(sRows);
       setQuestions(qRows);
@@ -396,6 +416,7 @@ function DeveloperDashboard() {
       setResponses(rRows);
       setProfiles(profRows);
       setLoginLogs(lRows);
+      setContactMessages(cmRows);
 
       // Re-populate audit log history
       const initialLogs: AuditLogItem[] = [];
@@ -463,6 +484,38 @@ function DeveloperDashboard() {
     await loadData();
   };
 
+  const handleUpdateMessageStatus = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from("contact_messages")
+        .update({ status: newStatus })
+        .eq("id", id);
+      if (error) throw error;
+      
+      setContactMessages(prev => prev.map(msg => msg.id === id ? { ...msg, status: newStatus } : msg));
+      toast.success(`Message marked as ${newStatus}`);
+      addAuditLog(`Contact Message status updated to ${newStatus} for message ${id.slice(0, 8)}`, "SYSTEM", "success");
+    } catch (err: any) {
+      toast.error(`Failed to update message: ${err.message}`);
+    }
+  };
+
+  const handleDeleteMessage = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("contact_messages")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+
+      setContactMessages(prev => prev.filter(msg => msg.id !== id));
+      toast.success("Message deleted successfully.");
+      addAuditLog(`Contact Message ${id.slice(0, 8)} deleted`, "SYSTEM", "warn");
+    } catch (err: any) {
+      toast.error(`Failed to delete message: ${err.message}`);
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return;
     loadData();
@@ -478,6 +531,12 @@ function DeveloperDashboard() {
         const p = payload.new as ParticipantRow;
         addAuditLog(`Live Student '${p?.name || "Student"}' joined session`, "AUTH", "info");
         setParticipants((prev) => [p, ...prev]);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "contact_messages" }, (payload) => {
+        const cm = payload.new as ContactMessageRow;
+        addAuditLog(`New feedback message received from '${cm?.name || "User"}'`, "SYSTEM", "success");
+        setContactMessages((prev) => [cm, ...prev]);
+        toast.info(`New feedback message from ${cm?.name}!`);
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "responses" }, (payload) => {
         const r = payload.new as ResponseRow;
@@ -976,6 +1035,9 @@ function DeveloperDashboard() {
               </TabsTrigger>
               <TabsTrigger value="ai_keys" className="gap-2 text-xs font-semibold text-amber-400 data-[state=active]:text-amber-500">
                 <Key className="h-3.5 w-3.5" /> AI Keys Usage (5)
+              </TabsTrigger>
+              <TabsTrigger value="contact_messages" className="gap-2 text-xs font-semibold text-blue-400 data-[state=active]:text-blue-500">
+                <MessageSquare className="h-3.5 w-3.5" /> Feedback ({contactMessages.length})
               </TabsTrigger>
             </TabsList>
 
@@ -1857,7 +1919,228 @@ function DeveloperDashboard() {
               </div>
             </div>
           </TabsContent>
+
+          {/* TAB 9: CONTACT MESSAGES / FEEDBACK */}
+          <TabsContent value="contact_messages" className="space-y-4">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-blue-400" /> Contact Messages & Feedback Telemetry
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Manage feedback, feature requests, and bug reports submitted by students and faculty.
+                  </p>
+                </div>
+              </div>
+
+              {!import.meta.env.VITE_WEB3FORMS_ACCESS_KEY && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex gap-3 text-xs leading-relaxed text-amber-500/90">
+                  <Shield className="h-5 w-5 shrink-0 animate-pulse text-amber-500" />
+                  <div>
+                    <span className="font-extrabold block text-amber-500 uppercase tracking-wider text-[10px] mb-0.5">Automated Email Notifications Offline</span>
+                    To receive contact form submissions directly in your email inbox automatically, request a free access key at <a href="https://web3forms.com/#start" target="_blank" rel="noopener noreferrer" className="underline font-bold text-foreground hover:text-primary transition-colors">web3forms.com</a> (takes 5 seconds, no signup required) and add it to your environment variables as <code className="font-mono bg-card px-1 py-0.5 rounded text-amber-400 border border-amber-500/20 font-black">VITE_WEB3FORMS_ACCESS_KEY="..."</code>.
+                  </div>
+                </div>
+              )}
+
+              {contactMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-card/10 rounded-2xl border border-dashed border-border/60 p-6">
+                  <MessageSquare className="h-10 w-10 text-muted-foreground/45 mb-3" />
+                  <p className="text-sm font-semibold">No feedback messages logged in database yet.</p>
+                  <p className="text-xs mt-1 max-w-sm">When users submit a message through the contact modal, it will appear here in real-time.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                      <tr>
+                        <th className="px-4 py-3">Received Time</th>
+                        <th className="px-4 py-3">Sender Details</th>
+                        <th className="px-4 py-3">Subject / Topic</th>
+                        <th className="px-4 py-3">Message Snippet</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {contactMessages.map((msg) => (
+                        <tr key={msg.id} className={cn(
+                          "hover:bg-card/40 transition",
+                          msg.status === "unread" && "bg-blue-500/5 font-semibold text-foreground"
+                        )}>
+                          <td className="px-4 py-4 font-mono text-muted-foreground">
+                            {new Date(msg.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-4 space-y-0.5">
+                            <div className="font-extrabold text-foreground">{msg.name}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono">{msg.email}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className={cn(
+                              "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border",
+                              msg.subject === "Bug Report" 
+                                ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                                : msg.subject === "Feature Request"
+                                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-500"
+                                : msg.subject === "Session Issue"
+                                ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                                : "bg-muted border-border text-foreground/80"
+                            )}>
+                              {msg.subject}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 max-w-[250px] truncate text-muted-foreground font-normal">
+                            {msg.message}
+                          </td>
+                          <td className="px-4 py-4">
+                            <button
+                              onClick={() => handleUpdateMessageStatus(msg.id, msg.status === "unread" ? "read" : "unread")}
+                              className={cn(
+                                "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider cursor-pointer border transition",
+                                msg.status === "unread" 
+                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" 
+                                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20"
+                              )}
+                            >
+                              {msg.status}
+                            </button>
+                          </td>
+                          <td className="px-4 py-4 text-right flex justify-end gap-1.5">
+                            <Button 
+                              onClick={() => setSelectedContactMessage(msg)}
+                              variant="outline" 
+                              size="sm"
+                              className="text-xs h-7 px-2 border-border"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              onClick={() => {
+                                if (window.confirm("Are you sure you want to delete this message?")) {
+                                  handleDeleteMessage(msg.id);
+                                }
+                              }}
+                              variant="outline" 
+                              size="sm"
+                              className="text-xs h-7 px-2 border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
+
+        {/* Contact Message Details Dialog */}
+        <Dialog open={!!selectedContactMessage} onOpenChange={(open) => !open && setSelectedContactMessage(null)}>
+          <DialogContent className="sm:max-w-[550px] glass rounded-3xl border border-border/80 shadow-2xl p-6 select-none animate-in fade-in zoom-in-95 duration-200">
+            {selectedContactMessage && (
+              <div className="space-y-4 text-left">
+                <DialogHeader>
+                  <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-500">
+                        <MessageSquare className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <DialogTitle className="text-lg font-black tracking-tight">{selectedContactMessage.subject}</DialogTitle>
+                        <p className="text-xs text-muted-foreground">Received {new Date(selectedContactMessage.created_at).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                      selectedContactMessage.status === "unread" 
+                        ? "bg-amber-500/10 border border-amber-500/30 text-amber-500" 
+                        : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500"
+                    )}>
+                      {selectedContactMessage.status}
+                    </span>
+                  </div>
+                </DialogHeader>
+
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-4 bg-card/45 border border-border/60 rounded-xl p-3 text-xs">
+                    <div>
+                      <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">From Name</span>
+                      <span className="font-extrabold text-foreground">{selectedContactMessage.name}</span>
+                    </div>
+                    <div>
+                      <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">Email Address</span>
+                      <a 
+                        href={`mailto:${selectedContactMessage.email}`} 
+                        className="font-extrabold text-primary hover:underline font-mono"
+                      >
+                        {selectedContactMessage.email}
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">Message Content</span>
+                    <div className="bg-card/25 border border-border/60 rounded-xl p-4 font-sans text-sm text-foreground whitespace-pre-wrap leading-relaxed max-h-[250px] overflow-y-auto">
+                      {selectedContactMessage.message}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-border/60">
+                  <Button
+                    onClick={() => {
+                      handleDeleteMessage(selectedContactMessage.id);
+                      setSelectedContactMessage(null);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete Message
+                  </Button>
+                  <div className="flex gap-2">
+                    {selectedContactMessage.status === "unread" ? (
+                      <Button
+                        onClick={() => {
+                          handleUpdateMessageStatus(selectedContactMessage.id, "read");
+                          setSelectedContactMessage(null);
+                        }}
+                        size="sm"
+                        className="gradient-bg text-xs font-semibold"
+                      >
+                        Mark as Read
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => {
+                          handleUpdateMessageStatus(selectedContactMessage.id, "unread");
+                          setSelectedContactMessage(null);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs border-border font-semibold"
+                      >
+                        Mark as Unread
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => setSelectedContactMessage(null)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground font-semibold"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
 
       <footer className="border-t border-border/60 bg-card/40 py-6 text-center text-xs text-muted-foreground mt-8">

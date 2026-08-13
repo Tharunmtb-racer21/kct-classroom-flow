@@ -5,6 +5,7 @@ import { BarChart3, Cloud, Sparkles, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ContactUsModal } from "@/components/contact-us-modal";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -107,6 +108,12 @@ function Index() {
             <span className="text-primary font-semibold">Developed by</span>
             <span className="font-bold text-foreground/80 tracking-wide">NAVNEETH V</span>
           </span>
+          <span className="text-border/60">·</span>
+          <ContactUsModal>
+            <button className="hover:text-foreground font-semibold cursor-pointer transition-colors">
+              Contact Us & Feedback
+            </button>
+          </ContactUsModal>
         </div>
       </footer>
       </div>

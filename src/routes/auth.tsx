@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { logUserLogin } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ContactUsModal } from "@/components/contact-us-modal";
 import { formatDisplayName } from "@/lib/utils";
 import {
   signInWithPopup,
@@ -265,6 +266,12 @@ function AuthPage() {
             <span className="text-[color:var(--accent-emerald)]">Founder & Designed by <span className="font-bold text-foreground/85">THARUN N E</span></span>
             <span className="text-border/50">·</span>
             <span className="text-primary">Developed by <span className="font-bold text-foreground/85">NAVNEETH V</span></span>
+            <span className="text-border/50">·</span>
+            <ContactUsModal>
+              <button className="hover:text-foreground text-primary font-bold cursor-pointer transition-colors">
+                Contact Us
+              </button>
+            </ContactUsModal>
           </div>
         </p>
       </div>

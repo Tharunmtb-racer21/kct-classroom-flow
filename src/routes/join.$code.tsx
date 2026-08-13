@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ContactUsModal } from "@/components/contact-us-modal";
 
 type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null; question_type?: string };
@@ -859,6 +860,12 @@ function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLef
             <span className="text-primary font-semibold">Developed by</span>
             <span className="font-bold text-foreground/70 tracking-wide">NAVNEETH V</span>
           </span>
+          <span className="text-border/50">·</span>
+          <ContactUsModal>
+            <button className="hover:text-foreground font-semibold cursor-pointer transition-colors">
+              Contact Us & Feedback
+            </button>
+          </ContactUsModal>
         </div>
       </footer>
     </div>

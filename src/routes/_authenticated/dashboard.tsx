@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ContactUsModal } from "@/components/contact-us-modal";
 import { LayoutDashboard, Presentation, BarChart3, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,12 @@ function DashboardLayout() {
               <span>Founder & Designed by <span className="font-semibold text-foreground/80">THARUN N E</span></span>
               <span className="text-border/60">·</span>
               <span>Developed by <span className="font-semibold text-foreground/80">NAVNEETH V</span></span>
+              <span className="text-border/60">·</span>
+              <ContactUsModal>
+                <button className="hover:text-foreground font-semibold cursor-pointer transition-colors">
+                  Contact Us & Feedback
+                </button>
+              </ContactUsModal>
             </div>
           </footer>
         </main>
