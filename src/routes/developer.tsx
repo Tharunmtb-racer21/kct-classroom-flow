@@ -222,6 +222,80 @@ function DeveloperDashboard() {
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState<FailedAttemptRecord[]>([]);
 
+  // WAF Telemetry States
+  const [wafStats, setWafStats] = useState<any>(null);
+  const [wafLogs, setWafLogs] = useState<any[]>([]);
+  const [wafRules, setWafRules] = useState<any>(null);
+  const [wafOffline, setWafOffline] = useState(true);
+  const [wafIpInput, setWafIpInput] = useState("");
+  const [wafRuleType, setWafRuleType] = useState<"block" | "allow">("block");
+
+  const fetchWafData = async () => {
+    try {
+      const [statsRes, logsRes, rulesRes] = await Promise.all([
+        fetch("http://localhost:8081/api/stats"),
+        fetch("http://localhost:8081/api/logs"),
+        fetch("http://localhost:8081/api/rules"),
+      ]);
+      if (!statsRes.ok || !logsRes.ok || !rulesRes.ok) throw new Error();
+      const stats = await statsRes.json();
+      const logs = await logsRes.json();
+      const rules = await rulesRes.json();
+      setWafStats(stats);
+      setWafLogs(logs);
+      setWafRules(rules);
+      setWafOffline(false);
+    } catch {
+      setWafOffline(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchWafData();
+    const interval = setInterval(fetchWafData, 4000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  const handleAddWafIPRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wafIpInput.trim()) return;
+    try {
+      const res = await fetch("http://localhost:8081/api/rules/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: wafIpInput.trim(), type: wafRuleType }),
+      });
+      if (res.ok) {
+        toast.success(`Firewall rule added: ${wafIpInput} (${wafRuleType.toUpperCase()})`);
+        setWafIpInput("");
+        fetchWafData();
+      } else {
+        toast.error("Failed to add firewall rule.");
+      }
+    } catch {
+      toast.error("WAF API is offline.");
+    }
+  };
+
+  const handleDeleteWafIPRule = async (ip: string) => {
+    try {
+      const res = await fetch("http://localhost:8081/api/rules/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok) {
+        toast.success(`Removed firewall rule for ${ip}`);
+        fetchWafData();
+      } else {
+        toast.error("Failed to delete firewall rule.");
+      }
+    } catch {
+      toast.error("WAF API is offline.");
+    }
+  };
+
   // Groq API Keys Telemetry State
   const [groqKeysStatus, setGroqKeysStatus] = useState<Record<number, { status: "unchecked" | "testing" | "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }>>({
     0: { status: "unchecked" },
@@ -1038,6 +1112,9 @@ function DeveloperDashboard() {
               </TabsTrigger>
               <TabsTrigger value="contact_messages" className="gap-2 text-xs font-semibold text-blue-400 data-[state=active]:text-blue-500">
                 <MessageSquare className="h-3.5 w-3.5" /> Feedback ({contactMessages.length})
+              </TabsTrigger>
+              <TabsTrigger value="waf" className="gap-2 text-xs font-semibold text-rose-400 data-[state=active]:text-rose-500">
+                <Shield className="h-3.5 w-3.5 text-rose-500" /> WAF Firewall {wafOffline ? "(Offline)" : ""}
               </TabsTrigger>
             </TabsList>
 
@@ -2033,6 +2110,192 @@ function DeveloperDashboard() {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* TAB 10: KCT SHIELD WAF MONITOR */}
+          <TabsContent value="waf" className="space-y-4">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-6">
+              {/* WAF Status Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-rose-500" /> KCT SHIELD Web Application Firewall
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Inspect, normalize, score, and filter incoming client HTTP requests in real-time.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-black border flex items-center gap-1.5",
+                    wafOffline 
+                      ? "bg-rose-500/10 text-rose-500 border-rose-500/30" 
+                      : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                  )}>
+                    <span className={cn("h-2 w-2 rounded-full", wafOffline ? "bg-rose-500" : "bg-emerald-500 animate-pulse")} />
+                    {wafOffline ? "WAF OFFLINE" : "WAF ACTIVE (Port 3000 ➔ 8080)"}
+                  </span>
+                </div>
+              </div>
+
+              {wafOffline ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-card/10 rounded-2xl border border-dashed border-border/60 p-6">
+                  <Shield className="h-10 w-10 text-rose-500/40 mb-3 animate-pulse" />
+                  <p className="text-sm font-semibold text-rose-400">KCT SHIELD Firewall service is currently offline.</p>
+                  <p className="text-xs mt-1 max-w-sm">
+                    Please start the firewall daemon in your terminal (<code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/20 font-black">bun run start</code> in the <code className="font-mono">kct-shield/</code> directory) to connect real-time telemetry.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* KPI Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-card/45 border border-border/60 rounded-xl p-4">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Requests</span>
+                      <span className="text-2xl font-black text-foreground">{wafStats?.total ?? 0}</span>
+                    </div>
+                    <div className="bg-card/45 border border-border/60 rounded-xl p-4">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block text-emerald-500">Allowed</span>
+                      <span className="text-2xl font-black text-emerald-500">{wafStats?.allowed ?? 0}</span>
+                    </div>
+                    <div className="bg-card/45 border border-border/60 rounded-xl p-4">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block text-rose-500">Blocked</span>
+                      <span className="text-2xl font-black text-rose-500">{wafStats?.blocked ?? 0}</span>
+                    </div>
+                    <div className="bg-card/45 border border-border/60 rounded-xl p-4">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block text-yellow-500">Rate Limited</span>
+                      <span className="text-2xl font-black text-yellow-500">{wafStats?.rateLimited ?? 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Threat Controls & Rules */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Add Rule Form */}
+                    <div className="bg-card/35 border border-border/60 rounded-xl p-4 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Quick IP Overrides</h4>
+                      <form onSubmit={handleAddWafIPRule} className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground uppercase font-bold">IP Address</label>
+                          <Input
+                            placeholder="e.g. 192.168.1.1"
+                            value={wafIpInput}
+                            onChange={(e) => setWafIpInput(e.target.value)}
+                            className="h-8 text-xs font-mono bg-background/50 border-border"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground uppercase font-bold">Rule Mode</label>
+                          <select
+                            value={wafRuleType}
+                            onChange={(e: any) => setWafRuleType(e.target.value)}
+                            className="w-full h-8 px-2 rounded-md bg-background/50 border border-border text-xs text-foreground focus:outline-none"
+                          >
+                            <option value="block">BLOCK (Strict Deny)</option>
+                            <option value="allow">ALLOW (Bypass rules)</option>
+                          </select>
+                        </div>
+                        <Button type="submit" size="sm" className="w-full text-xs font-semibold gradient-bg">
+                          Apply Rule
+                        </Button>
+                      </form>
+                    </div>
+
+                    {/* Active IP Rules List */}
+                    <div className="md:col-span-2 bg-card/35 border border-border/60 rounded-xl p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-foreground mb-3">Active IP Firewall Rules</h4>
+                        <div className="max-h-40 overflow-y-auto space-y-2 text-xs font-mono pr-1">
+                          {(!wafRules?.rules || wafRules.rules.length === 0) && Object.keys(wafRules?.tempBlocks ?? {}).length === 0 ? (
+                            <p className="text-muted-foreground italic text-center py-4">No manual overrides or temporary bans in effect.</p>
+                          ) : (
+                            <>
+                              {wafRules?.rules.map((rule: any) => (
+                                <div key={rule.ip} className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50">
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn("w-1.5 h-1.5 rounded-full", rule.type === 'allow' ? "bg-emerald-500" : "bg-rose-500")} />
+                                    <span className="text-foreground">{rule.ip}</span>
+                                    <span className={cn("px-1.5 py-0.2 rounded-full text-[9px] uppercase font-bold border", rule.type === 'allow' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20")}>
+                                      {rule.type}
+                                    </span>
+                                  </div>
+                                  <button onClick={() => handleDeleteWafIPRule(rule.ip)} className="text-rose-500 hover:text-rose-400 transition text-[10px] font-bold cursor-pointer">REMOVE</button>
+                                </div>
+                              ))}
+                              {Object.entries(wafRules?.tempBlocks ?? {}).map(([ip, expiresAt]: any) => (
+                                <div key={ip} className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                                    <span className="text-foreground">{ip}</span>
+                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] uppercase font-bold border bg-yellow-500/10 text-yellow-400 border-yellow-500/20">
+                                      block (temp)
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] text-muted-foreground italic">Expiring soon</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live logs stream */}
+                  <div className="space-y-3 pt-4 border-t border-border/40">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Live Firewall Incidents Stream</h4>
+                    <div className="overflow-x-auto rounded-2xl border border-border/60">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-card/85 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                          <tr>
+                            <th className="px-4 py-3">Time</th>
+                            <th className="px-4 py-3">Client IP</th>
+                            <th className="px-4 py-3">Request Details</th>
+                            <th className="px-4 py-3">Action</th>
+                            <th className="px-4 py-3">Score</th>
+                            <th className="px-4 py-3">Rules Triggered</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40 font-mono">
+                          {wafLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="text-center py-6 text-muted-foreground italic">
+                                No firewall incidents logged.
+                              </td>
+                            </tr>
+                          ) : (
+                            wafLogs.map((log) => {
+                              let actionBadge = "bg-green-500/10 text-emerald-400 border-emerald-500/20";
+                              if (log.action === "BLOCK") actionBadge = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                              if (log.action === "RATE_LIMIT") actionBadge = "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
+                              if (log.action === "MONITOR") actionBadge = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+
+                              return (
+                                <tr key={log.id} className="hover:bg-card/25 transition">
+                                  <td className="px-4 py-4 text-muted-foreground text-[10px]">{new Date(log.timestamp).toLocaleTimeString()}</td>
+                                  <td className="px-4 py-4 font-semibold text-white">{log.ip}</td>
+                                  <td className="px-4 py-4"><span className="text-blue-400 font-bold">{log.method}</span> <span className="text-foreground">{log.path}</span></td>
+                                  <td className="px-4 py-4"><span className={cn("px-2.5 py-0.5 border rounded-full text-[10px] font-black tracking-wider uppercase", actionBadge)}>{log.action}</span></td>
+                                  <td className={cn("px-4 py-4 font-black", log.score >= 50 ? "text-rose-500" : log.score >= 20 ? "text-purple-400" : "text-emerald-500")}>{log.score} / 100</td>
+                                  <td className="px-4 py-4 flex flex-wrap gap-1 mt-1.5">
+                                    {log.rules.length > 0 ? (
+                                      log.rules.map((r: string) => (
+                                        <span key={r} className="px-1.5 py-0.5 rounded bg-card text-[9px] text-gray-400 border border-border/30">{r}</span>
+                                      ))
+                                    ) : (
+                                      <span className="text-gray-600 italic">None</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>

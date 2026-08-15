@@ -348,15 +348,30 @@ function getDashboardHtml(): string {
 </html>`;
 }
 
-/**
- * Boots the dashboard HTTP server.
- */
 export function startDashboard() {
   Bun.serve({
     port: ADMIN_PORT,
     async fetch(req) {
       const url = new URL(req.url);
       const path = url.pathname;
+
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
+        "Access-Control-Allow-Headers": "Content-Type",
+      };
+
+      // Handle CORS preflight options
+      if (req.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
+      }
+
+      const addCors = (response: Response): Response => {
+        for (const [key, val] of Object.entries(corsHeaders)) {
+          response.headers.set(key, val);
+        }
+        return response;
+      };
 
       // 1. Serve Dashboard HTML
       if (req.method === "GET" && path === "/") {
@@ -367,20 +382,20 @@ export function startDashboard() {
 
       // 2. API: stats
       if (req.method === "GET" && path === "/api/stats") {
-        return Response.json(getWafStats());
+        return addCors(Response.json(getWafStats()));
       }
 
       // 3. API: logs
       if (req.method === "GET" && path === "/api/logs") {
-        return Response.json(getSecurityLogs(50));
+        return addCors(Response.json(getSecurityLogs(50)));
       }
 
       // 4. API: rules (allowlist / blocklist)
       if (req.method === "GET" && path === "/api/rules") {
-        return Response.json({
+        return addCors(Response.json({
           rules: getAllIPRules(),
           tempBlocks: getTemporaryBlocks(),
-        });
+        }));
       }
 
       // 5. API: add rule
@@ -397,9 +412,9 @@ export function startDashboard() {
             unblockIP(ip);
           }
           
-          return Response.json({ success: true });
+          return addCors(Response.json({ success: true }));
         } catch (err: any) {
-          return Response.json({ success: false, error: err.message }, { status: 400 });
+          return addCors(Response.json({ success: false, error: err.message }, { status: 400 }));
         }
       }
 
@@ -409,13 +424,13 @@ export function startDashboard() {
           const body: any = await req.json();
           const { ip } = body;
           unblockIP(ip);
-          return Response.json({ success: true });
+          return addCors(Response.json({ success: true }));
         } catch (err: any) {
-          return Response.json({ success: false, error: err.message }, { status: 400 });
+          return addCors(Response.json({ success: false, error: err.message }, { status: 400 }));
         }
       }
 
-      return new Response("Not Found", { status: 404 });
+      return addCors(new Response("Not Found", { status: 404 }));
     },
   });
 
