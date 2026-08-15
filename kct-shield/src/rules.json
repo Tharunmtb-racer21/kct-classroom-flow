@@ -1,0 +1,92 @@
+[
+  {
+    "id": "SQLI-001",
+    "name": "SQL Injection Signature in Query",
+    "category": "SQLI",
+    "severity": "HIGH",
+    "score": 45,
+    "field": "query",
+    "operator": "regex",
+    "pattern": "(union\\s+select|select\\s+.*\\s+from|insert\\s+into|delete\\s+from|drop\\s+table|update\\s+.*\\s+set|'\\s*or\\s*'.*='|--|xp_cmdshell)"
+  },
+  {
+    "id": "SQLI-002",
+    "name": "SQL Injection Signature in Body",
+    "category": "SQLI",
+    "severity": "HIGH",
+    "score": 45,
+    "field": "body",
+    "operator": "regex",
+    "pattern": "(union\\s+select|select\\s+.*\\s+from|insert\\s+into|delete\\s+from|drop\\s+table|update\\s+.*\\s+set|'\\s*or\\s*'.*='|--|xp_cmdshell)"
+  },
+  {
+    "id": "XSS-001",
+    "name": "Cross-Site Scripting Script Tag in Query",
+    "category": "XSS",
+    "severity": "CRITICAL",
+    "score": 50,
+    "field": "query",
+    "operator": "regex",
+    "pattern": "(<script|javascript:|onerror\\s*=|onload\\s*=|onclick\\s*=|alert\\(|confirm\\(|prompt\\(|<iframe|<img\\s+src)"
+  },
+  {
+    "id": "XSS-002",
+    "name": "Cross-Site Scripting Script Tag in Body",
+    "category": "XSS",
+    "severity": "CRITICAL",
+    "score": 50,
+    "field": "body",
+    "operator": "regex",
+    "pattern": "(<script|javascript:|onerror\\s*=|onload\\s*=|onclick\\s*=|alert\\(|confirm\\(|prompt\\(|<iframe|<img\\s+src)"
+  },
+  {
+    "id": "DIR-001",
+    "name": "Directory Traversal in Path",
+    "category": "TRAVERSAL",
+    "severity": "HIGH",
+    "score": 40,
+    "field": "path",
+    "operator": "regex",
+    "pattern": "(\\.\\.\\/|\\.\\.\\\\|/etc/passwd|/windows/system32|boot\\.ini)"
+  },
+  {
+    "id": "DIR-002",
+    "name": "Directory Traversal in Query",
+    "category": "TRAVERSAL",
+    "severity": "HIGH",
+    "score": 40,
+    "field": "query",
+    "operator": "regex",
+    "pattern": "(\\.\\.\\/|\\.\\.\\\\|/etc/passwd|/windows/system32|boot\\.ini)"
+  },
+  {
+    "id": "CMD-001",
+    "name": "Command Injection in Query",
+    "category": "COMMAND",
+    "severity": "CRITICAL",
+    "score": 50,
+    "field": "query",
+    "operator": "regex",
+    "pattern": "(;\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat)|\\|\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat)|&&\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat))"
+  },
+  {
+    "id": "CMD-002",
+    "name": "Command Injection in Body",
+    "category": "COMMAND",
+    "severity": "CRITICAL",
+    "score": 50,
+    "field": "body",
+    "operator": "regex",
+    "pattern": "(;\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat)|\\|\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat)|&&\\s*(sh|bash|cmd|powershell|curl|wget|nc|netcat))"
+  },
+  {
+    "id": "SIZE-001",
+    "name": "Request Body Size Exceeded 2MB",
+    "category": "SIZE",
+    "severity": "MEDIUM",
+    "score": 25,
+    "field": "body",
+    "operator": "greater_than",
+    "pattern": "2097152"
+  }
+]

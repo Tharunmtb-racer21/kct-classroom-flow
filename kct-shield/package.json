@@ -1,0 +1,14 @@
+{
+  "name": "kct-shield",
+  "version": "1.0.0",
+  "description": "KCT SHIELD — Custom Web Application Firewall",
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

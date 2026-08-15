@@ -1,0 +1,9 @@
+# Local Database
+shield.db
+shield.db-journal
+
+# Dependencies
+node_modules/
+
+# Local Logs
+*.log
