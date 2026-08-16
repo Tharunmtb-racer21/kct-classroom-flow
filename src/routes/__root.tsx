@@ -138,6 +138,7 @@ function RootShell({ children }: { children: ReactNode }) {
 import { Toaster } from "@/components/ui/sonner";
 import { getStoredTheme, applyTheme } from "@/components/theme-toggle";
 import { autoDraftStaleSessions } from "@/lib/session-utils";
+import { ChatBot } from "@/components/chat-bot";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
@@ -151,6 +152,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster />
+      <ChatBot />
     </QueryClientProvider>
   );
 }
