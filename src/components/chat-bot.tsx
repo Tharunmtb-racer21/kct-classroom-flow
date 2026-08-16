@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageSquare, X, Send, Bot, Loader2, Sparkles } from "lucide-react";
 import { generateChatResponse, type ChatMessage } from "@/lib/ai-service";
+import { findRelevantContext } from "@/lib/chatbot-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -58,11 +59,17 @@ export function ChatBot() {
     setLoading(true);
 
     try {
-      // Build prompt payload with app-specific system instructions
+      // Find relevant facts in local knowledge base based on keywords
+      const kbContext = findRelevantContext(userText);
+
+      // Build prompt payload with app-specific system instructions & dynamic context
       const payload: ChatMessage[] = [
         {
           role: "system",
-          content: "You are PULSE AI, the virtual assistant for KCT PULSE (Kumaraguru College of Technology Classroom Flow). KCT PULSE is an engagement platform that lets faculty host live lectures with quizzes, interactive polls, word clouds, and PDF exports. Faculty register using their college institutional email (@kct.ac.in). Student participation requires no login, they join using a 6-character shortcode. The app is protected by KCT SHIELD, a custom Web Application Firewall sitting on Port 3000 that filters SQLi, XSS, and path traversal attacks. Keep your responses highly helpful, friendly, concise, and focused on helping users navigate the app. Answer in 2-3 sentences max.",
+          content: `You are PULSE AI, the virtual assistant for KCT PULSE (Kumaraguru College of Technology Classroom Flow). KCT PULSE is an engagement platform that lets faculty host live lectures with quizzes, interactive polls, word clouds, and PDF exports. Faculty register using their college institutional email (@kct.ac.in). Student participation requires no login, they join using a 6-character shortcode. The app is protected by KCT SHIELD, a custom Web Application Firewall sitting on Port 3000 that filters SQLi, XSS, and path traversal attacks.
+
+${kbContext}
+Keep your responses highly helpful, friendly, concise, and focused on helping users navigate the app based on the facts provided above. Answer in 2-3 sentences max.`,
         },
         // Limit context depth to prevent token bloat
         ...updatedMessages.slice(-6),
