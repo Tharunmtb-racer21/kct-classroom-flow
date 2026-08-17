@@ -42,10 +42,6 @@ export const KNOWLEDGE_BASE: KnowledgeBlock[] = [
   {
     keywords: ["export", "pdf download", "report", "stats", "download"],
     content: "Faculty can export comprehensive session statistics, student lists, leaderboard standings, and question analytics to a styled PDF file from the session view."
-  },
-  {
-    keywords: ["developer", "telemetry", "db purge", "cleanup", "audit", "pulse_2026"],
-    content: "The hidden Developer Portal is accessed via /developer using password Pulse_2026. It manages Supabase schemas, Groq API key checking, database cleanups, and KCT SHIELD firewall stats."
   }
 ];
 
