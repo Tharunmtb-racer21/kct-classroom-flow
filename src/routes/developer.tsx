@@ -230,12 +230,19 @@ function DeveloperDashboard() {
   const [wafIpInput, setWafIpInput] = useState("");
   const [wafRuleType, setWafRuleType] = useState<"block" | "allow">("block");
 
+  // Get WAF API URL from environment variables or default to localhost
+  const getWafApiUrl = () => {
+    const env = (import.meta as any).env ?? {};
+    return (env.VITE_WAF_API_URL || "http://localhost:8081").replace(/\/$/, "");
+  };
+
   const fetchWafData = async () => {
     try {
+      const wafUrl = getWafApiUrl();
       const [statsRes, logsRes, rulesRes] = await Promise.all([
-        fetch("http://localhost:8081/api/stats"),
-        fetch("http://localhost:8081/api/logs"),
-        fetch("http://localhost:8081/api/rules"),
+        fetch(`${wafUrl}/api/stats`),
+        fetch(`${wafUrl}/api/logs`),
+        fetch(`${wafUrl}/api/rules`),
       ]);
       if (!statsRes.ok || !logsRes.ok || !rulesRes.ok) throw new Error();
       const stats = await statsRes.json();
@@ -261,7 +268,8 @@ function DeveloperDashboard() {
     e.preventDefault();
     if (!wafIpInput.trim()) return;
     try {
-      const res = await fetch("http://localhost:8081/api/rules/add", {
+      const wafUrl = getWafApiUrl();
+      const res = await fetch(`${wafUrl}/api/rules/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip: wafIpInput.trim(), type: wafRuleType }),
@@ -280,7 +288,8 @@ function DeveloperDashboard() {
 
   const handleDeleteWafIPRule = async (ip: string) => {
     try {
-      const res = await fetch("http://localhost:8081/api/rules/delete", {
+      const wafUrl = getWafApiUrl();
+      const res = await fetch(`${wafUrl}/api/rules/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ip }),
@@ -2144,8 +2153,8 @@ function DeveloperDashboard() {
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-card/10 rounded-2xl border border-dashed border-border/60 p-6">
                   <Shield className="h-10 w-10 text-rose-500/40 mb-3 animate-pulse" />
                   <p className="text-sm font-semibold text-rose-400">KCT SHIELD Firewall service is currently offline.</p>
-                  <p className="text-xs mt-1 max-w-sm">
-                    Please start the firewall daemon in your terminal (<code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/20 font-black">bun run start</code> in the <code className="font-mono">kct-shield/</code> directory) to connect real-time telemetry.
+                  <p className="text-xs mt-1 max-w-md">
+                    Please start the firewall daemon locally (<code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/20 font-black">npm run dev</code> or <code className="font-mono">bun run start</code> in the <code className="font-mono">kct-shield/</code> directory). For production telemetry on Vercel, configure the <code className="font-mono">VITE_WAF_API_URL</code> environment variable to point to your hosted firewall.
                   </p>
                 </div>
               ) : (
