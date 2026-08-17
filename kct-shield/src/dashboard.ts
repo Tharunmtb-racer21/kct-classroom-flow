@@ -359,6 +359,7 @@ export function startDashboard() {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
         "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Private-Network": "true",
       };
 
       // Handle CORS preflight options
