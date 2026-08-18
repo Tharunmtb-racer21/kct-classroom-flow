@@ -222,8 +222,15 @@ function SessionControl() {
   }, [currentQ?.id]);
 
   const updateSession = async (patch: Partial<Session>) => {
+    // Optimistically update local session state to keep UI snappy
+    setSession((prev) => (prev ? { ...prev, ...patch } : null));
+
     const { error } = await (supabase.from("sessions") as any).update(patch).eq("id", id);
-    if (error) toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      // Revert to correct server state on failure
+      loadAll();
+    }
   };
 
   const startSession = () => {
