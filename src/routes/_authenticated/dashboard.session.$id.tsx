@@ -365,8 +365,17 @@ function SessionControl() {
             ]);
             toast.success("QR Code card copied to clipboard! 🖼️");
           } catch (err) {
-            console.error("Failed to copy image to clipboard:", err);
-            toast.error("Clipboard copy failed. Try copying the link instead.");
+            console.warn("Clipboard copy failed, triggering automatic file download instead:", err);
+            // Fallback: download directly as a PNG file
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `session-qr-${session?.code || id}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.success("QR Code downloaded as PNG image! 📥");
           }
         }
       }, "image/png");
@@ -705,7 +714,7 @@ function SessionControl() {
 
           {activeTab === "quiz" || !session.is_exam ? (
             <>
-              <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} isAllMode={isAllMode} activeQuestionIds={session.active_question_ids || []} onActivate={goToQuestion} onReload={loadAll} />
+              <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} isAllMode={isAllMode} activeQuestionIds={session.active_question_ids || []} onActivate={goToQuestion} onReload={loadAll} updateSession={updateSession} />
               <LivePanel current={currentQ} responses={responses} participants={participants} />
             </>
           ) : (
@@ -893,8 +902,8 @@ function SessionControl() {
 }
 
 function QuestionsPanel({
-  session, sessionId, questions, currentId, isAllMode, activeQuestionIds, onActivate, onReload,
-}: { session: Session; sessionId: string; questions: Question[]; currentId: string | null; isAllMode: boolean; activeQuestionIds: string[]; onActivate: (id: string) => void; onReload: () => void }) {
+  session, sessionId, questions, currentId, isAllMode, activeQuestionIds, onActivate, onReload, updateSession,
+}: { session: Session; sessionId: string; questions: Question[]; currentId: string | null; isAllMode: boolean; activeQuestionIds: string[]; onActivate: (id: string) => void; onReload: () => void; updateSession: (patch: Partial<Session>) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<QType>("poll");
   const [title, setTitle] = useState("");
@@ -1248,8 +1257,7 @@ function QuestionsPanel({
       if (session.status !== "live" && checkedIds.length > 0) {
         patch.status = "live";
       }
-      const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
-      if (error) throw error;
+      await updateSession(patch);
       toast.success("Selected question(s) activated");
     } catch (e: any) {
       toast.error(e.message || "Failed to activate selected questions");
@@ -1981,8 +1989,8 @@ function QuestionsPanel({
                     const allIds = questions.map(q => q.id);
                     const patch: any = { all_active: true, active_question_ids: allIds };
                     if (session.status !== "live") patch.status = "live";
-                    const { error } = await supabase.from("sessions").update(patch).eq("id", sessionId);
-                    if (error) throw error;
+                    await updateSession(patch);
+                    toast.success("All questions activated");
                   } catch (e: any) {
                     toast.error(e.message || "Failed to activate all questions");
                   }
@@ -1995,8 +2003,7 @@ function QuestionsPanel({
               <button
                 onClick={async () => {
                   try {
-                    const { error } = await supabase.from("sessions").update({ all_active: false, current_question_id: null, active_question_ids: [] } as any).eq("id", sessionId);
-                    if (error) throw error;
+                    await updateSession({ all_active: false, current_question_id: null, active_question_ids: [] });
                     toast.success("All questions deactivated");
                   } catch (e: any) {
                     toast.error(e.message || "Failed to deactivate questions");
