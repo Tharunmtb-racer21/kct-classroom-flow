@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 import html2canvas from "html2canvas";
 import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw, ExternalLink, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -535,7 +535,7 @@ function SessionControl() {
           </div>
           <div className="mt-6 flex justify-center">
             <div id="session-qr-code" className="rounded-2xl bg-white p-4">
-              <QRCodeSVG value={joinLink} size={180} level="M" />
+              <QRCodeCanvas value={joinLink} size={180} level="M" />
             </div>
           </div>
           <div className="mt-4 break-all text-center text-xs font-mono text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">{joinLink}</div>
