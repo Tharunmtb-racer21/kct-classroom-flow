@@ -239,10 +239,14 @@ function DeveloperDashboard() {
   const fetchWafData = async () => {
     try {
       const wafUrl = getWafApiUrl();
+      const headers = {
+        "Bypass-Tunnel-Reminder": "true",
+        "ngrok-skip-browser-warning": "true",
+      };
       const [statsRes, logsRes, rulesRes] = await Promise.all([
-        fetch(`${wafUrl}/api/stats`),
-        fetch(`${wafUrl}/api/logs`),
-        fetch(`${wafUrl}/api/rules`),
+        fetch(`${wafUrl}/api/stats`, { headers }),
+        fetch(`${wafUrl}/api/logs`, { headers }),
+        fetch(`${wafUrl}/api/rules`, { headers }),
       ]);
       if (!statsRes.ok || !logsRes.ok || !rulesRes.ok) throw new Error();
       const stats = await statsRes.json();
@@ -271,7 +275,11 @@ function DeveloperDashboard() {
       const wafUrl = getWafApiUrl();
       const res = await fetch(`${wafUrl}/api/rules/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Bypass-Tunnel-Reminder": "true",
+          "ngrok-skip-browser-warning": "true",
+        },
         body: JSON.stringify({ ip: wafIpInput.trim(), type: wafRuleType }),
       });
       if (res.ok) {
@@ -291,7 +299,11 @@ function DeveloperDashboard() {
       const wafUrl = getWafApiUrl();
       const res = await fetch(`${wafUrl}/api/rules/delete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Bypass-Tunnel-Reminder": "true",
+          "ngrok-skip-browser-warning": "true",
+        },
         body: JSON.stringify({ ip }),
       });
       if (res.ok) {
@@ -2155,6 +2167,9 @@ function DeveloperDashboard() {
                   <p className="text-sm font-semibold text-rose-400">KCT SHIELD Firewall service is currently offline.</p>
                   <p className="text-xs mt-1 max-w-md">
                     Please start the firewall daemon locally (<code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/20 font-black">npm run dev</code> or <code className="font-mono">bun run start</code> in the <code className="font-mono">kct-shield/</code> directory). For production telemetry on Vercel, configure the <code className="font-mono">VITE_WAF_API_URL</code> environment variable to point to your hosted firewall.
+                  </p>
+                  <p className="text-[10px] mt-3 text-muted-foreground font-mono bg-background/50 px-2.5 py-1.5 rounded border border-border/40 max-w-md break-all">
+                    Querying API: <span className="font-bold text-foreground">{getWafApiUrl()}</span>
                   </p>
                 </div>
               ) : (
