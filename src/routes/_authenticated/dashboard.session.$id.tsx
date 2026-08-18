@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import html2canvas from "html2canvas";
 import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -203,51 +204,37 @@ function SessionControl() {
 
   const copyQrCodeAsImage = async () => {
     try {
-      const svgElement = document.querySelector("#session-qr-code svg");
-      if (!svgElement) {
+      const element = document.querySelector("#session-qr-code");
+      if (!element) {
         toast.error("QR Code element not found.");
         return;
       }
 
-      // Serialize SVG to XML string
-      const svgString = new XMLSerializer().serializeToString(svgElement);
-      const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-      const URL = window.URL || window.webkitURL || window;
-      const blobURL = URL.createObjectURL(svgBlob);
-      
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = 400; // high-resolution 400x400
-        canvas.height = 400;
-        
-        const context = canvas.getContext("2d");
-        if (context) {
-          context.fillStyle = "#ffffff"; // draw white background
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              try {
-                await navigator.clipboard.write([
-                  new ClipboardItem({
-                    [blob.type]: blob
-                  })
-                ]);
-                toast.success("QR Code copied to clipboard as image! 🖼️");
-              } catch (err) {
-                console.error("Failed to copy image to clipboard:", err);
-                toast.error("Clipboard copy failed. Ensure browser clipboard permissions are granted.");
-              }
-            }
-            URL.revokeObjectURL(blobURL);
-          }, "image/png");
+      // Convert the container div to a canvas including borders/background/corners
+      const canvas = await html2canvas(element as HTMLElement, {
+        backgroundColor: null, // Keep background transparent (wrapper transparent, card white)
+        scale: 3, // High scale factor for high resolution/sharpness
+        useCORS: true,
+        logging: false,
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                [blob.type]: blob
+              })
+            ]);
+            toast.success("QR Code card copied to clipboard! 🖼️");
+          } catch (err) {
+            console.error("Failed to copy image to clipboard:", err);
+            toast.error("Clipboard copy failed. Try copying the link instead.");
+          }
         }
-      };
-      image.src = blobURL;
+      }, "image/png");
     } catch (err) {
-      console.error("Error generating QR code image:", err);
+      console.error("Error capturing QR code:", err);
       toast.error("Failed to copy QR Code.");
     }
   };
