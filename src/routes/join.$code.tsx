@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Eye, Loader2, Upload, Timer } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, Upload, Timer, Lock, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,23 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ContactUsModal } from "@/components/contact-us-modal";
+import { useExamIntegrity } from "@/hooks/use-exam-integrity";
 
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null };
+type Session = { 
+  id: string; 
+  title: string; 
+  code: string; 
+  status: "draft" | "live" | "ended"; 
+  current_question_id: string | null; 
+  all_active?: boolean; 
+  active_question_ids?: string[] | null; 
+  expires_at?: string | null; 
+  image_url?: string | null;
+  is_exam?: boolean;
+  max_fullscreen_exits?: number;
+  block_clipboard?: boolean;
+  block_right_click?: boolean;
+};
 type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null; question_type?: string };
 
 const microsoftSubmitButton =
@@ -55,6 +70,28 @@ function JoinPage() {
   const [allQuestionsComplete, setAllQuestionsComplete] = useState(false);
   const [showSavedResponses, setShowSavedResponses] = useState(false);
 
+  const {
+    isFullscreenActive,
+    fullscreenExits,
+    isWarningOpen,
+    warningMessage,
+    isOnline,
+    latency,
+    downlink,
+    connectionType,
+    requestFullscreen,
+  } = useExamIntegrity({
+    sessionId: session?.id ?? "",
+    participantId,
+    isExam: !!session?.is_exam,
+    currentQuestionId: question?.id ?? null,
+    settings: {
+      maxFullscreenExits: session?.max_fullscreen_exits ?? 3,
+      blockClipboard: !!session?.block_clipboard,
+      blockRightClick: !!session?.block_right_click,
+    },
+  });
+
   console.log("JoinPage Render:", {
     session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
     question,
@@ -65,7 +102,7 @@ function JoinPage() {
   // load session by code
   useEffect(() => {
     (async () => {
-      const { data } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url") as any).eq("code", upperCode).maybeSingle();
+      const { data } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,is_exam,max_fullscreen_exits,block_clipboard,block_right_click") as any).eq("code", upperCode).maybeSingle();
       if (!data) setNotFound(true);
       else setSession(data as Session);
     })();
@@ -480,6 +517,70 @@ function JoinPage() {
     );
   }
 
+  // If this is a secure exam, enforce fullscreen kiosk mode
+  if (session?.is_exam && participantId && (!isFullscreenActive || isWarningOpen)) {
+    const maxExits = session.max_fullscreen_exits ?? 3;
+    const isLockdown = fullscreenExits >= maxExits;
+
+    return (
+      <Wrap secondsLeft={secondsLeft}>
+        <div className="text-center space-y-6 bg-card border border-border p-6 rounded-2xl shadow-xl animate-in fade-in zoom-in duration-300">
+          <div className={cn(
+            "mx-auto grid h-16 w-16 place-items-center rounded-full",
+            isLockdown ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500"
+          )}>
+            <Lock className="h-8 w-8 animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <div className={cn(
+              "text-xs font-black uppercase tracking-widest",
+              isLockdown ? "text-rose-500" : "text-amber-500"
+            )}>
+              {isLockdown ? "Exam Locked" : "Secure Kiosk Mode"}
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{session.title}</h1>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+              {isLockdown 
+                ? "You have exceeded the maximum allowed fullscreen exits. The exam has been locked. Please contact your faculty invigilator to inspect and unlock your session."
+                : "This exam requires a secure fullscreen environment. Tab switching, screen recording, and exiting fullscreen are logged by the faculty integrity monitor."}
+            </p>
+          </div>
+          
+          <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2 text-left text-xs font-mono">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-semibold">Fullscreen Warnings:</span>
+              <span className={cn("font-bold px-2 py-0.5 rounded-full text-[10px]", fullscreenExits >= maxExits ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500")}>
+                {fullscreenExits} / {maxExits} Exits
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-t border-border/40 pt-2">
+              <span className="text-muted-foreground font-semibold">Network Quality:</span>
+              <span className={cn("font-bold", isOnline ? "text-emerald-500" : "text-rose-500")}>
+                {isOnline ? `Online (${connectionType})` : "Offline"}
+              </span>
+            </div>
+            {isOnline && latency > 0 && (
+              <div className="flex justify-between items-center border-t border-border/40 pt-2">
+                <span className="text-muted-foreground font-semibold">Heartbeat RTT:</span>
+                <span className="font-bold text-foreground">{latency} ms</span>
+              </div>
+            )}
+          </div>
+
+          {!isLockdown ? (
+            <Button onClick={requestFullscreen} className="w-full h-14 text-base font-bold gradient-bg flex items-center justify-center gap-2">
+              <Play className="h-5 w-5" /> Enter Fullscreen & Continue
+            </Button>
+          ) : (
+            <div className="text-xs text-rose-400 font-medium font-mono text-center pt-2">
+              Access Restricted. Warnings limit exceeded.
+            </div>
+          )}
+        </div>
+      </Wrap>
+    );
+  }
+
   // ── ALL mode or Multi-select mode: show multiple questions at once ─────────────────────────────────
   const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 1);
   if (hasMultipleActive && allQuestions.length > 0) {
@@ -488,7 +589,7 @@ function JoinPage() {
 
     if (allQuestionsComplete || pendingQuestions.length === 0) {
       return (
-        <Wrap secondsLeft={secondsLeft}>
+        <Wrap secondsLeft={secondsLeft} isOnline={isOnline} latency={latency}>
           <div className="mx-auto flex min-h-[58vh] w-full max-w-md flex-col items-center justify-center text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-[color:var(--accent-emerald)]/15 text-[color:var(--accent-emerald)]">
               <CheckCircle2 className="h-9 w-9" />
@@ -529,7 +630,7 @@ function JoinPage() {
     }
 
     return (
-      <Wrap secondsLeft={secondsLeft}>
+      <Wrap secondsLeft={secondsLeft} isOnline={isOnline} latency={latency}>
         <form
           className="space-y-6"
           onSubmit={(e) => {
@@ -673,7 +774,7 @@ function JoinPage() {
 
   if (!question) {
     return (
-      <Wrap secondsLeft={secondsLeft}>
+      <Wrap secondsLeft={secondsLeft} isOnline={isOnline} latency={latency}>
         <div className="text-center space-y-6">
           {session.image_url && (
             <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
@@ -698,7 +799,7 @@ function JoinPage() {
   const alreadySubmitted = submittedFor.has(question?.id ?? "");
 
   return (
-    <Wrap secondsLeft={secondsLeft}>
+    <Wrap secondsLeft={secondsLeft} isOnline={isOnline} latency={latency}>
       {question.image_url && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
           <img src={question.image_url} alt="Question visual" className="w-full h-full object-contain" />
@@ -823,7 +924,17 @@ function JoinPage() {
   );
 }
 
-function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLeft: number | null }) {
+function Wrap({ 
+  children, 
+  secondsLeft,
+  isOnline,
+  latency,
+}: { 
+  children: React.ReactNode; 
+  secondsLeft: number | null;
+  isOnline?: boolean;
+  latency?: number;
+}) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-5 py-4 border-b border-border/50">
@@ -835,6 +946,21 @@ function Wrap({ children, secondsLeft }: { children: React.ReactNode; secondsLef
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Real-time Network Telemetry */}
+          {isOnline !== undefined && (
+            <div className={cn(
+              "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs border font-mono font-semibold transition-all duration-300",
+              isOnline 
+                ? latency && latency > 250 
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                : "bg-rose-500/10 border-rose-500/30 text-rose-500 animate-pulse"
+            )}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", isOnline ? latency && latency > 250 ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
+              <span>{isOnline ? latency ? `${latency}ms` : "Online" : "Offline"}</span>
+            </div>
+          )}
+
           {/* Real-time Countdown Banner for Students */}
           {secondsLeft !== null && secondsLeft !== undefined && secondsLeft > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs text-primary font-bold animate-pulse">

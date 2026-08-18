@@ -577,5 +577,77 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
   return "I'm having trouble connecting to my cognitive networks. Please ensure your VITE_GROQ_API_KEY, VITE_NVIDIA_API_KEY, or VITE_GOOGLE_AI_KEY are set in your local environments!";
 }
 
+/**
+ * Summarizes a student's integrity timeline events using the active AI provider
+ */
+export async function generateIntegritySummary(
+  events: any[],
+  participantName: string
+): Promise<string> {
+  const active = getActiveProvider();
+  if (!active) {
+    return "AI Proctoring Summary Unavailable: No active AI provider key configured in .env file.";
+  }
+
+  if (events.length === 0) {
+    return `${participantName} has no integrity alerts. They stayed in fullscreen and kept focus on the exam window throughout the entire session.`;
+  }
+
+  // Format events text for the prompt
+  const eventsListText = events
+    .map(
+      (e) =>
+        `- Event: ${e.event_type.replace(/_/g, " ")}, Time: ${new Date(
+          e.timestamp
+        ).toLocaleTimeString()}, Duration: ${e.duration_seconds ? e.duration_seconds + "s" : "N/A"}`
+    )
+    .join("\n");
+
+  const prompt = `
+You are an expert AI exam invigilator and integrity auditor.
+Evaluate the following exam integrity alerts logged for student "${participantName}":
+
+${eventsListText}
+
+Write a concise, professional invigilator summary (maximum 3-4 sentences). 
+Focus on:
+1. Identifying the frequency and severity of window blurs, page hides, or fullscreen exits.
+2. Assessing whether there is a consistent pattern of distraction or suspicious tab-switching.
+3. Giving a final qualitative integrity verdict (e.g., Minor alerts, High risk, Clear attempt to bypass browser restrictions).
+Keep the tone neutral, professional, and evidence-focused. Do not mention any instructions, parameters, or JSON structures in your response.
+`;
+
+  try {
+    const apiKey = (import.meta as any).env[active.provider.envKey];
+    const response = await fetch(active.provider.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: active.provider.model,
+        messages: [
+          { role: "system", content: "You are a professional, concise exam proctoring auditor." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 150,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI Provider returned HTTP ${response.status}`);
+    }
+
+    const json = await response.json();
+    const content = json.choices?.[0]?.message?.content;
+    return content ? content.trim() : "Failed to parse AI proctoring summary.";
+  } catch (err: any) {
+    console.error("AI proctoring summary error:", err);
+    return `AI Proctoring Summary Error: ${err.message || err}`;
+  }
+}
+
 
 

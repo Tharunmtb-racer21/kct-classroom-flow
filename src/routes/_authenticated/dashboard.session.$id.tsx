@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import html2canvas from "html2canvas";
-import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, FileText, Loader2, Pause, Play, Plus, Sparkles, Square, Trash2, Users, Upload, Image as ImageIcon, Pencil, X, Zap, Presentation, CheckCircle2, FileSpreadsheet, Download, AlertCircle, RotateCcw, ExternalLink, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +18,35 @@ import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
 import { extractTextFromDocument } from "@/lib/document-parser";
-import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType } from "@/lib/ai-service";
+import { generateQuestionsFromText, GeneratedQuestion, QType as AIQType, generateIntegritySummary } from "@/lib/ai-service";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = { id: string; session_id: string; type: QType; title: string; options: string[]; correct_answer: string | null; order_index: number; image_url?: string | null; points?: number; explanation?: string | null; question_type?: string };
-type Session = { id: string; title: string; code: string; status: "draft" | "live" | "ended"; current_question_id: string | null; all_active?: boolean; active_question_ids?: string[] | null; expires_at?: string | null; image_url?: string | null; created_at?: string; creator_id?: string };
-type Participant = { id: string; name: string; joined_at: string };
+type Session = { 
+  id: string; 
+  title: string; 
+  code: string; 
+  status: "draft" | "live" | "ended"; 
+  current_question_id: string | null; 
+  all_active?: boolean; 
+  active_question_ids?: string[] | null; 
+  expires_at?: string | null; 
+  image_url?: string | null; 
+  created_at?: string; 
+  creator_id?: string;
+  is_exam?: boolean;
+  max_fullscreen_exits?: number;
+  block_clipboard?: boolean;
+  block_right_click?: boolean;
+};
+type Participant = { 
+  id: string; 
+  name: string; 
+  joined_at: string;
+  risk_score?: number;
+  risk_level?: "low" | "medium" | "high";
+};
 type Response = { id: string; question_id: string; participant_id: string; answer: string; created_at: string; image_url?: string | null };
 
 export const Route = createFileRoute("/_authenticated/dashboard/session/$id")({
@@ -38,14 +60,63 @@ function SessionControl() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [responses, setResponses] = useState<Response[]>([]);
   const [allSessionResponses, setAllSessionResponses] = useState<Response[]>([]);
+  const [activeTab, setActiveTab] = useState<"quiz" | "integrity">("quiz");
+  const [selectedStudent, setSelectedStudent] = useState<Participant | null>(null);
+  const [studentEvents, setStudentEvents] = useState<any[]>([]);
+  const [studentHeartbeats, setStudentHeartbeats] = useState<any[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
+
+  const handleGenerateAiSummary = async () => {
+    if (!selectedStudent) return;
+    setGeneratingAiSummary(true);
+    try {
+      const summary = await generateIntegritySummary(studentEvents, selectedStudent.name);
+      setAiSummary(summary);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate AI proctoring summary.");
+    } finally {
+      setGeneratingAiSummary(false);
+    }
+  };
+
+  const viewStudentAudit = async (student: Participant) => {
+    setSelectedStudent(student);
+    setAiSummary(null);
+    setLoadingAudit(true);
+    try {
+      const { data: events } = await (supabase as any).from("exam_integrity_events")
+        .select("*")
+        .eq("participant_id", student.id)
+        .order("timestamp", { ascending: false });
+
+      const { data: heartbeats } = await (supabase as any).from("exam_heartbeats")
+        .select("*")
+        .eq("participant_id", student.id)
+        .order("timestamp", { ascending: false })
+        .limit(20);
+
+      setStudentEvents(events || []);
+      setStudentHeartbeats(heartbeats || []);
+    } catch (err) {
+      console.error("Failed to load audit logs:", err);
+      toast.error("Failed to load student proctoring logs.");
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
+  const [recentHeartbeats, setRecentHeartbeats] = useState<Record<string, { timestamp: string; latency_ms: number; status: string }>>({});
 
   const loadAll = async () => {
-    const { data: s } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id").eq("id", id).maybeSingle();
+    const { data: s } = await (supabase.from("sessions") as any).select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id,is_exam,max_fullscreen_exits,block_clipboard,block_right_click").eq("id", id).maybeSingle();
     setSession(s as Session | null);
     const { data: qs } = await supabase.from("questions").select("*").eq("session_id", id).order("order_index");
     const qList = ((qs ?? []) as unknown) as Question[];
     setQuestions(qList);
-    const { data: ps } = await supabase.from("participants").select("id,name,joined_at").eq("session_id", id).order("joined_at");
+    const { data: ps } = await (supabase.from("participants") as any).select("id,name,joined_at,risk_score,risk_level").eq("session_id", id).order("joined_at");
     setParticipants((ps ?? []) as Participant[]);
 
     if (qList.length > 0) {
@@ -55,6 +126,26 @@ function SessionControl() {
     } else {
       setAllSessionResponses([]);
     }
+
+    // Fetch recent heartbeats
+    const { data: hbs } = await (supabase as any).from("exam_heartbeats")
+      .select("participant_id, timestamp, latency_ms, status")
+      .eq("session_id", id)
+      .order("timestamp", { ascending: false });
+
+    const latestHbs: Record<string, { timestamp: string; latency_ms: number; status: string }> = {};
+    if (hbs) {
+      hbs.forEach((hb: any) => {
+        if (!latestHbs[hb.participant_id]) {
+          latestHbs[hb.participant_id] = {
+            timestamp: hb.timestamp,
+            latency_ms: hb.latency_ms,
+            status: hb.status,
+          };
+        }
+      });
+    }
+    setRecentHeartbeats(latestHbs);
   };
 
   useEffect(() => {
@@ -65,6 +156,17 @@ function SessionControl() {
       .on("postgres_changes", { event: "*", schema: "public", table: "questions", filter: `session_id=eq.${id}` }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "participants", filter: `session_id=eq.${id}` }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadAll)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "exam_heartbeats", filter: `session_id=eq.${id}` }, (payload) => {
+        const hb = payload.new as any;
+        setRecentHeartbeats(prev => ({
+          ...prev,
+          [hb.participant_id]: {
+            timestamp: hb.timestamp,
+            latency_ms: hb.latency_ms,
+            status: hb.status || "stable",
+          }
+        }));
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [id]);
@@ -92,7 +194,7 @@ function SessionControl() {
   }, [currentQ?.id]);
 
   const updateSession = async (patch: Partial<Session>) => {
-    const { error } = await supabase.from("sessions").update(patch).eq("id", id);
+    const { error } = await (supabase.from("sessions") as any).update(patch).eq("id", id);
     if (error) toast.error(error.message);
   };
 
@@ -442,13 +544,315 @@ function SessionControl() {
               This is a private preview URL — students on other devices cannot open it. Publish the app (top-right) or set <span className="font-mono">VITE_PUBLIC_APP_URL</span> so the QR points to your live site.
             </div>
           )}
+
+          {/* Exam Integrity Settings Panel */}
+          <div className="glass rounded-2xl p-5 mt-6 border border-border/50 bg-card/40 space-y-4 text-left">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-primary" />
+              <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">Exam Integrity Settings</h3>
+            </div>
+            
+            <div className="flex items-center justify-between border-t border-border/40 pt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="exam-mode-toggle" className="text-xs font-semibold cursor-pointer">Secure Exam Mode</Label>
+                <p className="text-[10px] text-muted-foreground">Enforce proctoring & kiosk monitoring</p>
+              </div>
+              <button
+                id="exam-mode-toggle"
+                onClick={() => updateSession({ is_exam: !session.is_exam })}
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  session.is_exam ? "bg-primary" : "bg-muted"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out",
+                    session.is_exam ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+
+            {session.is_exam && (
+              <div className="space-y-4 pt-2 animate-in slide-in-from-top-2 duration-200">
+                <div className="space-y-1.5">
+                  <Label htmlFor="max-exits" className="text-[10px] font-bold text-muted-foreground uppercase">Max Fullscreen Exits</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="max-exits"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={session.max_fullscreen_exits ?? 3}
+                      onChange={(e) => updateSession({ max_fullscreen_exits: parseInt(e.target.value) || 3 })}
+                      className="h-8 w-16 text-center text-xs"
+                    />
+                    <span className="text-[10px] text-muted-foreground">exits allowed before lockout</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-border/20 pt-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="block-clip" className="text-[11px] font-semibold cursor-pointer">Restrict Clipboard</Label>
+                    <p className="text-[10px] text-muted-foreground">Disable copy, cut, and paste</p>
+                  </div>
+                  <button
+                    id="block-clip"
+                    onClick={() => updateSession({ block_clipboard: !session.block_clipboard })}
+                    className={cn(
+                      "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                      session.block_clipboard ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out",
+                        session.block_clipboard ? "translate-x-3" : "translate-x-0"
+                      )}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-border/20 pt-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="block-right" className="text-[11px] font-semibold cursor-pointer">Block Right-Click</Label>
+                    <p className="text-[10px] text-muted-foreground">Disable student context menu</p>
+                  </div>
+                  <button
+                    id="block-right"
+                    onClick={() => updateSession({ block_right_click: !session.block_right_click })}
+                    className={cn(
+                      "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                      session.block_right_click ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out",
+                        session.block_right_click ? "translate-x-3" : "translate-x-0"
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} isAllMode={isAllMode} activeQuestionIds={session.active_question_ids || []} onActivate={goToQuestion} onReload={loadAll} />
-          <LivePanel current={currentQ} responses={responses} participants={participants} />
+          {session.is_exam && (
+            <div className="flex rounded-xl bg-muted p-1 w-fit border border-border/50">
+              <button
+                onClick={() => setActiveTab("quiz")}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-xs font-bold transition flex items-center gap-1.5",
+                  activeTab === "quiz"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Presentation className="h-3.5 w-3.5" /> Quiz Controller
+              </button>
+              <button
+                onClick={() => setActiveTab("integrity")}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-xs font-bold transition flex items-center gap-1.5",
+                  activeTab === "integrity"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Zap className="h-3.5 w-3.5" /> Exam Proctoring Live
+              </button>
+            </div>
+          )}
+
+          {activeTab === "quiz" || !session.is_exam ? (
+            <>
+              <QuestionsPanel session={session} sessionId={id} questions={questions} currentId={session.current_question_id} isAllMode={isAllMode} activeQuestionIds={session.active_question_ids || []} onActivate={goToQuestion} onReload={loadAll} />
+              <LivePanel current={currentQ} responses={responses} participants={participants} />
+            </>
+          ) : (
+            <ExamIntegrityProctoring 
+              session={session} 
+              participants={participants} 
+              recentHeartbeats={recentHeartbeats}
+              onSelectStudent={viewStudentAudit} 
+            />
+          )}
         </div>
       </div>
+
+      {/* Student Audit slide-over Drawer overlay */}
+      {selectedStudent && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="h-full w-full max-w-md bg-background border-l border-border shadow-2xl p-6 flex flex-col space-y-6 animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
+                  <Users className="h-5 w-5 text-primary" />
+                  {selectedStudent.name}
+                </h3>
+                <span className="text-xs text-muted-foreground font-mono">ID: {selectedStudent.id}</span>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedStudent(null)} className="h-8 w-8 p-0 rounded-full">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {loadingAudit ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="text-xs">Loading integrity audit timeline...</span>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0 space-y-6">
+                {/* Score and Status cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-card border border-border rounded-xl p-4 space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase">Risk Score</span>
+                    <div className={cn(
+                      "text-2xl font-extrabold font-mono",
+                      (selectedStudent.risk_score ?? 0) >= 60 
+                        ? "text-rose-500" 
+                        : (selectedStudent.risk_score ?? 0) >= 25 
+                          ? "text-amber-500" 
+                          : "text-emerald-500"
+                    )}>
+                      {Math.round(selectedStudent.risk_score ?? 0)} pts
+                    </div>
+                  </div>
+                  
+                  <div className="bg-card border border-border rounded-xl p-4 space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase">Risk Category</span>
+                    <div className="mt-1">
+                      <span className={cn(
+                        "text-xs px-2.5 py-0.5 rounded-full font-bold border uppercase tracking-wider",
+                        selectedStudent.risk_level === "high"
+                          ? "bg-rose-500/10 border-rose-500/20 text-rose-500"
+                          : selectedStudent.risk_level === "medium"
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                      )}>
+                        {selectedStudent.risk_level ?? "low"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Timeline Analysis Card */}
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                      <span className="text-xs font-bold text-foreground">AI Invigilator Analysis</span>
+                    </div>
+                    {!aiSummary && (
+                      <Button
+                        onClick={handleGenerateAiSummary}
+                        disabled={generatingAiSummary}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-[10px] px-2 text-primary font-bold hover:bg-primary/10 gap-1"
+                      >
+                        {generatingAiSummary ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3" />
+                        )}
+                        Analyze Logs
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {aiSummary ? (
+                    <p className="text-xs text-muted-foreground leading-relaxed italic bg-background/50 p-2.5 rounded border border-border/30">
+                      "{aiSummary}"
+                    </p>
+                  ) : generatingAiSummary ? (
+                    <div className="h-10 flex items-center justify-center text-[10px] text-muted-foreground font-mono">
+                      Generating cognitive timeline synthesis...
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      Let the proctoring AI audit the chronological event logs and summarize anomaly severity.
+                    </p>
+                  )}
+                </div>
+
+                {/* Event timeline */}
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider border-b border-border/40 pb-1.5">Activity Timeline</h4>
+                  
+                  {studentEvents.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic text-center py-6">No integrity anomalies recorded. Good standing.</div>
+                  ) : (
+                    <div className="relative pl-4 border-l border-border/60 ml-2 space-y-4">
+                      {studentEvents.map((evt) => {
+                        const isRiskEvent = ["FULLSCREEN_EXITED", "PAGE_HIDDEN", "WINDOW_BLUR", "COPY_ATTEMPT", "RIGHT_CLICK", "KEYBOARD_SHORTCUT"].includes(evt.event_type);
+                        
+                        return (
+                          <div key={evt.id} className="relative group">
+                            {/* Dot icon */}
+                            <span className={cn(
+                              "absolute -left-[21px] top-1.5 h-2 w-2 rounded-full ring-4 ring-background",
+                              isRiskEvent ? "bg-rose-500" : "bg-muted-foreground"
+                            )} />
+                            
+                            <div className="text-xs space-y-0.5 text-left">
+                              <div className="flex justify-between items-center">
+                                <span className={cn("font-bold", isRiskEvent ? "text-rose-400" : "text-foreground/80")}>
+                                  {evt.event_type.replace(/_/g, " ")}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {new Date(evt.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              {evt.duration_seconds !== null && evt.duration_seconds !== undefined && (
+                                <p className="text-muted-foreground text-[10px]">
+                                  Duration: <span className="font-semibold text-foreground/80">{evt.duration_seconds}s</span>
+                                </p>
+                              )}
+                              {evt.client_metadata && Object.keys(evt.client_metadata).length > 0 && (
+                                <div className="text-[10px] text-muted-foreground bg-muted/20 border border-border/20 p-2 rounded mt-1 overflow-x-auto max-w-full font-mono">
+                                  {JSON.stringify(evt.client_metadata)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Heartbeats */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider border-b border-border/40 pb-1.5 text-left">Recent Heartbeats</h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {studentHeartbeats.map((hb) => (
+                      <span
+                        key={hb.id}
+                        title={`Time: ${new Date(hb.timestamp).toLocaleTimeString()}\nLatency: ${hb.latency_ms}ms\nSpeed: ${hb.downlink_mbps} Mbps\nType: ${hb.connection_type}`}
+                        className={cn(
+                          "h-3 w-3 rounded border transition hover:scale-110 cursor-help",
+                          hb.status === "stable" 
+                            ? "bg-emerald-500/20 border-emerald-500/50" 
+                            : "bg-amber-500/20 border-amber-500/50"
+                        )}
+                      />
+                    ))}
+                    {studentHeartbeats.length === 0 && (
+                      <div className="text-xs text-muted-foreground italic text-left">No heartbeat history.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2374,3 +2778,211 @@ function WordCloudResults({ responses, participants }: { responses: Response[]; 
     </div>
   );
 }
+
+interface ExamIntegrityProctoringProps {
+  session: Session;
+  participants: Participant[];
+  recentHeartbeats: Record<string, { timestamp: string; latency_ms: number; status: string }>;
+  onSelectStudent: (student: Participant) => void;
+}
+
+function ExamIntegrityProctoring({
+  session,
+  participants,
+  recentHeartbeats,
+  onSelectStudent,
+}: ExamIntegrityProctoringProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [riskFilter, setRiskFilter] = useState<"all" | "low" | "medium" | "high">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
+
+  // Helper to determine connection state
+  const getConnectionState = (studentId: string) => {
+    const hb = recentHeartbeats[studentId];
+    if (!hb) return { state: "offline", latency: 0, lastSeen: "Never" };
+    
+    const elapsedMs = Date.now() - new Date(hb.timestamp).getTime();
+    if (elapsedMs > 15000) {
+      return { state: "offline", latency: 0, lastSeen: `${Math.round(elapsedMs / 1000)}s ago` };
+    }
+    
+    return {
+      state: hb.status === "unstable" ? "idle" : "online",
+      latency: hb.latency_ms,
+      lastSeen: "Just now",
+    };
+  };
+
+  // Compute stats
+  const totalStudents = participants.length;
+  const avgRisk = totalStudents > 0 
+    ? Math.round(participants.reduce((acc, p) => acc + (p.risk_score || 0), 0) / totalStudents) 
+    : 0;
+  
+  const highRiskCount = participants.filter(p => p.risk_level === "high").length;
+  const offlineCount = participants.filter(p => getConnectionState(p.id).state === "offline").length;
+  const onlineCount = totalStudents - offlineCount;
+
+  // Filter list
+  const filteredParticipants = useMemo(() => {
+    return participants.filter(p => {
+      const conn = getConnectionState(p.id);
+      
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRisk = riskFilter === "all" || p.risk_level === riskFilter;
+      const matchesStatus = statusFilter === "all" 
+        || (statusFilter === "online" && conn.state !== "offline")
+        || (statusFilter === "offline" && conn.state === "offline");
+
+      return matchesSearch && matchesRisk && matchesStatus;
+    });
+  }, [participants, searchQuery, riskFilter, statusFilter, recentHeartbeats]);
+
+  return (
+    <div className="space-y-6 text-left">
+      {/* Dynamic Summary Cards */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="glass rounded-2xl p-5 border border-border/50 bg-card/40 flex flex-col justify-between">
+          <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Total Proctoring</span>
+          <div className="text-2xl font-extrabold text-foreground mt-1">{totalStudents}</div>
+          <span className="text-[10px] text-muted-foreground">Students joined</span>
+        </div>
+
+        <div className="glass rounded-2xl p-5 border border-border/50 bg-card/40 flex flex-col justify-between">
+          <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Avg Session Risk</span>
+          <div className={cn(
+            "text-2xl font-extrabold mt-1",
+            avgRisk >= 60 ? "text-rose-500" : avgRisk >= 25 ? "text-amber-500" : "text-emerald-500"
+          )}>{avgRisk} pts</div>
+          <span className="text-[10px] text-muted-foreground">Weighted session average</span>
+        </div>
+
+        <div className="glass rounded-2xl p-5 border border-border/50 bg-card/40 flex flex-col justify-between">
+          <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">High Risk Alerts</span>
+          <div className={cn(
+            "text-2xl font-extrabold mt-1",
+            highRiskCount > 0 ? "text-rose-500 animate-pulse" : "text-foreground"
+          )}>{highRiskCount}</div>
+          <span className="text-[10px] text-rose-500/80 font-bold">{highRiskCount > 0 ? "⚠️ Inspect immediately" : "All clear"}</span>
+        </div>
+
+        <div className="glass rounded-2xl p-5 border border-border/50 bg-card/40 flex flex-col justify-between">
+          <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Connection Status</span>
+          <div className="text-2xl font-extrabold text-foreground mt-1 flex items-center gap-2">
+            <span className="text-emerald-500 font-bold">{onlineCount}</span>
+            <span className="text-muted-foreground text-sm font-normal">/</span>
+            <span className="text-rose-500 font-bold">{offlineCount}</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">Online vs Offline</span>
+        </div>
+      </div>
+
+      {/* Grid Controller Header - Search & Filter */}
+      <div className="glass rounded-2xl p-5 border border-border/50 bg-card/40 space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Input
+            placeholder="Search student name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 bg-background/50 border-border h-10 text-sm"
+          />
+          <div className="flex gap-2">
+            <Select value={riskFilter} onValueChange={(val: any) => setRiskFilter(val)}>
+              <SelectTrigger className="w-[130px] bg-background/50 border-border text-xs h-10">
+                <SelectValue placeholder="Risk Rating" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Risk</SelectItem>
+                <SelectItem value="low">Low Risk</SelectItem>
+                <SelectItem value="medium">Medium Risk</SelectItem>
+                <SelectItem value="high">High Risk</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
+              <SelectTrigger className="w-[130px] bg-background/50 border-border text-xs h-10">
+                <SelectValue placeholder="Connection" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+                <SelectItem value="offline">Offline</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Real-time Grid List */}
+        <div className="border border-border/40 rounded-xl overflow-hidden bg-background/25">
+          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+            <div className="col-span-4 text-left">Student Name</div>
+            <div className="col-span-2 text-center">Connection</div>
+            <div className="col-span-2 text-center">Latency</div>
+            <div className="col-span-2 text-center">Risk Score</div>
+            <div className="col-span-2 text-right">Proctor Audit</div>
+          </div>
+
+          <div className="divide-y divide-border/30">
+            {filteredParticipants.map((p) => {
+              const conn = getConnectionState(p.id);
+              
+              return (
+                <div key={p.id} className="grid grid-cols-12 gap-4 px-4 py-3 text-xs items-center hover:bg-muted/15 transition-colors">
+                  <div className="col-span-4 font-bold text-foreground/90 truncate text-left">{p.name}</div>
+                  
+                  <div className="col-span-2 flex justify-center">
+                    <span className={cn(
+                      "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                      conn.state === "online" 
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
+                        : conn.state === "idle"
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                          : "bg-rose-500/10 border-rose-500/20 text-rose-500"
+                    )}>
+                      <span className={cn("h-1 w-1 rounded-full", conn.state === "online" ? "bg-emerald-500" : conn.state === "idle" ? "bg-amber-500 animate-pulse" : "bg-rose-500")} />
+                      {conn.state.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="col-span-2 text-center font-mono text-[11px] text-muted-foreground">
+                    {conn.state !== "offline" ? `${conn.latency} ms` : `--`}
+                  </div>
+
+                  <div className="col-span-2 text-center">
+                    <span className={cn(
+                      "font-extrabold font-mono text-[11px] px-2 py-0.5 rounded-full border",
+                      p.risk_level === "high"
+                        ? "bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
+                        : p.risk_level === "medium"
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                    )}>
+                      {Math.round(p.risk_score ?? 0)} pts
+                    </span>
+                  </div>
+
+                  <div className="col-span-2 text-right">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onSelectStudent(p)}
+                      className="h-7 px-2.5 text-[10px] rounded-lg border-border hover:bg-primary hover:text-primary-foreground font-bold flex items-center gap-1 ml-auto shadow-sm"
+                    >
+                      <FileText className="h-3 w-3" /> Audit Log
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredParticipants.length === 0 && (
+              <div className="text-center py-8 text-xs text-muted-foreground italic bg-background/5">
+                No students match the current proctoring filter.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
