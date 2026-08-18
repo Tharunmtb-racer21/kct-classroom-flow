@@ -111,14 +111,32 @@ function SessionControl() {
   const [recentHeartbeats, setRecentHeartbeats] = useState<Record<string, { timestamp: string; latency_ms: number; status: string }>>({});
 
   const loadAll = async () => {
-    const { data: s } = await (supabase.from("sessions") as any).select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id,is_exam,max_fullscreen_exits,block_clipboard,block_right_click").eq("id", id).maybeSingle();
-    setSession(s as Session | null);
+    // 1. Fetch Session with custom integrity columns (with fallback if columns do not exist yet)
+    const { data: s, error: sErr } = await (supabase.from("sessions") as any).select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id,is_exam,max_fullscreen_exits,block_clipboard,block_right_click").eq("id", id).maybeSingle();
+    if (sErr) {
+      console.warn("Integrity session columns load failed, falling back to core columns:", sErr);
+      const { data: fallbackS } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,created_at,creator_id").eq("id", id).maybeSingle();
+      setSession(fallbackS as Session | null);
+    } else {
+      setSession(s as Session | null);
+    }
+
+    // 2. Fetch Questions
     const { data: qs } = await supabase.from("questions").select("*").eq("session_id", id).order("order_index");
     const qList = ((qs ?? []) as unknown) as Question[];
     setQuestions(qList);
-    const { data: ps } = await (supabase.from("participants") as any).select("id,name,joined_at,risk_score,risk_level").eq("session_id", id).order("joined_at");
-    setParticipants((ps ?? []) as Participant[]);
 
+    // 3. Fetch Participants (with fallback if risk_score/risk_level columns do not exist yet)
+    const { data: ps, error: psErr } = await (supabase.from("participants") as any).select("id,name,joined_at,risk_score,risk_level").eq("session_id", id).order("joined_at");
+    if (psErr) {
+      console.warn("Participant risk columns load failed, falling back to core fields:", psErr);
+      const { data: fallbackPs } = await supabase.from("participants").select("id,name,joined_at").eq("session_id", id).order("joined_at");
+      setParticipants((fallbackPs ?? []) as Participant[]);
+    } else {
+      setParticipants((ps ?? []) as Participant[]);
+    }
+
+    // 4. Fetch Responses
     if (qList.length > 0) {
       const qIds = qList.map((q) => q.id);
       const { data: respData } = await supabase.from("responses").select("*").in("question_id", qIds);
@@ -127,25 +145,35 @@ function SessionControl() {
       setAllSessionResponses([]);
     }
 
-    // Fetch recent heartbeats
-    const { data: hbs } = await (supabase as any).from("exam_heartbeats")
-      .select("participant_id, timestamp, latency_ms, status")
-      .eq("session_id", id)
-      .order("timestamp", { ascending: false });
+    // 5. Fetch recent heartbeats (with fallback if exam_heartbeats table does not exist yet)
+    try {
+      const { data: hbs, error: hbsErr } = await (supabase as any).from("exam_heartbeats")
+        .select("participant_id, timestamp, latency_ms, status")
+        .eq("session_id", id)
+        .order("timestamp", { ascending: false });
 
-    const latestHbs: Record<string, { timestamp: string; latency_ms: number; status: string }> = {};
-    if (hbs) {
-      hbs.forEach((hb: any) => {
-        if (!latestHbs[hb.participant_id]) {
-          latestHbs[hb.participant_id] = {
-            timestamp: hb.timestamp,
-            latency_ms: hb.latency_ms,
-            status: hb.status,
-          };
+      if (hbsErr) {
+        console.warn("Heartbeats table load failed (probably database migration syncing):", hbsErr);
+        setRecentHeartbeats({});
+      } else {
+        const latestHbs: Record<string, { timestamp: string; latency_ms: number; status: string }> = {};
+        if (hbs) {
+          hbs.forEach((hb: any) => {
+            if (!latestHbs[hb.participant_id]) {
+              latestHbs[hb.participant_id] = {
+                timestamp: hb.timestamp,
+                latency_ms: hb.latency_ms,
+                status: hb.status,
+              };
+            }
+          });
         }
-      });
+        setRecentHeartbeats(latestHbs);
+      }
+    } catch (err) {
+      console.warn("Heartbeats load exception:", err);
+      setRecentHeartbeats({});
     }
-    setRecentHeartbeats(latestHbs);
   };
 
   useEffect(() => {
