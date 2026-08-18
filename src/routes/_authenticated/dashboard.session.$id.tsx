@@ -201,6 +201,57 @@ function SessionControl() {
     };
   }, []);
 
+  const copyQrCodeAsImage = async () => {
+    try {
+      const svgElement = document.querySelector("#session-qr-code svg");
+      if (!svgElement) {
+        toast.error("QR Code element not found.");
+        return;
+      }
+
+      // Serialize SVG to XML string
+      const svgString = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+      
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 400; // high-resolution 400x400
+        canvas.height = 400;
+        
+        const context = canvas.getContext("2d");
+        if (context) {
+          context.fillStyle = "#ffffff"; // draw white background
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              try {
+                await navigator.clipboard.write([
+                  new ClipboardItem({
+                    [blob.type]: blob
+                  })
+                ]);
+                toast.success("QR Code copied to clipboard as image! 🖼️");
+              } catch (err) {
+                console.error("Failed to copy image to clipboard:", err);
+                toast.error("Clipboard copy failed. Ensure browser clipboard permissions are granted.");
+              }
+            }
+            URL.revokeObjectURL(blobURL);
+          }, "image/png");
+        }
+      };
+      image.src = blobURL;
+    } catch (err) {
+      console.error("Error generating QR code image:", err);
+      toast.error("Failed to copy QR Code.");
+    }
+  };
+
   if (!session) {
     return <div className="p-10 text-muted-foreground">Loading session...</div>;
   }
@@ -350,12 +401,24 @@ function SessionControl() {
             </button>
           </div>
           <div className="mt-6 flex justify-center">
-            <div className="rounded-2xl bg-white p-4">
+            <div id="session-qr-code" className="rounded-2xl bg-white p-4">
               <QRCodeSVG value={joinLink} size={180} level="M" />
             </div>
           </div>
           <div className="mt-4 break-all text-center text-xs font-mono text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">{joinLink}</div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          
+          <Button
+            type="button"
+            onClick={copyQrCodeAsImage}
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl border-border bg-card hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition animate-in fade-in duration-200"
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            Copy QR Code as Image
+          </Button>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <Button
               type="button"
               onClick={() => { navigator.clipboard.writeText(joinLink); toast.success("Join link copied! 📋"); }}
