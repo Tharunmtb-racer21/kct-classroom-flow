@@ -341,19 +341,11 @@ function SessionControl() {
 
   const copyQrCodeAsImage = async () => {
     try {
-      const element = document.querySelector("#session-qr-code");
-      if (!element) {
+      const canvas = document.querySelector("#session-qr-code canvas") as HTMLCanvasElement;
+      if (!canvas) {
         toast.error("QR Code element not found.");
         return;
       }
-
-      // Convert the container div to a canvas including borders/background/corners
-      const canvas = await html2canvas(element as HTMLElement, {
-        backgroundColor: null, // Keep background transparent (wrapper transparent, card white)
-        scale: 3, // High scale factor for high resolution/sharpness
-        useCORS: true,
-        logging: false,
-      });
 
       canvas.toBlob(async (blob) => {
         if (blob) {
@@ -535,7 +527,7 @@ function SessionControl() {
           </div>
           <div className="mt-6 flex justify-center">
             <div id="session-qr-code" className="rounded-2xl bg-white p-4">
-              <QRCodeCanvas value={joinLink} size={180} level="M" />
+              <QRCodeCanvas value={joinLink} size={180} level="M" includeMargin={true} />
             </div>
           </div>
           <div className="mt-4 break-all text-center text-xs font-mono text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">{joinLink}</div>
