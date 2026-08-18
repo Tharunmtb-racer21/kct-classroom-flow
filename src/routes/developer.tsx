@@ -230,10 +230,10 @@ function DeveloperDashboard() {
   const [wafIpInput, setWafIpInput] = useState("");
   const [wafRuleType, setWafRuleType] = useState<"block" | "allow">("block");
 
-  // Get WAF API URL from environment variables or default to localhost
   const getWafApiUrl = () => {
     const env = (import.meta as any).env ?? {};
-    return (env.VITE_WAF_API_URL || "http://localhost:8081").replace(/\/$/, "");
+    const wafUrl = import.meta.env.VITE_WAF_API_URL || env.VITE_WAF_API_URL || "http://localhost:8081";
+    return wafUrl.replace(/\/$/, "");
   };
 
   const fetchWafData = async () => {
