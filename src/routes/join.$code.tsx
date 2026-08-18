@@ -102,9 +102,16 @@ function JoinPage() {
   // load session by code
   useEffect(() => {
     (async () => {
-      const { data } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,is_exam,max_fullscreen_exits,block_clipboard,block_right_click") as any).eq("code", upperCode).maybeSingle();
-      if (!data) setNotFound(true);
-      else setSession(data as Session);
+      const { data, error } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,is_exam,max_fullscreen_exits,block_clipboard,block_right_click") as any).eq("code", upperCode).maybeSingle();
+      if (error) {
+        console.warn("Integrity session columns load failed, falling back to core columns:", error);
+        const { data: fallbackData } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url").eq("code", upperCode).maybeSingle();
+        if (!fallbackData) setNotFound(true);
+        else setSession(fallbackData as Session);
+      } else {
+        if (!data) setNotFound(true);
+        else setSession(data as Session);
+      }
     })();
   }, [upperCode]);
 
