@@ -27,7 +27,8 @@ const isGoogleUser = (user: any): boolean => {
 };
 
 // Error message for non-KCT email login
-const KCT_DOMAIN_ERROR = "Only official KCT email addresses (@kct.ac.in) are authorized to access this platform.";
+const KCT_DOMAIN_ERROR =
+  "Only official KCT email addresses (@kct.ac.in) are authorized to access this platform.";
 
 // Helper to validate if email belongs to kct.ac.in domain
 const isKctEmail = (email: string | null, user?: any): boolean => {
@@ -73,7 +74,11 @@ function AuthPage() {
       toast.error("Database sync failed: " + error.message);
     }
     let currentRole = "faculty";
-    const { data: roleExists } = await supabase.from("user_roles").select("role").eq("user_id", user.uid).maybeSingle();
+    const { data: roleExists } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.uid)
+      .maybeSingle();
     if (!roleExists) {
       const { error: roleErr } = await supabase.from("user_roles").insert({
         user_id: user.uid,
@@ -113,7 +118,7 @@ function AuthPage() {
       // Hint the account picker to show only @kct.ac.in accounts and force account selection
       provider.setCustomParameters({
         hd: "kct.ac.in",
-        prompt: "select_account"
+        prompt: "select_account",
       });
       await signInWithPopup(auth, provider);
       // Global listener (onAuthStateChanged) handles post-auth validation & navigation
@@ -130,7 +135,7 @@ function AuthPage() {
       // Hint Microsoft to show only @kct.ac.in accounts and force account selection
       provider.setCustomParameters({
         domain_hint: "kct.ac.in",
-        prompt: "select_account"
+        prompt: "select_account",
       });
       await signInWithPopup(auth, provider);
       // Global listener (onAuthStateChanged) handles post-auth validation & navigation
@@ -157,7 +162,7 @@ function AuthPage() {
         await updateProfile(result.user, { displayName: fullName });
         await syncUserProfile({
           ...result.user,
-          displayName: fullName
+          displayName: fullName,
         });
         toast.success("Account created successfully!");
         navigate({ to: "/dashboard" });
@@ -173,7 +178,7 @@ function AuthPage() {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center px-4 py-10 bg-cover bg-center bg-fixed bg-no-repeat relative before:absolute before:inset-0 before:bg-background/50 dark:before:bg-background/80"
       style={{ backgroundImage: "url('/kct-bg-new.png')" }}
     >
@@ -185,7 +190,9 @@ function AuthPage() {
           <div className="grid h-16 w-16 place-items-center rounded-2xl overflow-hidden shadow-[var(--shadow-glow)]">
             <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-16 w-16 object-cover" />
           </div>
-          <span className="text-2xl font-extrabold tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+          <span className="text-2xl font-extrabold tracking-tight">
+            KCT <span className="gradient-text">PULSE</span>
+          </span>
         </Link>
 
         <div className="glass rounded-3xl p-8">
@@ -204,10 +211,10 @@ function AuthPage() {
               className="w-full h-11 bg-card/50"
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21">
-                <path fill="#f25022" d="M0 0h10v10H0z"/>
-                <path fill="#7fba00" d="M11 0h10v10H11z"/>
-                <path fill="#00a4ef" d="M0 11h10v10H0z"/>
-                <path fill="#ffb900" d="M11 11h10v10H11z"/>
+                <path fill="#f25022" d="M0 0h10v10H0z" />
+                <path fill="#7fba00" d="M11 0h10v10H11z" />
+                <path fill="#00a4ef" d="M0 11h10v10H0z" />
+                <path fill="#ffb900" d="M11 11h10v10H11z" />
               </svg>
               Continue with Microsoft
             </Button>
@@ -238,9 +245,19 @@ function AuthPage() {
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
             </div>
-            <Button type="submit" disabled={loading} className="w-full gradient-bg font-semibold h-11">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full gradient-bg font-semibold h-11"
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "signin" ? "Sign In" : "Create Account"}
             </Button>
@@ -258,14 +275,22 @@ function AuthPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Students don't need an account — <Link to="/" className="underline">join with a code</Link>.
+          Students don't need an account —{" "}
+          <Link to="/" className="underline">
+            join with a code
+          </Link>
+          .
         </p>
-        <p className="mt-3 text-center text-xs text-muted-foreground/80 font-medium space-y-1">
+        <div className="mt-3 text-center text-xs text-muted-foreground/80 font-medium space-y-1">
           <div>Built for Kumaraguru College of Technology</div>
           <div className="flex items-center justify-center gap-2 flex-wrap text-[11px] font-semibold mt-1">
-            <span className="text-[color:var(--accent-emerald)]">Founder & Designed by <span className="font-bold text-foreground/85">THARUN N E</span></span>
+            <span className="text-[color:var(--accent-emerald)]">
+              Founder & Designed by <span className="font-bold text-foreground/85">THARUN N E</span>
+            </span>
             <span className="text-border/50">·</span>
-            <span className="text-primary">Developed by <span className="font-bold text-foreground/85">NAVNEETH V</span></span>
+            <span className="text-primary">
+              Developed by <span className="font-bold text-foreground/85">NAVNEETH V</span>
+            </span>
             <span className="text-border/50">·</span>
             <ContactUsModal>
               <button className="hover:text-foreground text-primary font-bold cursor-pointer transition-colors">
@@ -273,7 +298,7 @@ function AuthPage() {
               </button>
             </ContactUsModal>
           </div>
-        </p>
+        </div>
       </div>
     </div>
   );
