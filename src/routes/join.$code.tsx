@@ -1203,7 +1203,10 @@ function Wrap({
         <div className="w-full max-w-md">{children}</div>
       </main>
       <footer className="border-t border-border/30 py-5 text-center text-[11px] text-muted-foreground space-y-1">
-        <div>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</div>
+        <div>
+          © {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology ·{" "}
+          <span className="font-semibold text-primary/80">Connect Beyond the Screen.</span>
+        </div>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
             <span className="text-[color:var(--accent-emerald)] font-semibold">
