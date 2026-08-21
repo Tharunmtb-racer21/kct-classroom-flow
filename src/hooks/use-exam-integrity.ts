@@ -97,7 +97,7 @@ export function useExamIntegrity({
     const docEl = document.documentElement;
     try {
       if (docEl.requestFullscreen) {
-        await docEl.requestFullscreen();
+        await docEl.requestFullscreen({ navigationUI: "hide" });
       } else if ((docEl as any).webkitRequestFullscreen) {
         await (docEl as any).webkitRequestFullscreen();
       } else if ((docEl as any).msRequestFullscreen) {
@@ -131,11 +131,15 @@ export function useExamIntegrity({
         setFullscreenExits((prev) => {
           const nextCount = prev + 1;
           logEvent("FULLSCREEN_EXITED", undefined, { exitCount: nextCount });
-          
+
           if (nextCount >= settings.maxFullscreenExits) {
-            setWarningMessage(`Maximum fullscreen exits reached (${nextCount}/${settings.maxFullscreenExits}). Faculty has been alerted.`);
+            setWarningMessage(
+              `Maximum fullscreen exits reached (${nextCount}/${settings.maxFullscreenExits}). Faculty has been alerted.`,
+            );
           } else {
-            setWarningMessage(`Fullscreen mode exited. Re-entry is required to resume exam. Warning: ${nextCount}/${settings.maxFullscreenExits}`);
+            setWarningMessage(
+              `Fullscreen mode exited. Re-entry is required to resume exam. Warning: ${nextCount}/${settings.maxFullscreenExits}`,
+            );
           }
           setIsWarningOpen(true);
           return nextCount;
@@ -240,14 +244,14 @@ export function useExamIntegrity({
     // Block critical shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCmdOrCtrl = e.ctrlKey || e.metaKey;
-      
+
       // Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+U (view source), F12
       if (isCmdOrCtrl && ["c", "v", "x", "u"].includes(e.key.toLowerCase())) {
         e.preventDefault();
         logEvent("KEYBOARD_SHORTCUT", undefined, { keyCombo: `Ctrl+${e.key.toUpperCase()}` });
         toast.error("Keyboard shortcut disabled.");
       }
-      
+
       if (e.key === "F12") {
         e.preventDefault();
         logEvent("KEYBOARD_SHORTCUT", undefined, { keyCombo: "F12" });
@@ -295,9 +299,12 @@ export function useExamIntegrity({
       if (!navigator.onLine || !participantId) return;
 
       const startTime = Date.now();
-      
+
       // Fetch connection info if supported
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const connection =
+        (navigator as any).connection ||
+        (navigator as any).mozConnection ||
+        (navigator as any).webkitConnection;
       const type = connection?.effectiveType || connection?.type || "unknown";
       const down = connection?.downlink || 10;
       setDownlink(down);
