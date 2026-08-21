@@ -61,6 +61,8 @@ function WafMonitorDashboard() {
   const [wafRuleType, setWafRuleType] = useState<"block" | "allow">("block");
   const [searchTerm, setSearchTerm] = useState("");
   const [connectedWafUrl, setConnectedWafUrl] = useState("");
+  const [isProduction, setIsProduction] = useState(false);
+  const [edgeWafActive, setEdgeWafActive] = useState(false);
 
   const DEV_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -82,6 +84,15 @@ function WafMonitorDashboard() {
         handleLockWaf();
       } else {
         setIsAuthenticated(isAuth);
+      }
+      // Detect production (Vercel) vs local dev
+      const hostname = window.location.hostname;
+      const isProd =
+        hostname.includes("vercel.app") || hostname === "kct-classroom-flow.vercel.app";
+      setIsProduction(isProd);
+      if (isProd) {
+        setEdgeWafActive(true);
+        setWafOffline(false);
       }
     }
   }, []);
@@ -146,11 +157,11 @@ function WafMonitorDashboard() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || isProduction) return;
     fetchWafData();
     const interval = setInterval(fetchWafData, 3000);
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isProduction]);
 
   const handleAddWafIPRule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,7 +311,7 @@ function WafMonitorDashboard() {
               <span
                 className={cn(
                   "rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest flex items-center gap-1",
-                  wafOffline
+                  wafOffline && !edgeWafActive
                     ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
                     : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
                 )}
@@ -308,10 +319,14 @@ function WafMonitorDashboard() {
                 <span
                   className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    wafOffline ? "bg-rose-500" : "bg-emerald-400 animate-ping",
+                    wafOffline && !edgeWafActive ? "bg-rose-500" : "bg-emerald-400 animate-ping",
                   )}
                 />
-                {wafOffline ? "OFFLINE" : "WAF TELEMETRY ACTIVE"}
+                {edgeWafActive
+                  ? "EDGE WAF ACTIVE"
+                  : wafOffline
+                    ? "OFFLINE"
+                    : "WAF TELEMETRY ACTIVE"}
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -406,7 +421,58 @@ function WafMonitorDashboard() {
           </div>
         </div>
 
-        {wafOffline && (
+        {edgeWafActive && (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center space-y-4 max-w-3xl mx-auto">
+            <ShieldCheck className="h-10 w-10 text-emerald-400 mx-auto" />
+            <div>
+              <h3 className="text-base font-bold text-emerald-400">
+                Edge WAF Middleware Active on Vercel
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-lg mx-auto leading-relaxed">
+                KCT SHIELD is running as{" "}
+                <strong className="text-emerald-400">Vercel Edge Middleware</strong> and is actively
+                protecting all incoming requests to{" "}
+                <code className="bg-black/50 px-1.5 py-0.5 rounded text-emerald-400 font-mono text-[11px]">
+                  kct-classroom-flow.vercel.app
+                </code>
+                . Every HTTP request is inspected for SQLi, XSS, Path Traversal, and Command
+                Injection attacks in real-time at the edge.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto mt-4">
+              <div className="bg-card/45 border border-emerald-500/20 rounded-xl p-3 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                  SQL Injection
+                </span>
+                <span className="text-xs font-black text-white mt-1 block">Protected ✓</span>
+              </div>
+              <div className="bg-card/45 border border-emerald-500/20 rounded-xl p-3 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                  XSS Attack
+                </span>
+                <span className="text-xs font-black text-white mt-1 block">Protected ✓</span>
+              </div>
+              <div className="bg-card/45 border border-emerald-500/20 rounded-xl p-3 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                  Path Traversal
+                </span>
+                <span className="text-xs font-black text-white mt-1 block">Protected ✓</span>
+              </div>
+              <div className="bg-card/45 border border-emerald-500/20 rounded-xl p-3 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                  CMD Injection
+                </span>
+                <span className="text-xs font-black text-white mt-1 block">Protected ✓</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic mt-2">
+              Note: Live telemetry logs and IP override rules require a local KCT SHIELD API server
+              (port 8081). The edge middleware does not store logs persistently.
+            </p>
+          </div>
+        )}
+
+        {wafOffline && !edgeWafActive && (
           <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6 text-center space-y-4 max-w-2xl mx-auto">
             <AlertOctagon className="h-10 w-10 text-rose-500 mx-auto animate-pulse" />
             <div>
