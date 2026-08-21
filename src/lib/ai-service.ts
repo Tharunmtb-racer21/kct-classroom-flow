@@ -502,8 +502,9 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
     apiKey: HARDCODED_GOOGLE_KEY,
   });
 
-  // 2. Primary Fallback: Use the 5 hardcoded/rotated Groq API keys provided by the user
+  // 2. Primary Fallback: Use the hardcoded/rotated Groq API keys provided by the user
   const HARDCODED_GROQ_KEYS = [
+    "u4HKbjbJeZ6u1XNlB1ZavYF3bydGWmW2IohDLa4qmvIxcfNeh_ksg",
     "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
     "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
