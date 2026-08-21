@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -78,17 +79,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "KCT PULSE — Real-time Classroom Engagement" },
-      { name: "description", content: "KCT PULSE turns classrooms into interactive experiences with live polls, word clouds, and quizzes for Kumaraguru College of Technology." },
+      {
+        name: "description",
+        content:
+          "KCT PULSE turns classrooms into interactive experiences with live polls, word clouds, and quizzes for Kumaraguru College of Technology.",
+      },
       { name: "author", content: "KCT PULSE" },
       { property: "og:title", content: "KCT PULSE — Real-time Classroom Engagement" },
-      { property: "og:description", content: "Live polls, word clouds & quizzes for KCT classrooms." },
+      {
+        property: "og:description",
+        content: "Live polls, word clouds & quizzes for KCT classrooms.",
+      },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://kct-classroom-flow.vercel.app/" },
       { property: "og:image", content: "https://kct-classroom-flow.vercel.app/kct-logo-opt.jpg" },
       { property: "og:site_name", content: "KCT PULSE" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "KCT PULSE — Real-time Classroom Engagement" },
-      { name: "twitter:description", content: "Live polls, word clouds & quizzes for KCT classrooms." },
+      {
+        name: "twitter:description",
+        content: "Live polls, word clouds & quizzes for KCT classrooms.",
+      },
       { name: "twitter:image", content: "https://kct-classroom-flow.vercel.app/kct-logo-opt.jpg" },
     ],
     links: [
@@ -142,17 +153,20 @@ import { ChatBot } from "@/components/chat-bot";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     applyTheme(getStoredTheme());
   }, []);
+
+  const showChatBot = pathname.startsWith("/dashboard");
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster />
-      <ChatBot />
+      {showChatBot && <ChatBot />}
     </QueryClientProvider>
   );
 }
