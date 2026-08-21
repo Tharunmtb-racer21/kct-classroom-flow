@@ -559,25 +559,40 @@ function SessionControl() {
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <ThemeToggle variant="outline" />
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card/30 border border-border/40 p-2 shadow-lg backdrop-blur-md">
+          <ThemeToggle variant="outline" className="rounded-xl h-10 w-10 border-border/80" />
           {session.status !== "live" && session.status !== "ended" && (
-            <Button onClick={startSession} className="gradient-bg">
+            <Button
+              onClick={startSession}
+              className="gradient-bg text-white font-semibold shadow-md rounded-xl h-10"
+            >
               <Play className="mr-2 h-4 w-4" /> Start
             </Button>
           )}
           {session.status === "live" && !autoPlay && (
             <>
-              <Button onClick={nextQuestion} variant="secondary">
+              <Button
+                onClick={nextQuestion}
+                variant="secondary"
+                className="font-semibold rounded-xl h-10 border border-border/20"
+              >
                 <ChevronRight className="mr-2 h-4 w-4" /> Next Question
               </Button>
-              <Button onClick={pauseSession} variant="outline">
+              <Button
+                onClick={pauseSession}
+                variant="outline"
+                className="font-semibold rounded-xl h-10 border-border/80"
+              >
                 <Pause className="mr-2 h-4 w-4" /> Pause
               </Button>
             </>
           )}
           {session.status !== "ended" && (
-            <Button onClick={endSession} variant="destructive">
+            <Button
+              onClick={endSession}
+              variant="destructive"
+              className="font-semibold rounded-xl h-10 shadow-md"
+            >
               <Square className="mr-2 h-4 w-4" /> End
             </Button>
           )}
@@ -588,13 +603,13 @@ function SessionControl() {
               <Button
                 onClick={() => setShowTimerPicker((v) => !v)}
                 variant="outline"
-                className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all animate-ai-pulse"
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all animate-ai-pulse rounded-xl h-10"
               >
                 <Zap className="h-4 w-4" />
                 Auto Play
               </Button>
               {showTimerPicker && (
-                <div className="absolute right-0 top-full mt-2 z-50 glass rounded-xl border border-border p-3 min-w-[180px] shadow-xl">
+                <div className="absolute right-0 top-full mt-2 z-50 glass rounded-2xl border border-border/80 p-3.5 min-w-[190px] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="text-xs text-muted-foreground mb-2 font-medium">
                     Time per question:
                   </div>
@@ -606,7 +621,7 @@ function SessionControl() {
                           setAutoPlayInterval(opt.value);
                         }}
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-sm text-left transition-all",
+                          "rounded-xl px-3 py-1.5 text-sm text-left transition-all",
                           autoPlayInterval === opt.value
                             ? "bg-primary/20 text-primary font-semibold"
                             : "hover:bg-accent text-muted-foreground",
@@ -618,7 +633,7 @@ function SessionControl() {
                   </div>
                   <Button
                     onClick={startAutoPlay}
-                    className="mt-3 w-full bg-primary hover:bg-primary/80 text-primary-foreground font-semibold gap-2"
+                    className="mt-3 w-full bg-primary hover:bg-primary/80 text-primary-foreground font-semibold gap-2 rounded-xl h-9"
                     size="sm"
                   >
                     <Zap className="h-3.5 w-3.5" /> Start Auto Play
@@ -630,7 +645,7 @@ function SessionControl() {
 
           {/* ── Auto Play Active Indicator ── */}
           {autoPlay && (
-            <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md transition-all active:scale-[0.98]">
+            <div className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground shadow-md transition-all active:scale-[0.98]">
               <Zap className="h-4 w-4 animate-pulse text-primary-foreground" />
               <span className="font-semibold">Auto</span>
               <div className="flex items-center gap-1">
@@ -721,25 +736,38 @@ function SessionControl() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="glass rounded-2xl p-6 lg:col-span-1">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Session Code</div>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="font-mono text-3xl font-bold tracking-[0.25em]">{session.code}</div>
-            <button
+          <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+            Session Code
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-2xl bg-muted/40 border border-border/50 px-4 py-3">
+            <div className="font-mono text-3xl font-extrabold tracking-[0.15em] text-foreground gradient-text select-all">
+              {session.code}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 navigator.clipboard.writeText(session.code);
-                toast.success("Copied");
+                toast.success("Copied to clipboard! 📋");
               }}
-              className="text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="Copy Code"
             >
               <Copy className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
           <div className="mt-6 flex justify-center">
-            <div id="session-qr-code" className="rounded-2xl bg-white p-4">
-              <QRCodeCanvas value={joinLink} size={180} level="M" includeMargin={true} />
+            <div
+              id="session-qr-code"
+              className="rounded-3xl bg-white p-5 shadow-[0_0_30px_rgba(255,255,255,0.06)] border border-white/5 transition-transform hover:scale-[1.02] duration-300"
+            >
+              <QRCodeCanvas value={joinLink} size={190} level="M" includeMargin={false} />
             </div>
           </div>
-          <div className="mt-4 break-all text-center text-xs font-mono text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">
+          <div
+            className="mt-4 truncate text-center text-[11px] font-mono text-muted-foreground bg-muted/30 hover:bg-muted/40 transition-colors p-2.5 rounded-xl border border-border/50 select-all cursor-pointer"
+            title="Double click to select all"
+          >
             {joinLink}
           </div>
 
@@ -748,7 +776,7 @@ function SessionControl() {
             onClick={copyQrCodeAsImage}
             variant="outline"
             size="sm"
-            className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl border-border bg-card hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition animate-in fade-in duration-200"
+            className="mt-4 w-full flex items-center justify-center gap-1.5 rounded-xl border-border bg-card/50 hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition animate-in fade-in duration-200"
           >
             <ImageIcon className="h-3.5 w-3.5" />
             Copy QR Code as Image
@@ -763,20 +791,22 @@ function SessionControl() {
               }}
               variant="outline"
               size="sm"
-              className="flex items-center justify-center gap-1.5 rounded-xl border-border bg-card hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition"
+              className="flex items-center justify-center gap-1.5 rounded-xl border-border bg-card/50 hover:bg-accent hover:text-accent-foreground text-xs font-semibold py-2.5 shadow-sm transition"
             >
               <Copy className="h-3.5 w-3.5" />
               Copy Link
             </Button>
-            <a
-              href={joinLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold py-2.5 shadow-sm transition"
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="flex items-center justify-center gap-1.5 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-semibold py-2.5 shadow-sm transition"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open Link
-            </a>
+              <a href={joinLink} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open Link
+              </a>
+            </Button>
           </div>
           <button
             onClick={() => {
@@ -2460,7 +2490,8 @@ function QuestionsPanel({
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button
+              <Button
+                type="button"
                 onClick={async () => {
                   try {
                     const allIds = questions.map((q) => q.id);
@@ -2472,12 +2503,14 @@ function QuestionsPanel({
                     toast.error(e.message || "Failed to activate all questions");
                   }
                 }}
-                className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-medium py-2 text-xs transition-all active:scale-[0.98]"
+                variant="outline"
+                className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-semibold py-2.5 text-xs transition-all active:scale-[0.98]"
               >
                 <Play className="h-3.5 w-3.5" />
                 Activate All
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
                 onClick={async () => {
                   try {
                     await updateSession({
@@ -2490,11 +2523,12 @@ function QuestionsPanel({
                     toast.error(e.message || "Failed to deactivate questions");
                   }
                 }}
-                className="flex items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-medium py-2 text-xs transition-all active:scale-[0.98]"
+                variant="outline"
+                className="flex items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-semibold py-2.5 text-xs transition-all active:scale-[0.98]"
               >
                 <Square className="h-3.5 w-3.5" />
                 Deactivate All
-              </button>
+              </Button>
             </div>
           </div>
         )}
