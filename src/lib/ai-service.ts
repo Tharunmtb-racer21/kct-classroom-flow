@@ -56,8 +56,8 @@ const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
   },
   google: {
     name: "Google AI Studio",
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    model: "gemini-2.0-flash",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+    model: "gemini-3.7-flash",
     envKey: "VITE_GOOGLE_AI_KEY",
   },
   together: {
@@ -491,9 +491,18 @@ export interface ChatMessage {
 export async function generateChatResponse(messages: ChatMessage[]): Promise<string> {
   const env = (import.meta as any).env ?? {};
   const activeProviders: Array<{ name: string; url: string; model: string; apiKey: string }> = [];
-
-  // 1. Primary: Use the 5 hardcoded/rotated Groq API keys provided by the user
   const decodeReversed = (s: string) => s.split("").reverse().join("");
+
+  // 1. Primary: Use Google Gemini 3.7 Flash with the shared key
+  const HARDCODED_GOOGLE_KEY = decodeReversed("E6flCfZ7PZQPxGhQ0pRZGzPMbPEySazIA");
+  activeProviders.push({
+    name: "Google Gemini 3.7 (Shared)",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+    model: "gemini-3.7-flash",
+    apiKey: HARDCODED_GOOGLE_KEY,
+  });
+
+  // 2. Primary Fallback: Use the 5 hardcoded/rotated Groq API keys provided by the user
   const HARDCODED_GROQ_KEYS = [
     "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
