@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DeveloperWafRouteImport } from './routes/developer-waf'
 import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -23,6 +24,11 @@ import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_aut
 import { Route as AuthenticatedDashboardGuideRouteImport } from './routes/_authenticated/dashboard.guide'
 import { Route as AuthenticatedDashboardSessionIdRouteImport } from './routes/_authenticated/dashboard.session.$id'
 
+const DeveloperWafRoute = DeveloperWafRouteImport.update({
+  id: '/developer-waf',
+  path: '/developer-waf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeveloperRoute = DeveloperRouteImport.update({
   id: '/developer',
   path: '/developer',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
+  '/developer-waf': typeof DeveloperWafRoute
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
+  '/developer-waf': typeof DeveloperWafRoute
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/developer': typeof DeveloperRoute
+  '/developer-waf': typeof DeveloperWafRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/developer'
+    | '/developer-waf'
     | '/dashboard'
     | '/embed/$code'
     | '/join/$code'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/developer'
+    | '/developer-waf'
     | '/embed/$code'
     | '/join/$code'
     | '/dashboard/guide'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/developer'
+    | '/developer-waf'
     | '/_authenticated/dashboard'
     | '/embed/$code'
     | '/join/$code'
@@ -187,12 +199,20 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   DeveloperRoute: typeof DeveloperRoute
+  DeveloperWafRoute: typeof DeveloperWafRoute
   EmbedCodeRoute: typeof EmbedCodeRoute
   JoinCodeRoute: typeof JoinCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/developer-waf': {
+      id: '/developer-waf'
+      path: '/developer-waf'
+      fullPath: '/developer-waf'
+      preLoaderRoute: typeof DeveloperWafRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/developer': {
       id: '/developer'
       path: '/developer'
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   DeveloperRoute: DeveloperRoute,
+  DeveloperWafRoute: DeveloperWafRoute,
   EmbedCodeRoute: EmbedCodeRoute,
   JoinCodeRoute: JoinCodeRoute,
 }

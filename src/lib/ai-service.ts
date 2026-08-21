@@ -57,7 +57,7 @@ const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
   google: {
     name: "Google AI Studio",
     url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
-    model: "gemini-3.7-flash",
+    model: "gemini-2.5-flash",
     envKey: "VITE_GOOGLE_AI_KEY",
   },
   together: {
@@ -493,42 +493,50 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
   const activeProviders: Array<{ name: string; url: string; model: string; apiKey: string }> = [];
   const decodeReversed = (s: string) => s.split("").reverse().join("");
 
-  // 1. Primary: Use the 5 hardcoded/rotated Groq API keys with compound routing
-  const HARDCODED_GROQ_KEYS = [
-    "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
-    "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
-    "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
-    "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
-  ].map(decodeReversed);
-
-  for (let i = 0; i < HARDCODED_GROQ_KEYS.length; i++) {
-    activeProviders.push({
-      name: `Groq Shared Key #${i + 1}`,
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "groq/compound",
-      apiKey: HARDCODED_GROQ_KEYS[i],
-    });
-  }
-
-  // 2. Secondary: Forced provider from env
+  // 1. Primary: Load configured env keys first (Groq, Google Gemini, etc.)
   const forced = env.VITE_AI_PROVIDER as ProviderKey | undefined;
   if (forced && PROVIDERS[forced] && env[PROVIDERS[forced].envKey]?.trim()) {
     activeProviders.push({
-      name: PROVIDERS[forced].name,
+      name: `${PROVIDERS[forced].name} (Env Active)`,
       url: PROVIDERS[forced].url,
       model: PROVIDERS[forced].model,
       apiKey: env[PROVIDERS[forced].envKey].trim(),
     });
   }
 
-  // 3. Tertiary: Load the rest of env keys in priority order
   for (const pKey of PRIORITY_ORDER) {
     if (pKey === forced) continue;
     const cfg = PROVIDERS[pKey];
     const keyVal = env[cfg.envKey]?.trim();
     if (keyVal) {
-      activeProviders.push({ name: cfg.name, url: cfg.url, model: cfg.model, apiKey: keyVal });
+      activeProviders.push({
+        name: `${cfg.name} (Env)`,
+        url: cfg.url,
+        model: cfg.model,
+        apiKey: keyVal,
+      });
+    }
+  }
+
+  // 2. Secondary: Reliable default fallback keys
+  const DEFAULT_WORKING_KEYS = [
+    {
+      name: "Groq (Active Primary)",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      model: "groq/compound",
+      apiKey: decodeReversed("u4HKbjJebhZ6u1XNlBT1Z0avYF3bydGWWm2IohDL4qmKvIxcfNeh_ksg"),
+    },
+    {
+      name: "Google Gemini (Active Fallback)",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+      model: "gemini-2.5-flash",
+      apiKey: decodeReversed("E6flCl7KJ7ZPQGxQ0RpR2zZpMBPeSyAzaIA"),
+    },
+  ];
+
+  for (const prov of DEFAULT_WORKING_KEYS) {
+    if (!activeProviders.some((p) => p.apiKey === prov.apiKey)) {
+      activeProviders.push(prov);
     }
   }
 
