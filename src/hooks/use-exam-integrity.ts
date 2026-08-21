@@ -305,7 +305,29 @@ export function useExamIntegrity({
         (navigator as any).connection ||
         (navigator as any).mozConnection ||
         (navigator as any).webkitConnection;
-      const type = connection?.effectiveType || connection?.type || "unknown";
+      const rawType = connection?.effectiveType || connection?.type || "unknown";
+      let type = "Good";
+      if (connection) {
+        if (connection.effectiveType) {
+          if (connection.effectiveType === "4g") type = "Excellent";
+          else if (connection.effectiveType === "3g") type = "Good";
+          else if (connection.effectiveType === "2g") type = "Fair";
+          else if (connection.effectiveType === "slow-2g") type = "Poor";
+        } else if (connection.type) {
+          if (connection.type === "wifi" || connection.type === "ethernet") type = "Excellent";
+          else if (connection.type === "cellular") type = "Good";
+          else type = connection.type;
+        }
+      } else {
+        type = "Excellent";
+      }
+
+      if (latency > 500) {
+        type = "Poor";
+      } else if (latency > 250) {
+        type = "Fair";
+      }
+
       const down = connection?.downlink || 10;
       setDownlink(down);
       setConnectionType(type);
