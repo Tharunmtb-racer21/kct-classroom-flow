@@ -1,4 +1,4 @@
-import { getClientIP } from "./proxy";
+
 import { logSecurityEventAsync } from "./logger";
 import { isIPBlocked, isIPAllowed, blockIPTemp } from "./filter";
 import { checkRateLimit } from "./limiter";
