@@ -12,22 +12,29 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ContactUsModal } from "@/components/contact-us-modal";
 import { useExamIntegrity } from "@/hooks/use-exam-integrity";
 
-type Session = { 
-  id: string; 
-  title: string; 
-  code: string; 
-  status: "draft" | "live" | "ended"; 
-  current_question_id: string | null; 
-  all_active?: boolean; 
-  active_question_ids?: string[] | null; 
-  expires_at?: string | null; 
+type Session = {
+  id: string;
+  title: string;
+  code: string;
+  status: "draft" | "live" | "ended";
+  current_question_id: string | null;
+  all_active?: boolean;
+  active_question_ids?: string[] | null;
+  expires_at?: string | null;
   image_url?: string | null;
   is_exam?: boolean;
   max_fullscreen_exits?: number;
   block_clipboard?: boolean;
   block_right_click?: boolean;
 };
-type Question = { id: string; type: "wordcloud" | "poll" | "quiz"; title: string; options: string[]; image_url?: string | null; question_type?: string };
+type Question = {
+  id: string;
+  type: "wordcloud" | "poll" | "quiz";
+  title: string;
+  options: string[];
+  image_url?: string | null;
+  question_type?: string;
+};
 
 const microsoftSubmitButton =
   "w-full h-14 rounded-[4px] border border-[#005a9e] bg-[#0078d4] text-white shadow-sm font-semibold hover:bg-[#106ebe] active:bg-[#005a9e] focus-visible:ring-[#0078d4]/45 disabled:border-[#a6a6a6] disabled:bg-[#c8c8c8] disabled:text-[#666666]";
@@ -36,9 +43,11 @@ const isMultipleCorrect = (q: Question | null | undefined): boolean => {
   if (!q) return false;
   if (q.question_type === "Multiple Correct") return true;
   const titleLower = (q.title || "").toLowerCase();
-  return titleLower.includes("select all") || 
-         titleLower.includes("multiple correct") || 
-         titleLower.includes("choose multiple");
+  return (
+    titleLower.includes("select all") ||
+    titleLower.includes("multiple correct") ||
+    titleLower.includes("choose multiple")
+  );
 };
 
 export const Route = createFileRoute("/join/$code")({
@@ -93,19 +102,41 @@ function JoinPage() {
   });
 
   console.log("JoinPage Render:", {
-    session: session ? { id: session.id, status: session.status, current_question_id: session.current_question_id, active_question_ids: session.active_question_ids, all_active: session.all_active } : null,
+    session: session
+      ? {
+          id: session.id,
+          status: session.status,
+          current_question_id: session.current_question_id,
+          active_question_ids: session.active_question_ids,
+          all_active: session.all_active,
+        }
+      : null,
     question,
     allQuestionsCount: allQuestions.length,
-    participantId
+    participantId,
   });
 
   // load session by code
   useEffect(() => {
     (async () => {
-      const { data, error } = await (supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,is_exam,max_fullscreen_exits,block_clipboard,block_right_click") as any).eq("code", upperCode).maybeSingle();
+      const { data, error } = await (
+        supabase
+          .from("sessions")
+          .select(
+            "id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url,is_exam,max_fullscreen_exits,block_clipboard,block_right_click",
+          ) as any
+      )
+        .eq("code", upperCode)
+        .maybeSingle();
       if (error) {
         console.warn("Integrity session columns load failed, falling back to core columns:", error);
-        const { data: fallbackData } = await supabase.from("sessions").select("id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url").eq("code", upperCode).maybeSingle();
+        const { data: fallbackData } = await supabase
+          .from("sessions")
+          .select(
+            "id,title,code,status,current_question_id,all_active,active_question_ids,expires_at,image_url",
+          )
+          .eq("code", upperCode)
+          .maybeSingle();
         if (!fallbackData) setNotFound(true);
         else setSession(fallbackData as Session);
       } else {
@@ -121,31 +152,43 @@ function JoinPage() {
     console.log(`Subscribing to realtime updates for session: ${session.id}`);
     const ch = supabase
       .channel(`join-${session.id}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` }, (payload) => {
-        console.log("Realtime update received for session:", payload.new);
-        setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
+        (payload) => {
+          console.log("Realtime update received for session:", payload.new);
+          setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
+        },
+      )
       .subscribe((status) => {
         console.log(`Realtime subscription status for session ${session.id}: ${status}`);
       });
-    return () => { 
+    return () => {
       console.log(`Unsubscribing from realtime updates for session: ${session.id}`);
-      supabase.removeChannel(ch); 
+      supabase.removeChannel(ch);
     };
   }, [session?.id]);
 
   // load current question OR all questions in ALL mode OR multi-selected active questions
   useEffect(() => {
     const activeIds = session?.active_question_ids || [];
-    
+
     // Check if we are in ALL mode
     if (session?.all_active) {
       setQuestion(null);
       (async () => {
-        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
+        const { data, error } = await supabase
+          .from("questions")
+          .select("id,type,title,options,image_url,question_type")
+          .eq("session_id", session.id)
+          .order("order_index");
         if (error) {
           console.error("Error fetching all questions:", error);
-          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("session_id", session.id).order("order_index");
+          const { data: fbData } = await supabase
+            .from("questions")
+            .select("id,type,title,options,image_url,question_type")
+            .eq("session_id", session.id)
+            .order("order_index");
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
           setAllQuestions(data as unknown as Question[]);
@@ -158,10 +201,16 @@ function JoinPage() {
     if (activeIds.length > 1) {
       setQuestion(null);
       (async () => {
-        const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
+        const { data, error } = await supabase
+          .from("questions")
+          .select("id,type,title,options,image_url,question_type")
+          .in("id", activeIds);
         if (error) {
           console.error("Error fetching active questions:", error);
-          const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").in("id", activeIds);
+          const { data: fbData } = await supabase
+            .from("questions")
+            .select("id,type,title,options,image_url,question_type")
+            .in("id", activeIds);
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
           setAllQuestions(data as unknown as Question[]);
@@ -171,14 +220,27 @@ function JoinPage() {
     }
 
     // Single active question mode (either via current_question_id or a single active_question_ids element)
-    const singleActiveId = session?.current_question_id || (activeIds.length === 1 ? activeIds[0] : null);
-    if (!singleActiveId) { setQuestion(null); setAllQuestions([]); return; }
+    const singleActiveId =
+      session?.current_question_id || (activeIds.length === 1 ? activeIds[0] : null);
+    if (!singleActiveId) {
+      setQuestion(null);
+      setAllQuestions([]);
+      return;
+    }
     setAllQuestions([]);
     (async () => {
-      const { data, error } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
+      const { data, error } = await supabase
+        .from("questions")
+        .select("id,type,title,options,image_url,question_type")
+        .eq("id", singleActiveId)
+        .maybeSingle();
       if (error) {
         console.error("Error fetching single question:", error);
-        const { data: fbData } = await supabase.from("questions").select("id,type,title,options,image_url,question_type").eq("id", singleActiveId).maybeSingle();
+        const { data: fbData } = await supabase
+          .from("questions")
+          .select("id,type,title,options,image_url,question_type")
+          .eq("id", singleActiveId)
+          .maybeSingle();
         if (fbData) {
           setQuestion(fbData as unknown as Question);
           setAnswer("");
@@ -188,18 +250,29 @@ function JoinPage() {
         setAnswer("");
       }
     })();
-  }, [session?.id, session?.current_question_id, session?.all_active, session?.active_question_ids?.join(",")]);
+  }, [
+    session?.id,
+    session?.current_question_id,
+    session?.all_active,
+    session?.active_question_ids?.join(","),
+  ]);
 
   // realtime question updates
   useEffect(() => {
     if (!question?.id) return;
     const ch = supabase
       .channel(`join-question-${question.id}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "questions", filter: `id=eq.${question.id}` }, (payload) => {
-        setQuestion((q) => (q ? { ...q, ...(payload.new as Partial<Question>) } : q));
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "questions", filter: `id=eq.${question.id}` },
+        (payload) => {
+          setQuestion((q) => (q ? { ...q, ...(payload.new as Partial<Question>) } : q));
+        },
+      )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [question?.id]);
 
   // realtime responses updates (to support real-time Retake/Reset)
@@ -243,7 +316,7 @@ function JoinPage() {
               [newResp.question_id]: newResp.answer ?? "",
             }));
           }
-        }
+        },
       )
       .subscribe();
 
@@ -329,9 +402,7 @@ function JoinPage() {
       if (!error && data) {
         const answeredIds = data.map((r) => r.question_id);
         setSubmittedFor(new Set(answeredIds));
-        setSubmittedAnswers(
-          Object.fromEntries(data.map((r) => [r.question_id, r.answer ?? ""])),
-        );
+        setSubmittedAnswers(Object.fromEntries(data.map((r) => [r.question_id, r.answer ?? ""])));
         if (allQuestions.length > 0 && allQuestions.every((q) => answeredIds.includes(q.id))) {
           setAllQuestionsComplete(true);
         } else {
@@ -340,7 +411,6 @@ function JoinPage() {
       }
     })();
   }, [participantId, question?.id, allQuestions.length, session]);
-
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,34 +422,38 @@ function JoinPage() {
       .select("id")
       .single();
     setJoining(false);
-    if (error || !data) { toast.error(error?.message ?? "Failed to join"); return; }
+    if (error || !data) {
+      toast.error(error?.message ?? "Failed to join");
+      return;
+    }
     setParticipantId(data.id);
-    localStorage.setItem(`kctpulse-${session.id}`, JSON.stringify({ id: data.id, name: name.trim() }));
+    localStorage.setItem(
+      `kctpulse-${session.id}`,
+      JSON.stringify({ id: data.id, name: name.trim() }),
+    );
   };
 
   const [responseFile, setResponseFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const uploadResponseImage = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split(".").pop();
     const fileName = `responses/${crypto.randomUUID()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
-      .from('question-images')
-      .upload(fileName, file);
+    const { data, error } = await supabase.storage.from("question-images").upload(fileName, file);
 
     if (error) throw error;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('question-images')
-      .getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("question-images").getPublicUrl(fileName);
 
     return publicUrl;
   };
 
   const handleSubmit = async (qid?: string, ans?: string) => {
     if (submitting) return;
-    const targetQ = qid ? (allQuestions.find(q => q.id === qid) ?? question) : question;
+    const targetQ = qid ? (allQuestions.find((q) => q.id === qid) ?? question) : question;
     const targetAnswer = ans ?? answer;
     if (!targetQ || !participantId || !targetAnswer.trim()) return;
     setSubmitting(true);
@@ -395,9 +469,11 @@ function JoinPage() {
         image_url,
       });
       if (error) throw error;
-      setSubmittedFor(prev => new Set([...prev, targetQ.id]));
-      if (!qid) { setAnswer(""); setResponseFile(null); }
-      else setAnswerMap(prev => ({ ...prev, [targetQ.id]: "" }));
+      setSubmittedFor((prev) => new Set([...prev, targetQ.id]));
+      if (!qid) {
+        setAnswer("");
+        setResponseFile(null);
+      } else setAnswerMap((prev) => ({ ...prev, [targetQ.id]: "" }));
       toast.success("Response submitted");
     } catch (err: any) {
       console.error(err);
@@ -416,14 +492,16 @@ function JoinPage() {
 
     if (missingQuestions.length > 0) {
       setUnansweredQuestionIds(new Set(missingQuestions.map((q) => q.id)));
-      toast.error(`Please answer ${missingQuestions.length === 1 ? "the highlighted question" : "all highlighted questions"} before submitting`);
+      toast.error(
+        `Please answer ${missingQuestions.length === 1 ? "the highlighted question" : "all highlighted questions"} before submitting`,
+      );
       return;
     }
 
     const responses = pendingQuestions.map((q) => ({
-        question: q,
-        answer: (answerMap[q.id] ?? "").trim(),
-      }));
+      question: q,
+      answer: (answerMap[q.id] ?? "").trim(),
+    }));
 
     if (responses.length === 0) {
       setUnansweredQuestionIds(new Set());
@@ -445,7 +523,9 @@ function JoinPage() {
 
       if (error) throw error;
 
-      setSubmittedFor((prev) => new Set([...prev, ...responses.map(({ question }) => question.id)]));
+      setSubmittedFor(
+        (prev) => new Set([...prev, ...responses.map(({ question }) => question.id)]),
+      );
       setSubmittedAnswers((prev) => ({
         ...prev,
         ...Object.fromEntries(responses.map(({ question, answer }) => [question.id, answer])),
@@ -458,7 +538,9 @@ function JoinPage() {
         return next;
       });
       setAllQuestionsComplete(true);
-      toast.success(`${responses.length} ${responses.length === 1 ? "response" : "responses"} submitted`);
+      toast.success(
+        `${responses.length} ${responses.length === 1 ? "response" : "responses"} submitted`,
+      );
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to submit responses");
@@ -472,19 +554,28 @@ function JoinPage() {
       <Wrap secondsLeft={secondsLeft}>
         <div className="text-center">
           <h1 className="text-2xl font-bold">Session not found</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Check the code <span className="font-mono">{upperCode}</span> with your faculty.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Check the code <span className="font-mono">{upperCode}</span> with your faculty.
+          </p>
         </div>
       </Wrap>
     );
   }
-  if (!session) return <Wrap secondsLeft={secondsLeft}><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></Wrap>;
+  if (!session)
+    return (
+      <Wrap secondsLeft={secondsLeft}>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </Wrap>
+    );
 
   if (session.status === "ended") {
     return (
       <Wrap secondsLeft={secondsLeft}>
         <div className="text-center">
           <h1 className="text-2xl font-bold">{session.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">This session has ended. Thanks for joining!</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This session has ended. Thanks for joining!
+          </p>
         </div>
       </Wrap>
     );
@@ -495,7 +586,9 @@ function JoinPage() {
       <Wrap secondsLeft={secondsLeft}>
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold">{session.title}</h1>
-          <p className="text-sm text-muted-foreground">This session is not active yet. Waiting for the faculty to start it...</p>
+          <p className="text-sm text-muted-foreground">
+            This session is not active yet. Waiting for the faculty to start it...
+          </p>
           <div className="flex justify-center pt-2">
             <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
               <div className="h-full w-1/2 gradient-bg animate-pulse" />
@@ -512,11 +605,24 @@ function JoinPage() {
         <div className="text-center">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">Joining</div>
           <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
-          <div className="mt-1 font-mono text-xs tracking-widest text-muted-foreground">{session.code}</div>
+          <div className="mt-1 font-mono text-xs tracking-widest text-muted-foreground">
+            {session.code}
+          </div>
         </div>
         <form onSubmit={handleJoin} className="mt-8 space-y-4">
-          <Input autoFocus placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} className="h-14 text-center text-lg" />
-          <Button disabled={joining || !name.trim()} className="w-full h-14 text-base gradient-bg font-semibold">
+          <Input
+            autoFocus
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={40}
+            className="h-14 text-center text-lg"
+          />
+          <Button
+            disabled={joining || !name.trim()}
+            className="w-full h-14 text-base gradient-bg font-semibold"
+          >
             {joining ? "Joining..." : "Join Session"}
           </Button>
         </form>
@@ -531,32 +637,48 @@ function JoinPage() {
 
     return (
       <Wrap secondsLeft={secondsLeft}>
-        <div className="text-center space-y-6 bg-card border border-border p-6 rounded-2xl shadow-xl animate-in fade-in zoom-in duration-300">
-          <div className={cn(
-            "mx-auto grid h-16 w-16 place-items-center rounded-full",
-            isLockdown ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500"
-          )}>
+        <div
+          className={cn(
+            "text-center space-y-6 bg-card border p-6 rounded-2xl animate-in fade-in zoom-in duration-300",
+            isLockdown ? "border-rose-500/20 animate-lock-blink" : "border-border shadow-xl",
+          )}
+        >
+          <div
+            className={cn(
+              "mx-auto grid h-16 w-16 place-items-center rounded-full",
+              isLockdown ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500",
+            )}
+          >
             <Lock className="h-8 w-8 animate-pulse" />
           </div>
           <div className="space-y-2">
-            <div className={cn(
-              "text-xs font-black uppercase tracking-widest",
-              isLockdown ? "text-rose-500" : "text-amber-500"
-            )}>
+            <div
+              className={cn(
+                "text-xs font-black uppercase tracking-widest",
+                isLockdown ? "text-rose-500" : "text-amber-500",
+              )}
+            >
               {isLockdown ? "Exam Locked" : "Secure Kiosk Mode"}
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">{session.title}</h1>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-              {isLockdown 
+              {isLockdown
                 ? "You have exceeded the maximum allowed fullscreen exits. The exam has been locked. Please contact your faculty invigilator to inspect and unlock your session."
                 : "This exam requires a secure fullscreen environment. Tab switching, screen recording, and exiting fullscreen are logged by the faculty integrity monitor."}
             </p>
           </div>
-          
+
           <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2 text-left text-xs font-mono">
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground font-semibold">Fullscreen Warnings:</span>
-              <span className={cn("font-bold px-2 py-0.5 rounded-full text-[10px]", fullscreenExits >= maxExits ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500")}>
+              <span
+                className={cn(
+                  "font-bold px-2 py-0.5 rounded-full text-[10px]",
+                  fullscreenExits >= maxExits
+                    ? "bg-rose-500/10 text-rose-500"
+                    : "bg-amber-500/10 text-amber-500",
+                )}
+              >
                 {fullscreenExits} / {maxExits} Exits
               </span>
             </div>
@@ -575,7 +697,10 @@ function JoinPage() {
           </div>
 
           {!isLockdown ? (
-            <Button onClick={requestFullscreen} className="w-full h-14 text-base font-bold gradient-bg flex items-center justify-center gap-2">
+            <Button
+              onClick={requestFullscreen}
+              className="w-full h-14 text-base font-bold gradient-bg flex items-center justify-center gap-2"
+            >
               <Play className="h-5 w-5" /> Enter Fullscreen & Continue
             </Button>
           ) : (
@@ -589,10 +714,13 @@ function JoinPage() {
   }
 
   // ── ALL mode or Multi-select mode: show multiple questions at once ─────────────────────────────────
-  const hasMultipleActive = session.all_active || (session.active_question_ids && session.active_question_ids.length > 1);
+  const hasMultipleActive =
+    session.all_active || (session.active_question_ids && session.active_question_ids.length > 1);
   if (hasMultipleActive && allQuestions.length > 0) {
     const pendingQuestions = allQuestions.filter((q) => !submittedFor.has(q.id));
-    const answeredPendingCount = pendingQuestions.filter((q) => (answerMap[q.id] ?? "").trim()).length;
+    const answeredPendingCount = pendingQuestions.filter((q) =>
+      (answerMap[q.id] ?? "").trim(),
+    ).length;
 
     if (allQuestionsComplete || pendingQuestions.length === 0) {
       return (
@@ -646,9 +774,13 @@ function JoinPage() {
           }}
         >
           <div className="text-center">
-            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">All Questions</div>
+            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
+              All Questions
+            </div>
             <h1 className="mt-1 text-xl font-bold">{session.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Hi {name}! Answer all questions below.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Hi {name}! Answer all questions below.
+            </p>
           </div>
           {allQuestions.map((q, i) => {
             const submitted = submittedFor.has(q.id);
@@ -663,26 +795,38 @@ function JoinPage() {
                     ? "border-destructive bg-destructive/10 shadow-[0_0_0_3px_color-mix(in_oklab,var(--destructive)_24%,transparent)]"
                     : submitted
                       ? "border-[color:var(--accent-emerald)] bg-[color:var(--accent-emerald)]/10 shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent-emerald)_22%,transparent)]"
-                    : "border-border",
+                      : "border-border",
                 )}
               >
                 <div className="flex items-center gap-2 justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">{i + 1}</span>
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">{q.type}</span>
+                    <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs font-bold">
+                      {i + 1}
+                    </span>
+                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                      {q.type}
+                    </span>
                   </div>
                   {q.type === "quiz" && (
-                    <span className={cn(
-                      "text-[10px] px-2 py-0.5 rounded-full font-semibold border",
-                      isMultipleCorrect(q)
-                        ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
-                        : "bg-primary/10 border-primary/20 text-primary"
-                    )}>
+                    <span
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full font-semibold border",
+                        isMultipleCorrect(q)
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                          : "bg-primary/10 border-primary/20 text-primary",
+                      )}
+                    >
                       {isMultipleCorrect(q) ? "Multiple Answers" : "Single Answer"}
                     </span>
                   )}
                 </div>
-                {q.image_url && <img src={q.image_url} alt="" className="rounded-xl max-h-40 object-contain w-full border border-border" />}
+                {q.image_url && (
+                  <img
+                    src={q.image_url}
+                    alt=""
+                    className="rounded-xl max-h-40 object-contain w-full border border-border"
+                  />
+                )}
                 <p className="font-semibold leading-snug">{q.title}</p>
                 {submitted ? (
                   <div className="flex items-center gap-2 text-sm text-[color:var(--accent-emerald)]">
@@ -692,9 +836,9 @@ function JoinPage() {
                   <div className="space-y-2">
                     <Textarea
                       value={qAnswer}
-                      onChange={e => {
-                        setAnswerMap(p => ({ ...p, [q.id]: e.target.value }));
-                        setUnansweredQuestionIds(prev => {
+                      onChange={(e) => {
+                        setAnswerMap((p) => ({ ...p, [q.id]: e.target.value }));
+                        setUnansweredQuestionIds((prev) => {
                           if (!prev.has(q.id)) return prev;
                           const next = new Set(prev);
                           next.delete(q.id);
@@ -709,30 +853,33 @@ function JoinPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {q.options.map(opt => (
+                    {q.options.map((opt) => (
                       <button
                         key={opt}
                         type="button"
                         onClick={() => {
                           if (isMultipleCorrect(q)) {
-                            const currentSelected = qAnswer.split(",").map(s => s.trim()).filter(Boolean);
+                            const currentSelected = qAnswer
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean);
                             let updatedSelected = [];
                             if (currentSelected.includes(opt.trim())) {
-                              updatedSelected = currentSelected.filter(s => s !== opt.trim());
+                              updatedSelected = currentSelected.filter((s) => s !== opt.trim());
                             } else {
                               updatedSelected = [...currentSelected, opt.trim()];
                             }
                             const updatedAnswer = updatedSelected.join(", ");
-                            setAnswerMap(p => ({ ...p, [q.id]: updatedAnswer }));
-                            setUnansweredQuestionIds(prev => {
+                            setAnswerMap((p) => ({ ...p, [q.id]: updatedAnswer }));
+                            setUnansweredQuestionIds((prev) => {
                               if (!prev.has(q.id) || !updatedAnswer.trim()) return prev;
                               const next = new Set(prev);
                               next.delete(q.id);
                               return next;
                             });
                           } else {
-                            setAnswerMap(p => ({ ...p, [q.id]: opt }));
-                            setUnansweredQuestionIds(prev => {
+                            setAnswerMap((p) => ({ ...p, [q.id]: opt }));
+                            setUnansweredQuestionIds((prev) => {
                               if (!prev.has(q.id)) return prev;
                               const next = new Set(prev);
                               next.delete(q.id);
@@ -743,12 +890,15 @@ function JoinPage() {
                         className={cn(
                           "w-full rounded-xl border-2 p-3 text-left text-sm font-medium transition",
                           isMultipleCorrect(q)
-                            ? qAnswer.split(",").map(s => s.trim()).includes(opt.trim())
+                            ? qAnswer
+                                .split(",")
+                                .map((s) => s.trim())
+                                .includes(opt.trim())
                               ? "border-primary bg-primary/15"
                               : "border-border bg-card/40"
                             : qAnswer === opt
                               ? "border-primary bg-primary/15"
-                              : "border-border bg-card/40"
+                              : "border-border bg-card/40",
                         )}
                       >
                         {opt}
@@ -757,7 +907,9 @@ function JoinPage() {
                   </div>
                 )}
                 {isUnanswered && (
-                  <div className="text-xs font-semibold text-destructive">Answer required before submitting.</div>
+                  <div className="text-xs font-semibold text-destructive">
+                    Answer required before submitting.
+                  </div>
                 )}
               </div>
             );
@@ -770,7 +922,9 @@ function JoinPage() {
             ) : (
               <Button type="submit" disabled={submitting} className={microsoftSubmitButton}>
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {submitting ? "Submitting..." : `Submit (${answeredPendingCount}/${pendingQuestions.length})`}
+                {submitting
+                  ? "Submitting..."
+                  : `Submit (${answeredPendingCount}/${pendingQuestions.length})`}
               </Button>
             )}
           </div>
@@ -785,13 +939,21 @@ function JoinPage() {
         <div className="text-center space-y-6">
           {session.image_url && (
             <div className="overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
-              <img src={session.image_url} alt="Session announcement" className="w-full h-full object-contain" />
+              <img
+                src={session.image_url}
+                alt="Session announcement"
+                className="w-full h-full object-contain"
+              />
             </div>
           )}
           <div>
-            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">You're in</div>
+            <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
+              You're in
+            </div>
             <h1 className="mt-1 text-2xl font-bold">{session.title}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Hi {name}! Waiting for the next question…</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Hi {name}! Waiting for the next question…
+            </p>
           </div>
           <div className="flex justify-center">
             <div className="h-2 w-24 overflow-hidden rounded-full bg-accent">
@@ -809,18 +971,26 @@ function JoinPage() {
     <Wrap secondsLeft={secondsLeft} isOnline={isOnline} latency={latency}>
       {question.image_url && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-muted flex items-center justify-center max-h-60 shadow-md">
-          <img src={question.image_url} alt="Question visual" className="w-full h-full object-contain" />
+          <img
+            src={question.image_url}
+            alt="Question visual"
+            className="w-full h-full object-contain"
+          />
         </div>
       )}
       <div className="flex items-center justify-between">
-        <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">{question.type}</div>
+        <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
+          {question.type}
+        </div>
         {question.type === "quiz" && (
-          <span className={cn(
-            "text-xs px-2.5 py-0.5 rounded-full font-semibold border",
-            isMultipleCorrect(question)
-              ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
-              : "bg-primary/10 border-primary/20 text-primary"
-          )}>
+          <span
+            className={cn(
+              "text-xs px-2.5 py-0.5 rounded-full font-semibold border",
+              isMultipleCorrect(question)
+                ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                : "bg-primary/10 border-primary/20 text-primary",
+            )}
+          >
             {isMultipleCorrect(question) ? "Multiple Answers" : "Single Answer"}
           </span>
         )}
@@ -841,10 +1011,18 @@ function JoinPage() {
             void handleSubmit();
           }}
         >
-          <Textarea value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Type your thoughts..." rows={4} maxLength={200} />
-          
+          <Textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Type your thoughts..."
+            rows={4}
+            maxLength={200}
+          />
+
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> Attach Image (Optional)</Label>
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Upload className="h-3.5 w-3.5" /> Attach Image (Optional)
+            </Label>
             <div className="flex items-center gap-3">
               <Input
                 type="file"
@@ -853,12 +1031,24 @@ function JoinPage() {
                 className="cursor-pointer h-11 bg-card/40 border-border"
               />
               {responseFile && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setResponseFile(null)} className="text-destructive">Clear</Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setResponseFile(null)}
+                  className="text-destructive"
+                >
+                  Clear
+                </Button>
               )}
             </div>
           </div>
 
-          <Button type="submit" disabled={submitting || !answer.trim()} className={microsoftSubmitButton}>
+          <Button
+            type="submit"
+            disabled={submitting || !answer.trim()}
+            className={microsoftSubmitButton}
+          >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Submitting..." : "Submit"}
           </Button>
@@ -878,9 +1068,12 @@ function JoinPage() {
                 type="button"
                 onClick={() => {
                   if (isMultipleCorrect(question)) {
-                    const currentSelected = answer.split(",").map(s => s.trim()).filter(Boolean);
+                    const currentSelected = answer
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean);
                     if (currentSelected.includes(opt.trim())) {
-                      const updated = currentSelected.filter(s => s !== opt.trim());
+                      const updated = currentSelected.filter((s) => s !== opt.trim());
                       setAnswer(updated.join(", "));
                     } else {
                       const updated = [...currentSelected, opt.trim()];
@@ -893,7 +1086,10 @@ function JoinPage() {
                 className={cn(
                   "w-full rounded-2xl border-2 p-4 text-left text-base font-medium transition",
                   isMultipleCorrect(question)
-                    ? answer.split(",").map(s => s.trim()).includes(opt.trim())
+                    ? answer
+                        .split(",")
+                        .map((s) => s.trim())
+                        .includes(opt.trim())
                       ? "border-primary bg-primary/15"
                       : "border-border bg-card/40"
                     : answer === opt
@@ -907,7 +1103,9 @@ function JoinPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5"><Upload className="h-3.5 w-3.5" /> Attach Image (Optional)</Label>
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Upload className="h-3.5 w-3.5" /> Attach Image (Optional)
+            </Label>
             <div className="flex items-center gap-3">
               <Input
                 type="file"
@@ -916,7 +1114,15 @@ function JoinPage() {
                 className="cursor-pointer h-11 bg-card/40 border-border"
               />
               {responseFile && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setResponseFile(null)} className="text-destructive">Clear</Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setResponseFile(null)}
+                  className="text-destructive"
+                >
+                  Clear
+                </Button>
               )}
             </div>
           </div>
@@ -931,13 +1137,13 @@ function JoinPage() {
   );
 }
 
-function Wrap({ 
-  children, 
+function Wrap({
+  children,
   secondsLeft,
   isOnline,
   latency,
-}: { 
-  children: React.ReactNode; 
+}: {
+  children: React.ReactNode;
   secondsLeft: number | null;
   isOnline?: boolean;
   latency?: number;
@@ -949,22 +1155,35 @@ function Wrap({
           <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
             <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
           </div>
-          <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+          <span className="font-extrabold text-lg tracking-tight">
+            KCT <span className="gradient-text">PULSE</span>
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Real-time Network Telemetry */}
           {isOnline !== undefined && (
-            <div className={cn(
-              "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs border font-mono font-semibold transition-all duration-300",
-              isOnline 
-                ? latency && latency > 250 
-                  ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
-                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-                : "bg-rose-500/10 border-rose-500/30 text-rose-500 animate-pulse"
-            )}>
-              <span className={cn("h-1.5 w-1.5 rounded-full", isOnline ? latency && latency > 250 ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
-              <span>{isOnline ? latency ? `${latency}ms` : "Online" : "Offline"}</span>
+            <div
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs border font-mono font-semibold transition-all duration-300",
+                isOnline
+                  ? latency && latency > 250
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                  : "bg-rose-500/10 border-rose-500/30 text-rose-500 animate-pulse",
+              )}
+            >
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  isOnline
+                    ? latency && latency > 250
+                      ? "bg-amber-500 animate-pulse"
+                      : "bg-emerald-500 animate-pulse"
+                    : "bg-rose-500",
+                )}
+              />
+              <span>{isOnline ? (latency ? `${latency}ms` : "Online") : "Offline"}</span>
             </div>
           )}
 
@@ -985,7 +1204,9 @@ function Wrap({
         <div>© {new Date().getFullYear()} KCT PULSE · Kumaraguru College of Technology</div>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="text-[color:var(--accent-emerald)] font-semibold">Founder & Designed by</span>
+            <span className="text-[color:var(--accent-emerald)] font-semibold">
+              Founder & Designed by
+            </span>
             <span className="font-bold text-foreground/70 tracking-wide">THARUN N E</span>
           </span>
           <span className="text-border/50">·</span>
