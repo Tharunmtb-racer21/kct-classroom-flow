@@ -60,6 +60,7 @@ function WafMonitorDashboard() {
   const [wafIpInput, setWafIpInput] = useState("");
   const [wafRuleType, setWafRuleType] = useState<"block" | "allow">("block");
   const [searchTerm, setSearchTerm] = useState("");
+  const [connectedWafUrl, setConnectedWafUrl] = useState("");
 
   const DEV_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -106,30 +107,42 @@ function WafMonitorDashboard() {
 
   const fetchWafData = async () => {
     setLoading(true);
-    try {
-      const wafUrl = getWafApiUrl();
-      const headers = {
-        "Bypass-Tunnel-Reminder": "true",
-        "ngrok-skip-browser-warning": "true",
-      };
-      const [statsRes, logsRes, rulesRes] = await Promise.all([
-        fetch(`${wafUrl}/api/stats`, { headers }),
-        fetch(`${wafUrl}/api/logs`, { headers }),
-        fetch(`${wafUrl}/api/rules`, { headers }),
-      ]);
-      if (!statsRes.ok || !logsRes.ok || !rulesRes.ok) throw new Error();
-      const stats = await statsRes.json();
-      const logs = await logsRes.json();
-      const rules = await rulesRes.json();
-      setWafStats(stats);
-      setWafLogs(logs);
-      setWafRules(rules);
-      setWafOffline(false);
-    } catch {
-      setWafOffline(true);
-    } finally {
-      setLoading(false);
+    const urlsToTry = [getWafApiUrl(), "http://localhost:8081", "http://127.0.0.1:8081"];
+
+    let success = false;
+    for (const url of urlsToTry) {
+      if (!url) continue;
+      try {
+        const headers = {
+          "Bypass-Tunnel-Reminder": "true",
+          "ngrok-skip-browser-warning": "true",
+        };
+        const [statsRes, logsRes, rulesRes] = await Promise.all([
+          fetch(`${url}/api/stats`, { headers }),
+          fetch(`${url}/api/logs`, { headers }),
+          fetch(`${url}/api/rules`, { headers }),
+        ]);
+        if (statsRes.ok && logsRes.ok && rulesRes.ok) {
+          const stats = await statsRes.json();
+          const logs = await logsRes.json();
+          const rules = await rulesRes.json();
+          setWafStats(stats);
+          setWafLogs(logs);
+          setWafRules(rules);
+          setWafOffline(false);
+          setConnectedWafUrl(url);
+          success = true;
+          break;
+        }
+      } catch {
+        // Try next
+      }
     }
+
+    if (!success) {
+      setWafOffline(true);
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -143,7 +156,7 @@ function WafMonitorDashboard() {
     e.preventDefault();
     if (!wafIpInput.trim()) return;
     try {
-      const wafUrl = getWafApiUrl();
+      const wafUrl = connectedWafUrl || getWafApiUrl();
       const res = await fetch(`${wafUrl}/api/rules/add`, {
         method: "POST",
         headers: {
@@ -167,7 +180,7 @@ function WafMonitorDashboard() {
 
   const handleDeleteWafIPRule = async (ip: string) => {
     try {
-      const wafUrl = getWafApiUrl();
+      const wafUrl = connectedWafUrl || getWafApiUrl();
       const res = await fetch(`${wafUrl}/api/rules/delete`, {
         method: "POST",
         headers: {
@@ -409,8 +422,9 @@ function WafMonitorDashboard() {
                 or that your hosted API URL is configured in Vercel.
               </p>
             </div>
-            <div className="text-[10px] text-muted-foreground font-mono bg-black/45 py-2 px-3 rounded border border-border/40 inline-block break-all max-w-md">
-              API Connection Attempt: {getWafApiUrl()}
+            <div className="text-[10px] text-muted-foreground font-mono bg-black/45 py-2 px-3 rounded border border-border/40 inline-block break-all max-w-md space-y-1">
+              <div>Configured WAF URL: {getWafApiUrl()}</div>
+              <div>Fallback Local WAF URL: http://localhost:8081</div>
             </div>
           </div>
         )}
