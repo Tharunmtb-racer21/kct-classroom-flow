@@ -291,3 +291,29 @@
 @utility animate-lock-blink {
   animation: lock-blink-red 2.5s ease-in-out forwards;
 }
+
+@keyframes lock-blink-amber {
+  0% {
+    border-color: rgba(245, 158, 11, 0.2);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  16%,
+  48%,
+  80% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 20px 4px rgba(245, 158, 11, 0.4);
+  }
+  32%,
+  64% {
+    border-color: rgba(245, 158, 11, 0.2);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  100% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 25px 6px rgba(245, 158, 11, 0.25);
+  }
+}
+
+@utility animate-lock-blink-warning {
+  animation: lock-blink-amber 2.5s ease-in-out forwards;
+}

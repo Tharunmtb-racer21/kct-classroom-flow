@@ -640,7 +640,9 @@ function JoinPage() {
         <div
           className={cn(
             "text-center space-y-6 bg-card border p-6 rounded-2xl animate-in fade-in zoom-in duration-300",
-            isLockdown ? "border-rose-500/20 animate-lock-blink" : "border-border shadow-xl",
+            isLockdown
+              ? "border-rose-500/20 animate-lock-blink"
+              : "border-amber-500/20 animate-lock-blink-warning",
           )}
         >
           <div
