@@ -796,7 +796,7 @@ function JoinPage() {
                   isUnanswered
                     ? "border-rose-500/20 bg-destructive/10 animate-validation-blink"
                     : submitted
-                      ? "border-[color:var(--accent-emerald)] bg-[color:var(--accent-emerald)]/10"
+                      ? "border-emerald-500/80 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
                       : "border-border/30",
                 )}
               >
