@@ -47,6 +47,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -415,6 +417,7 @@ function SessionControl() {
   const [autoPlayInterval, setAutoPlayInterval] = useState(30); // seconds
   const [autoPlayCountdown, setAutoPlayCountdown] = useState(0);
   const [showTimerPicker, setShowTimerPicker] = useState(false);
+  const [customValue, setCustomValue] = useState("30");
   const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -599,48 +602,120 @@ function SessionControl() {
 
           {/* ── Auto Play Button ── */}
           {session.status !== "ended" && !autoPlay && (
-            <div className="relative">
+            <>
               <Button
-                onClick={() => setShowTimerPicker((v) => !v)}
+                onClick={() => {
+                  setCustomValue(autoPlayInterval.toString());
+                  setShowTimerPicker(true);
+                }}
                 variant="outline"
                 className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:border-primary/60 transition-all animate-ai-pulse rounded-xl h-10"
               >
                 <Zap className="h-4 w-4" />
                 Auto Play
               </Button>
-              {showTimerPicker && (
-                <div className="absolute right-0 top-full mt-2 z-50 glass rounded-2xl border border-border/80 p-3.5 min-w-[190px] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="text-xs text-muted-foreground mb-2 font-medium">
-                    Time per question:
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {TIMER_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setAutoPlayInterval(opt.value);
-                        }}
-                        className={cn(
-                          "rounded-xl px-3 py-1.5 text-sm text-left transition-all",
-                          autoPlayInterval === opt.value
-                            ? "bg-primary/20 text-primary font-semibold"
-                            : "hover:bg-accent text-muted-foreground",
-                        )}
+
+              <Dialog open={showTimerPicker} onOpenChange={setShowTimerPicker}>
+                <DialogContent className="max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
+                  <DialogHeader className="space-y-1.5 text-left">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+                      <Zap className="h-5 w-5 text-primary animate-pulse" />
+                      Auto Play Settings
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground leading-normal">
+                      Auto Play automatically cycles through all questions in your session
+                      one-by-one. Each question will remain active for the selected duration before
+                      transitioning to the next. Students will see a live countdown timer.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 py-3 text-left">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        Preset Timers
+                      </Label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {TIMER_OPTIONS.map((opt) => {
+                          const isSelected = autoPlayInterval === opt.value;
+                          return (
+                            <Button
+                              key={opt.value}
+                              type="button"
+                              variant={isSelected ? "default" : "outline"}
+                              onClick={() => {
+                                setAutoPlayInterval(opt.value);
+                                setCustomValue(opt.value.toString());
+                              }}
+                              className={cn(
+                                "rounded-xl text-xs h-9 px-0 font-semibold transition-all",
+                                isSelected && "shadow-md shadow-primary/20",
+                              )}
+                            >
+                              {opt.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="custom-seconds"
+                        className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
                       >
-                        {opt.label}
-                      </button>
-                    ))}
+                        Custom Duration (Seconds)
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="custom-seconds"
+                          type="number"
+                          min={5}
+                          max={3600}
+                          value={customValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomValue(val);
+                            const parsed = parseInt(val);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              setAutoPlayInterval(parsed);
+                            }
+                          }}
+                          placeholder="Enter seconds, e.g. 45"
+                          className="rounded-xl h-10 bg-background border-border text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground font-semibold shrink-0">
+                          seconds
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Currently set to:{" "}
+                        <span className="font-bold text-primary">{autoPlayInterval} seconds</span> (
+                        {Math.floor(autoPlayInterval / 60)}m {autoPlayInterval % 60}s)
+                      </p>
+                    </div>
                   </div>
-                  <Button
-                    onClick={startAutoPlay}
-                    className="mt-3 w-full bg-primary hover:bg-primary/80 text-primary-foreground font-semibold gap-2 rounded-xl h-9"
-                    size="sm"
-                  >
-                    <Zap className="h-3.5 w-3.5" /> Start Auto Play
-                  </Button>
-                </div>
-              )}
-            </div>
+
+                  <DialogFooter className="flex flex-row gap-2 mt-4 sm:justify-start">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowTimerPicker(false)}
+                      className="flex-1 rounded-xl h-10 font-bold"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={startAutoPlay}
+                      className="flex-1 gradient-bg text-white font-bold gap-2 rounded-xl h-10 shadow-md hover:opacity-90"
+                    >
+                      <Zap className="h-4 w-4" />
+                      Start Auto Play
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
           )}
 
           {/* ── Auto Play Active Indicator ── */}
