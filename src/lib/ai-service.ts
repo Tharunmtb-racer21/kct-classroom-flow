@@ -108,7 +108,6 @@ export function getProviderStatus(): Array<{
   }));
 }
 
-
 function buildPrompt(text: string, count: number, types: QType[]): string {
   const typeDescriptions: Record<QType, string> = {
     quiz: 'a multiple-choice question with 4 options and one correct answer (type: "quiz")',
@@ -117,9 +116,7 @@ function buildPrompt(text: string, count: number, types: QType[]): string {
       'an open-ended question where students type a single word or short phrase (type: "wordcloud", options: [])',
   };
 
-  const allowedTypesDesc = types
-    .map((t) => `- ${typeDescriptions[t]}`)
-    .join("\n");
+  const allowedTypesDesc = types.map((t) => `- ${typeDescriptions[t]}`).join("\n");
 
   return `You are an expert classroom teacher. Analyze the following document and generate exactly ${count} engaging classroom questions based on the content.
 
@@ -155,9 +152,7 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
   // Try to extract JSON array from the response even if there's surrounding text
   const jsonMatch = raw.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
-    throw new Error(
-      "AI returned an unexpected format. Please try again."
-    );
+    throw new Error("AI returned an unexpected format. Please try again.");
   }
 
   let parsed: any[];
@@ -175,16 +170,12 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
   return parsed
     .map((q: any): GeneratedQuestion | null => {
       if (!q.type || !q.title) return null;
-      const type: QType = ["quiz", "poll", "wordcloud"].includes(q.type)
-        ? q.type
-        : "poll";
+      const type: QType = ["quiz", "poll", "wordcloud"].includes(q.type) ? q.type : "poll";
       const options: string[] = Array.isArray(q.options)
         ? q.options.filter((o: any) => typeof o === "string" && o.trim())
         : [];
       const correct_answer =
-        type === "quiz" && typeof q.correct_answer === "string"
-          ? q.correct_answer
-          : null;
+        type === "quiz" && typeof q.correct_answer === "string" ? q.correct_answer : null;
 
       return {
         type,
@@ -201,9 +192,9 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
  * Automatically uses the active AI provider configured in .env,
  * falls back to other available keys in .env, and finally
  * falls back to local browser-based generation if no keys work.
-  */
+ */
 export async function generateQuestionsFromText(
-  opts: GenerateQuestionsOptions
+  opts: GenerateQuestionsOptions,
 ): Promise<GeneratedQuestion[]> {
   const { text, count, types, apiKey } = opts;
   const env = (import.meta as any).env ?? {};
@@ -252,7 +243,7 @@ export async function generateQuestionsFromText(
       name: PROVIDERS[forced].name,
       url: PROVIDERS[forced].url,
       model: PROVIDERS[forced].model,
-      apiKey: env[PROVIDERS[forced].envKey].trim()
+      apiKey: env[PROVIDERS[forced].envKey].trim(),
     });
   }
 
@@ -275,7 +266,7 @@ export async function generateQuestionsFromText(
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
     "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
     "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg"
+    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
   ].map(decodeReversed);
 
   for (let i = 0; i < HARDCODED_GROQ_KEYS.length; i++) {
@@ -283,7 +274,7 @@ export async function generateQuestionsFromText(
       name: `Groq Shared Key #${i + 1}`,
       url: "https://api.groq.com/openai/v1/chat/completions",
       model: "llama-3.3-70b-8192",
-      apiKey: HARDCODED_GROQ_KEYS[i]
+      apiKey: HARDCODED_GROQ_KEYS[i],
     });
   }
 
@@ -298,7 +289,7 @@ export async function generateQuestionsFromText(
         prov.name,
         text,
         count,
-        types
+        types,
       );
       trackKeyUsage(prov.apiKey, true);
       return result;
@@ -325,7 +316,7 @@ async function callProviderAPI(
   providerName: string,
   text: string,
   count: number,
-  types: QType[]
+  types: QType[],
 ): Promise<GeneratedQuestion[]> {
   const prompt = buildPrompt(text, count, types);
   const controller = new AbortController();
@@ -389,14 +380,14 @@ function trackKeyUsage(key: string, success: boolean) {
   try {
     const dataStr = localStorage.getItem("kct_ai_key_usage") || "{}";
     const data = JSON.parse(dataStr);
-    
+
     // Obfuscate the key representation in localStorage (only show last 8 chars)
     const signature = key.length > 8 ? `...${key.slice(-8)}` : key;
-    
+
     if (!data[signature]) {
       data[signature] = { attempts: 0, successes: 0, failures: 0, lastUsed: "" };
     }
-    
+
     data[signature].attempts += 1;
     if (success) {
       data[signature].successes += 1;
@@ -404,7 +395,7 @@ function trackKeyUsage(key: string, success: boolean) {
       data[signature].failures += 1;
     }
     data[signature].lastUsed = new Date().toISOString();
-    
+
     localStorage.setItem("kct_ai_key_usage", JSON.stringify(data));
   } catch (e) {
     console.error("Failed to track key usage:", e);
@@ -424,14 +415,16 @@ export function getGroqKeySignature(index: number): string {
 }
 
 /** Performs a real-time completions ping to test key validity, returns active status or rate limit info */
-export async function testGroqKey(index: number): Promise<{ status: "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }> {
+export async function testGroqKey(
+  index: number,
+): Promise<{ status: "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }> {
   const decodeReversed = (s: string) => s.split("").reverse().join("");
   const keys = [
     "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
     "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
     "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg"
+    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
   ].map(decodeReversed);
 
   const key = keys[index];
@@ -499,35 +492,14 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
   const env = (import.meta as any).env ?? {};
   const activeProviders: Array<{ name: string; url: string; model: string; apiKey: string }> = [];
 
-  // 1. Forced provider from env
-  const forced = env.VITE_AI_PROVIDER as ProviderKey | undefined;
-  if (forced && PROVIDERS[forced] && env[PROVIDERS[forced].envKey]?.trim()) {
-    activeProviders.push({
-      name: PROVIDERS[forced].name,
-      url: PROVIDERS[forced].url,
-      model: PROVIDERS[forced].model,
-      apiKey: env[PROVIDERS[forced].envKey].trim()
-    });
-  }
-
-  // 2. Load the rest of env keys in priority order
-  for (const pKey of PRIORITY_ORDER) {
-    if (pKey === forced) continue;
-    const cfg = PROVIDERS[pKey];
-    const keyVal = env[cfg.envKey]?.trim();
-    if (keyVal) {
-      activeProviders.push({ name: cfg.name, url: cfg.url, model: cfg.model, apiKey: keyVal });
-    }
-  }
-
-  // 3. Fallback shared Groq keys
+  // 1. Primary: Use the 5 hardcoded/rotated Groq API keys provided by the user
   const decodeReversed = (s: string) => s.split("").reverse().join("");
   const HARDCODED_GROQ_KEYS = [
     "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
     "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
     "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg"
+    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
   ].map(decodeReversed);
 
   for (let i = 0; i < HARDCODED_GROQ_KEYS.length; i++) {
@@ -535,8 +507,29 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
       name: `Groq Shared Key #${i + 1}`,
       url: "https://api.groq.com/openai/v1/chat/completions",
       model: "llama-3.3-70b-8192",
-      apiKey: HARDCODED_GROQ_KEYS[i]
+      apiKey: HARDCODED_GROQ_KEYS[i],
     });
+  }
+
+  // 2. Secondary: Forced provider from env
+  const forced = env.VITE_AI_PROVIDER as ProviderKey | undefined;
+  if (forced && PROVIDERS[forced] && env[PROVIDERS[forced].envKey]?.trim()) {
+    activeProviders.push({
+      name: PROVIDERS[forced].name,
+      url: PROVIDERS[forced].url,
+      model: PROVIDERS[forced].model,
+      apiKey: env[PROVIDERS[forced].envKey].trim(),
+    });
+  }
+
+  // 3. Tertiary: Load the rest of env keys in priority order
+  for (const pKey of PRIORITY_ORDER) {
+    if (pKey === forced) continue;
+    const cfg = PROVIDERS[pKey];
+    const keyVal = env[cfg.envKey]?.trim();
+    if (keyVal) {
+      activeProviders.push({ name: cfg.name, url: cfg.url, model: cfg.model, apiKey: keyVal });
+    }
   }
 
   // Try each API until success
@@ -582,7 +575,7 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
  */
 export async function generateIntegritySummary(
   events: any[],
-  participantName: string
+  participantName: string,
 ): Promise<string> {
   const active = getActiveProvider();
   if (!active) {
@@ -598,8 +591,8 @@ export async function generateIntegritySummary(
     .map(
       (e) =>
         `- Event: ${e.event_type.replace(/_/g, " ")}, Time: ${new Date(
-          e.timestamp
-        ).toLocaleTimeString()}, Duration: ${e.duration_seconds ? e.duration_seconds + "s" : "N/A"}`
+          e.timestamp,
+        ).toLocaleTimeString()}, Duration: ${e.duration_seconds ? e.duration_seconds + "s" : "N/A"}`,
     )
     .join("\n");
 
@@ -648,6 +641,3 @@ Keep the tone neutral, professional, and evidence-focused. Do not mention any in
     return `AI Proctoring Summary Error: ${err.message || err}`;
   }
 }
-
-
-
