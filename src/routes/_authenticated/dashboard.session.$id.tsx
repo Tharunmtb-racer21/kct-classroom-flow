@@ -549,7 +549,7 @@ function SessionControl() {
         <ArrowLeft className="h-4 w-4" /> Back to dashboard
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 relative z-20">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{session.title}</h1>
           <div className="mt-2 flex items-center gap-3">
@@ -559,7 +559,7 @@ function SessionControl() {
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card/30 border border-border/40 p-2 shadow-lg backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card/30 border border-border/40 p-2 shadow-lg backdrop-blur-md relative z-30">
           <ThemeToggle variant="outline" className="rounded-xl h-10 w-10 border-border/80" />
           {session.status !== "live" && session.status !== "ended" && (
             <Button
