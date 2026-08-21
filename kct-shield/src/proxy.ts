@@ -63,8 +63,12 @@ export async function handleProxyRequest(request: Request, server: any): Promise
   }
 
   // 2. Rate Limiting Check (V0.4)
-  // Bypass rate limiting for explicitly allowed IPs
-  if (!isIPAllowed(clientIp) && !checkRateLimit(clientIp)) {
+  // Bypass rate limiting for explicitly allowed IPs, static assets, and Vite dev endpoints
+  const isAsset = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map|json|tsx?)$/i.test(path);
+  const isVite = path.startsWith("/@") || path.startsWith("/node_modules/");
+  const shouldRateLimit = !isIPAllowed(clientIp) && !isAsset && !isVite;
+
+  if (shouldRateLimit && !checkRateLimit(clientIp)) {
     logSecurityEventAsync({
       timestamp,
       ip: clientIp,
