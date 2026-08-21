@@ -156,6 +156,16 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
+    // Redirect direct traffic from raw Vercel domain to secure WAF domain
+    if (
+      typeof window !== "undefined" &&
+      window.location.hostname === "kct-classroom-flow.vercel.app"
+    ) {
+      window.location.replace(
+        "https://kct-shield.vercel.app" + window.location.pathname + window.location.search,
+      );
+      return;
+    }
     applyTheme(getStoredTheme());
   }, []);
 
