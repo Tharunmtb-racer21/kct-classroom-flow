@@ -51,7 +51,7 @@ const PROVIDERS: Record<ProviderKey, ProviderConfig> = {
   groq: {
     name: "Groq",
     url: "https://api.groq.com/openai/v1/chat/completions",
-    model: "llama-3.3-70b-8192",
+    model: "groq/compound",
     envKey: "VITE_GROQ_API_KEY",
   },
   google: {
@@ -493,18 +493,8 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
   const activeProviders: Array<{ name: string; url: string; model: string; apiKey: string }> = [];
   const decodeReversed = (s: string) => s.split("").reverse().join("");
 
-  // 1. Primary: Use Google Gemini 3.7 Flash with the shared key
-  const HARDCODED_GOOGLE_KEY = decodeReversed("E6flCfZ7PZQPxGhQ0pRZGzPMbPEySazIA");
-  activeProviders.push({
-    name: "Google Gemini 3.7 (Shared)",
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
-    model: "gemini-3.7-flash",
-    apiKey: HARDCODED_GOOGLE_KEY,
-  });
-
-  // 2. Primary Fallback: Use the hardcoded/rotated Groq API keys provided by the user
+  // 1. Primary: Use the 5 hardcoded/rotated Groq API keys with compound routing
   const HARDCODED_GROQ_KEYS = [
-    "u4HKbjbJeZ6u1XNlB1ZavYF3bydGWmW2IohDLa4qmvIxcfNeh_ksg",
     "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
     "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
     "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
@@ -516,7 +506,7 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
     activeProviders.push({
       name: `Groq Shared Key #${i + 1}`,
       url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "llama-3.3-70b-8192",
+      model: "groq/compound",
       apiKey: HARDCODED_GROQ_KEYS[i],
     });
   }
