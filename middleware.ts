@@ -13,9 +13,24 @@ export const config = {
 
 // In-memory sliding rate limit store for middleware
 const rateLimitWindowMap = new Map<string, number[]>();
+let requestCounter = 0;
 
 function checkRouteRateLimit(key: string, limitPerMinute: number): boolean {
   const now = Date.now();
+
+  // Periodic Map pruning every 500 requests to prevent memory growth
+  requestCounter++;
+  if (requestCounter % 500 === 0) {
+    rateLimitWindowMap.forEach((timestamps, k) => {
+      const valid = timestamps.filter((t) => now - t <= 60000);
+      if (valid.length === 0) {
+        rateLimitWindowMap.delete(k);
+      } else {
+        rateLimitWindowMap.set(k, valid);
+      }
+    });
+  }
+
   let timestamps = rateLimitWindowMap.get(key) || [];
   timestamps = timestamps.filter((t) => now - t <= 60000);
 

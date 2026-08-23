@@ -5,21 +5,21 @@
  * and local developer proxies to access backend API endpoints.
  */
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = new Set([
   "https://kct-classroom-flow.vercel.app",
   "http://localhost:8080",
   "http://localhost:3000",
   "http://localhost:5173",
   "http://127.0.0.1:8080",
   "http://127.0.0.1:3000",
-];
+]);
 
 /**
  * Validates whether an incoming request origin is allowed.
  */
 export function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return true; // Same-origin request
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
   if (origin.endsWith(".lovable.app") || origin.endsWith(".vercel.app")) return true;
   return false;
 }

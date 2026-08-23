@@ -15,6 +15,14 @@ export interface ValidationCheckResult {
 const MAX_JSON_BODY_BYTES = 1024 * 1024; // 1 MB
 const MAX_UPLOAD_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// Pre-compiled Attack Signatures (Module Level for Max Edge Speed)
+const SQLI_PATTERNS = [
+  /(\b(select|union|insert|update|delete|drop|alter|truncate|exec)\b\s+)/i,
+  /(--|\/\*|\*\/|;\s*--)/,
+];
+const XSS_PATTERNS = [/<script\b[^>]*>/i, /javascript:/i, /onload\s*=/i, /onerror\s*=/i];
+const PATH_TRAVERSAL_PATTERNS = [/\.\.\//, /\.\.\\/, /\/etc\/passwd/i, /c:\\windows/i];
+
 /**
  * Validates request payload size based on route type.
  */
@@ -53,15 +61,7 @@ export function validateInputThreats(
 
   const combinedPayload = (sanitizedPath + " " + queryStr + " " + bodyText).toLowerCase();
 
-  // Attack Signatures
-  const sqliPatterns = [
-    /(\b(select|union|insert|update|delete|drop|alter|truncate|exec)\b\s+)/i,
-    /(--|\/\*|\*\/|;\s*--)/,
-  ];
-  const xssPatterns = [/<script\b[^>]*>/i, /javascript:/i, /onload\s*=/i, /onerror\s*=/i];
-  const pathTraversalPatterns = [/\.\.\//, /\.\.\\/, /\/etc\/passwd/i, /c:\\windows/i];
-
-  for (const pattern of sqliPatterns) {
+  for (const pattern of SQLI_PATTERNS) {
     if (pattern.test(combinedPayload)) {
       return {
         isValid: false,
@@ -72,7 +72,7 @@ export function validateInputThreats(
     }
   }
 
-  for (const pattern of xssPatterns) {
+  for (const pattern of XSS_PATTERNS) {
     if (pattern.test(combinedPayload)) {
       return {
         isValid: false,
@@ -83,7 +83,7 @@ export function validateInputThreats(
     }
   }
 
-  for (const pattern of pathTraversalPatterns) {
+  for (const pattern of PATH_TRAVERSAL_PATTERNS) {
     if (pattern.test(combinedPayload)) {
       return {
         isValid: false,
