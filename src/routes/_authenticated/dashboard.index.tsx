@@ -149,7 +149,7 @@ function DashboardHome() {
     const completedSessions = sessions.filter((s) => s.status === "ended").length;
     const draftSessions = sessions.filter((s) => s.status === "draft").length;
 
-    let totalStudentsSet = new Set<string>();
+    const totalStudentsSet = new Set<string>();
     let totalQuestionsCreated = 0;
     let totalResponsesReceived = 0;
     let totalPossibleResponses = 0;
@@ -290,59 +290,6 @@ function DashboardHome() {
           accent="text-indigo-400"
           description="Engagement rate"
         />
-      </div>
-
-      {/* Intelligence & Security Shortcuts Banner */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Link
-          to="/dashboard/intelligence"
-          className="glass rounded-2xl p-6 border border-primary/20 hover:border-primary/50 transition-all shadow-md group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
-                <Sparkles className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base flex items-center gap-2">
-                  🧠 Classroom Intelligence
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase">
-                    ML Active
-                  </span>
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Student engagement scores, weak topic detection & pedagogical advice
-                </p>
-              </div>
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-        </Link>
-
-        <Link
-          to="/dashboard/security"
-          className="glass rounded-2xl p-6 border border-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-md group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-105 transition-transform">
-                <Activity className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base flex items-center gap-2">
-                  🛡️ Security Intelligence
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 uppercase">
-                    Protected
-                  </span>
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  WAF defense telemetry, behavioral anomaly scoring & threat logs
-                </p>
-              </div>
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
-          </div>
-        </Link>
       </div>
 
       {/* Active Sessions Section */}

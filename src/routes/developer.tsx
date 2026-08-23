@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
+  Brain,
   CheckCircle2,
   Clock,
   Database,
@@ -1003,6 +1004,26 @@ function DeveloperDashboard() {
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
           </Button>
+
+          <Link to="/dashboard/intelligence">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs border-purple-500/40 text-purple-400 hover:bg-purple-500/10 font-bold"
+            >
+              <Brain className="h-3.5 w-3.5" /> ML Intelligence
+            </Button>
+          </Link>
+
+          <Link to="/dashboard/security">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-bold"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Security Telemetry
+            </Button>
+          </Link>
 
           <Link to="/developer-waf">
             <Button
