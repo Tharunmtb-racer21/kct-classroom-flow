@@ -21,16 +21,14 @@
 
 ### ✨ Core Features & Platform Capabilities
 
+- 🧠 **Classroom Intelligence (`/dashboard/intelligence`)** — ML-driven student engagement scoring (0–100), student classification (🟢 Highly Engaged, 🟡 Moderately Engaged, 🔴 Needs Attention), weak topic detection, and dynamic faculty pedagogical recommendations.
+- 🛡️ **Security Intelligence & WAF (`/dashboard/security`)** — Layered defense telemetry, behavioral anomaly risk scoring (rapid submission velocity, request rate spikes), rate limiting, and real-time security event logs.
 - 📊 **Instant Audience Polls & Word Clouds** — Launch multi-choice polls with live, animating bar charts and interactive word clusters.
 - 📺 **Slide Presentation Embed View (`/embed/$code`)** — Dedicated frameless presentation layout designed for embedding directly into **Google Slides** or **Microsoft PowerPoint** slides via `iframe`, complete with projector QR codes and real-time chart synchronization.
-- 👨‍💻 **Developer Telemetry & Faculty Monitoring (`/developer`)** — Password-gated administration dashboard (`Pulse_2026`) featuring:
-  - **Faculty Creator Mapping**: Shows Faculty Full Name & Email for every session.
-  - **Student Join Tracking & List Modal**: Displays total joined students with a popup modal listing exact student names.
-  - **Status & Timeframe Filters**: Instant filter buttons for `ALL`, `🟢 Live`, `📝 Draft`, and `🏁 Ended` sessions, plus timeframes (`1D`, `7D`, `30D`, `ALL`).
-  - **System Diagnostics**: Latency ping (ms), Supabase WebSocket channel connection status, and Firebase Auth domain statistics (`@kct.ac.in`, `@kongu.edu`).
+- 👨‍💻 **Developer Telemetry & Faculty Monitoring (`/developer`)** — Password-gated administration dashboard (`Pulse_2026`) featuring faculty mapping, student tracking, timeframe filters, and diagnostic pings.
 - ⏱️ **Automated 1-Hour Session Management** — Background cleanup loop automatically demotes live sessions active for > 1 hour back to `draft` mode.
-- 🔒 **Enterprise Security & Inactivity Guard** — Restricted exclusively to verified institutional emails (`@kct.ac.in` and `@kongu.edu`) with 30-minute faculty inactivity auto-logout.
-- 🤖 **Multi-Provider AI Engine** — Automated failover question generator (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) ensuring 16,000+ free queries/day.
+- 🔒 **Enterprise Security & Inactivity Guard** — Restricted exclusively to verified institutional emails (`@kct.ac.in`) with 30-minute faculty inactivity auto-logout.
+- 🤖 **Multi-Provider Server AI Engine** — Server-side failover question generator (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) executing via `createServerFn` to protect API keys.
 - 📈 **Rich PDF Analytical Reports** — Export post-session analytics with exact student responses formatted as PDF downloads.
 
 ---
