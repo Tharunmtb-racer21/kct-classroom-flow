@@ -84,10 +84,7 @@ export function ThemeToggle({
       onClick={toggleTheme}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
       aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      className={cn(
-        "relative transition-all duration-300 cursor-pointer",
-        className
-      )}
+      className={cn("relative transition-all duration-300 cursor-pointer", className)}
     >
       {isDark ? (
         <Sun className="h-4 w-4 text-amber-400 transition-transform duration-300 hover:rotate-45" />
@@ -95,9 +92,7 @@ export function ThemeToggle({
         <Moon className="h-4 w-4 text-indigo-600 transition-transform duration-300 hover:-rotate-12" />
       )}
       {showLabel && (
-        <span className="ml-2 text-sm font-medium">
-          {isDark ? "Light Mode" : "Dark Mode"}
-        </span>
+        <span className="ml-2 text-sm font-medium">{isDark ? "Light Mode" : "Dark Mode"}</span>
       )}
     </Button>
   );

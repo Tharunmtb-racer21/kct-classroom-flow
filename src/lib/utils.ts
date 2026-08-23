@@ -12,7 +12,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDisplayName(
   displayName?: string | null,
   email?: string | null,
-  fallbackId?: string | null
+  fallbackId?: string | null,
 ): string {
   if (displayName && displayName.trim() && displayName.trim().toLowerCase() !== "faculty") {
     return displayName.trim();
@@ -22,9 +22,7 @@ export function formatDisplayName(
     const handle = email.split("@")[0];
     const words = handle.split(/[._-]/).filter(Boolean);
     if (words.length > 0) {
-      return words
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        .join(" ");
+      return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
     }
   }
 
@@ -35,4 +33,3 @@ export function formatDisplayName(
 
   return "Faculty Member";
 }
-

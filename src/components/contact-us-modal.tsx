@@ -11,12 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Mail, MessageSquare, Send, User } from "lucide-react";
@@ -38,15 +38,17 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
   // Prefill details if user is logged in
   useEffect(() => {
     if (open) {
-      import("@/lib/firebase").then(({ auth }) => {
-        const user = auth.currentUser;
-        if (user) {
-          if (user.displayName) setName(user.displayName);
-          if (user.email) setEmail(user.email);
-        }
-      }).catch(err => {
-        console.error("Failed to load Firebase auth dynamically:", err);
-      });
+      import("@/lib/firebase")
+        .then(({ auth }) => {
+          const user = auth.currentUser;
+          if (user) {
+            if (user.displayName) setName(user.displayName);
+            if (user.email) setEmail(user.email);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load Firebase auth dynamically:", err);
+        });
     }
   }, [open]);
 
@@ -61,7 +63,7 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Simple Validation
     if (!name.trim()) {
       toast.error("Please enter your name.");
@@ -83,16 +85,14 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
       // 1. Save message to Supabase database
       const { auth } = await import("@/lib/firebase");
       const firebaseUser = auth.currentUser;
-      const { error: dbError } = await supabase
-        .from("contact_messages")
-        .insert({
-          name: name.trim(),
-          email: email.trim(),
-          subject,
-          message: message.trim(),
-          user_id: firebaseUser?.uid || null,
-          status: "unread"
-        });
+      const { error: dbError } = await supabase.from("contact_messages").insert({
+        name: name.trim(),
+        email: email.trim(),
+        subject,
+        message: message.trim(),
+        user_id: firebaseUser?.uid || null,
+        status: "unread",
+      });
 
       if (dbError) {
         console.error("[ContactUs] Supabase insertion failed:", dbError);
@@ -144,14 +144,15 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(val) => {
-      setOpen(val);
-      if (!val) resetForm();
-    }}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        setOpen(val);
+        if (!val) resetForm();
+      }}
+    >
+      <DialogTrigger asChild>{children}</DialogTrigger>
+
       <DialogContent className="sm:max-w-[500px] overflow-hidden glass rounded-3xl border border-border/80 shadow-2xl p-6 select-none animate-in fade-in zoom-in-95 duration-200">
         {status === "success" ? (
           <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
@@ -159,15 +160,15 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
               <CheckCircle2 className="h-10 w-10 animate-bounce" />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tight text-foreground">Message Sent!</DialogTitle>
+              <DialogTitle className="text-2xl font-black tracking-tight text-foreground">
+                Message Sent!
+              </DialogTitle>
               <DialogDescription className="mt-2 text-sm text-muted-foreground max-w-sm">
-                Thank you for contacting us. Your message has been sent to the developers and logged in the system telemetry. We appreciate your feedback!
+                Thank you for contacting us. Your message has been sent to the developers and logged
+                in the system telemetry. We appreciate your feedback!
               </DialogDescription>
             </div>
-            <Button 
-              onClick={() => setOpen(false)} 
-              className="mt-6 px-8 gradient-bg font-semibold"
-            >
+            <Button onClick={() => setOpen(false)} className="mt-6 px-8 gradient-bg font-semibold">
               Close Window
             </Button>
           </div>
@@ -178,7 +179,9 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
                 <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 border border-primary/30 text-primary">
                   <MessageSquare className="h-4 w-4" />
                 </div>
-                <DialogTitle className="text-xl font-black tracking-tight">Contact Us & Feedback</DialogTitle>
+                <DialogTitle className="text-xl font-black tracking-tight">
+                  Contact Us & Feedback
+                </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground text-left">
                 Have a question, feedback, or found a bug? Drop us a message and we'll check it out.
@@ -188,7 +191,10 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
             <div className="space-y-4 text-left">
               {/* Name */}
               <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Label
+                  htmlFor="name"
+                  className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5"
+                >
                   <User className="h-3.5 w-3.5" /> Full Name
                 </Label>
                 <Input
@@ -204,7 +210,10 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
 
               {/* Email */}
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Label
+                  htmlFor="email"
+                  className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5"
+                >
                   <Mail className="h-3.5 w-3.5" /> Email Address
                 </Label>
                 <Input
@@ -224,8 +233,8 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
                 <Label htmlFor="subject" className="text-xs font-semibold text-muted-foreground">
                   Subject / Category
                 </Label>
-                <Select 
-                  value={subject} 
+                <Select
+                  value={subject}
                   onValueChange={setSubject}
                   disabled={status === "submitting"}
                 >
@@ -260,9 +269,7 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
             </div>
 
             {errorMsg && (
-              <p className="text-xs font-semibold text-destructive text-center">
-                {errorMsg}
-              </p>
+              <p className="text-xs font-semibold text-destructive text-center">{errorMsg}</p>
             )}
 
             <div className="flex gap-3 justify-end pt-2">

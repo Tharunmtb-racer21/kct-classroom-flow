@@ -39,7 +39,7 @@ export function normalizePayload(input: string): string {
  */
 export function evaluateRule(
   rule: CompiledWafRule,
-  params: { path: string; query: string; headers: Headers; body: string; bodySize: number }
+  params: { path: string; query: string; headers: Headers; body: string; bodySize: number },
 ): boolean {
   let inspectTarget = "";
 
@@ -86,7 +86,7 @@ export function inspectRequest(
   queryString: string,
   headers: Headers,
   body: string,
-  bodySize: number
+  bodySize: number,
 ): { triggeredRules: string[]; score: number; action: "ALLOW" | "MONITOR" | "BLOCK" } {
   const rules = getRules();
   const triggeredRules: string[] = [];

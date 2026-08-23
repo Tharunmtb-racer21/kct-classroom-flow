@@ -22,7 +22,7 @@ const server = Bun.serve({
   error(error) {
     console.error("[KCT SHIELD] Server error:", error);
     return new Response("[KCT SHIELD] Internal Server Error", { status: 500 });
-  }
+  },
 });
 
 console.log(`\x1b[32m🛡️  KCT SHIELD WAF listening on http://localhost:${PORT}\x1b[0m`);

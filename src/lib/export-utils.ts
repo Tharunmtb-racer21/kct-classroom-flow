@@ -73,7 +73,8 @@ export function exportSessionToCSV(session: ReportSession) {
       return sum + (resp && resp.answer === q.correct_answer ? 1 : 0);
     }, 0);
 
-    const quizScoreStr = quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
+    const quizScoreStr =
+      quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
 
     const questionAnswers = session.questions.map((q) => {
       const resp = q.responses?.find((r) => r.participant_id === p.id);
@@ -96,7 +97,10 @@ export function exportSessionToCSV(session: ReportSession) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `KCT_PULSE_Report_${session.code}_${session.title.replace(/\s+/g, "_")}.csv`);
+  link.setAttribute(
+    "download",
+    `KCT_PULSE_Report_${session.code}_${session.title.replace(/\s+/g, "_")}.csv`,
+  );
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -180,7 +184,7 @@ export function exportSessionToExcel(session: ReportSession) {
       const cells = row
         .map(
           (val) =>
-            `<Cell${styleAttr}><Data ss:Type="String">${String(val).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>`
+            `<Cell${styleAttr}><Data ss:Type="String">${String(val).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>`,
         )
         .join("");
       return `<Row>${cells}</Row>`;

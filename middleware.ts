@@ -1,6 +1,7 @@
 import { inspectRequest } from "./kct-shield/src/detector";
 import { renderBlockPage } from "./kct-shield/src/blockpage";
 import { getRules, loadRules } from "./kct-shield/src/rules";
+import { evaluateBehavioralAnomaly } from "./src/lib/ml-anomaly-detector";
 
 export const config = {
   // Run middleware on all paths except static assets
@@ -39,21 +40,26 @@ export default async function middleware(req: Request) {
     }
   }
 
-  // Run WAF rules check
-  const { triggeredRules, score, action } = inspectRequest(
-    path,
-    queryString,
-    headers,
-    body,
-    bodySize,
-  );
+  // 1. Static Rule-Based WAF Inspection
+  const staticInspection = inspectRequest(path, queryString, headers, body, bodySize);
 
-  if (action === "BLOCK") {
+  // 2. Dynamic ML Behavioral Anomaly Detection Layer
+  const mlAssessment = evaluateBehavioralAnomaly({
+    ipAddress: clientIp,
+    timestampMs: Date.now(),
+    payloadLength: bodySize,
+  });
+
+  // Aggregate combined threat score
+  const aggregateScore = Math.min(100, Math.max(staticInspection.score, mlAssessment.riskScore));
+  const finalAction = aggregateScore >= 50 ? "BLOCK" : staticInspection.action;
+
+  if (finalAction === "BLOCK") {
     const html = renderBlockPage({
       ip: clientIp,
-      reason: "Access Denied. Your request triggered KCT SHIELD security policies.",
-      score,
-      rules: triggeredRules,
+      reason: mlAssessment.primaryReason || "Access Denied. Request triggered security policies.",
+      score: aggregateScore,
+      rules: staticInspection.triggeredRules.concat(mlAssessment.triggeredAnomalies),
       incidentId: `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
     });
     return new Response(html, {

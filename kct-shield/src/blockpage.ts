@@ -8,9 +8,10 @@ export function renderBlockPage(params: {
   rules: string[];
   incidentId: string;
 }): string {
-  const rulesList = params.rules.length > 0 
-    ? params.rules.map(r => `<span class="rule-badge">${r}</span>`).join(" ")
-    : `<span class="rule-badge secondary">GENERIC-BLOCK</span>`;
+  const rulesList =
+    params.rules.length > 0
+      ? params.rules.map((r) => `<span class="rule-badge">${r}</span>`).join(" ")
+      : `<span class="rule-badge secondary">GENERIC-BLOCK</span>`;
 
   return `<!DOCTYPE html>
 <html lang="en">

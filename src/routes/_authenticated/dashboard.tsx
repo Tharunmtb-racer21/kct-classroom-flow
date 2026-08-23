@@ -24,10 +24,10 @@ function DashboardLayout() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-cover bg-center bg-fixed bg-no-repeat"
-        style={{ 
+        style={{
           backgroundImage: "url('/kct-temple-bg-opt.jpg')",
           opacity: "var(--bg-img-opacity)",
-          mixBlendMode: "var(--bg-img-blend)" as any
+          mixBlendMode: "var(--bg-img-blend)" as any,
         }}
       />
       <div
@@ -40,7 +40,9 @@ function DashboardLayout() {
       <header className="relative z-20 flex md:hidden items-center justify-between px-4 py-3 border-b border-border/60 bg-sidebar/80 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-8 w-8 rounded-lg object-cover" />
-          <span className="font-bold text-sm tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+          <span className="font-bold text-sm tracking-tight">
+            KCT <span className="gradient-text">PULSE</span>
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle variant="ghost" size="sm" />
@@ -57,7 +59,7 @@ function DashboardLayout() {
               to={item.url}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition",
-                active ? "gradient-text font-bold" : "text-muted-foreground hover:text-foreground"
+                active ? "gradient-text font-bold" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <item.icon className="h-4 w-4" />
@@ -74,9 +76,14 @@ function DashboardLayout() {
           <footer className="mt-auto border-t border-border/40 py-4 px-6 text-center text-xs text-muted-foreground space-y-1">
             <div>Built for Kumaraguru College of Technology</div>
             <div className="flex items-center justify-center gap-2 flex-wrap text-[11px]">
-              <span>Founder & Designed by <span className="font-semibold text-foreground/80">THARUN N E</span></span>
+              <span>
+                Founder & Designed by{" "}
+                <span className="font-semibold text-foreground/80">THARUN N E</span>
+              </span>
               <span className="text-border/60">·</span>
-              <span>Developed by <span className="font-semibold text-foreground/80">NAVNEETH V</span></span>
+              <span>
+                Developed by <span className="font-semibold text-foreground/80">NAVNEETH V</span>
+              </span>
               <span className="text-border/60">·</span>
               <ContactUsModal>
                 <button className="hover:text-foreground font-semibold cursor-pointer transition-colors">

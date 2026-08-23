@@ -35,7 +35,13 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // 1. Run WAF rules check
-  const { triggeredRules, score, action } = inspectRequest(path, queryString, headers, body, bodySize);
+  const { triggeredRules, score, action } = inspectRequest(
+    path,
+    queryString,
+    headers,
+    body,
+    bodySize,
+  );
 
   if (action === "BLOCK") {
     const html = renderBlockPage({

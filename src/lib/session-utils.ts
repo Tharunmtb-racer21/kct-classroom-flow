@@ -99,7 +99,9 @@ export async function autoDraftStaleSessions() {
 
     liveSessions.forEach((s: any) => {
       const isExpired = s.expires_at ? new Date(s.expires_at).getTime() <= now : false;
-      const isOlderThan1Hour = s.created_at ? new Date(s.created_at).getTime() <= oneHourAgo : false;
+      const isOlderThan1Hour = s.created_at
+        ? new Date(s.created_at).getTime() <= oneHourAgo
+        : false;
 
       if (isExpired || isOlderThan1Hour) {
         idsToDraft.push(s.id);
@@ -112,7 +114,9 @@ export async function autoDraftStaleSessions() {
         .update({ status: "draft", expires_at: null, current_question_id: null })
         .in("id", idsToDraft);
 
-      console.log(`⚡ Auto-demoted ${idsToDraft.length} stale live session(s) active > 1 hour back to draft mode.`);
+      console.log(
+        `⚡ Auto-demoted ${idsToDraft.length} stale live session(s) active > 1 hour back to draft mode.`,
+      );
     }
   } catch (err) {
     console.error("Error in autoDraftStaleSessions:", err);
@@ -138,7 +142,11 @@ export async function purgeEmptyTestSessions(): Promise<number> {
     if (!drafts || drafts.length === 0) return 0;
 
     const emptyIds = drafts
-      .filter((d: any) => (!d.questions || d.questions.length === 0) && (!d.participants || d.participants.length === 0))
+      .filter(
+        (d: any) =>
+          (!d.questions || d.questions.length === 0) &&
+          (!d.participants || d.participants.length === 0),
+      )
       .map((d: any) => d.id);
 
     if (emptyIds.length > 0) {

@@ -46,14 +46,14 @@ export function scrubQuery(searchParams: URLSearchParams): Record<string, string
 export function scrubBody(bodyText: string, contentType: string): string {
   if (!bodyText) return "";
   const cleanedType = contentType.toLowerCase();
-  
+
   if (cleanedType.includes("application/json")) {
     try {
       const parsed = JSON.parse(bodyText);
       const redactObject = (obj: any): any => {
         if (typeof obj !== "object" || obj === null) return obj;
         if (Array.isArray(obj)) return obj.map(redactObject);
-        
+
         const copy: any = {};
         for (const [k, v] of Object.entries(obj)) {
           if (typeof v === "object") {
@@ -88,18 +88,19 @@ import { saveSecurityLog } from "./storage";
  * Outputs a nicely formatted, colored terminal log.
  */
 export function logSecurityEvent(event: SecurityLog) {
-  const color = event.action === 'BLOCK' 
-    ? '\x1b[31m' // Red
-    : event.action === 'RATE_LIMIT' 
-      ? '\x1b[33m' // Yellow
-      : event.action === 'MONITOR'
-        ? '\x1b[35m' // Magenta
-        : '\x1b[32m'; // Green
-  const reset = '\x1b[0m';
+  const color =
+    event.action === "BLOCK"
+      ? "\x1b[31m" // Red
+      : event.action === "RATE_LIMIT"
+        ? "\x1b[33m" // Yellow
+        : event.action === "MONITOR"
+          ? "\x1b[35m" // Magenta
+          : "\x1b[32m"; // Green
+  const reset = "\x1b[0m";
   const timestamp = new Date(event.timestamp).toLocaleTimeString();
-  
+
   console.log(
-    `[${timestamp}] ${color}${event.action.padEnd(10)}${reset} | IP: ${event.ip.padEnd(15)} | ${event.method.padEnd(6)} ${event.path.padEnd(30)} | Score: ${String(event.score).padStart(3)} | Rules: ${event.rules.join(", ") || "None"}`
+    `[${timestamp}] ${color}${event.action.padEnd(10)}${reset} | IP: ${event.ip.padEnd(15)} | ${event.method.padEnd(6)} ${event.path.padEnd(30)} | Score: ${String(event.score).padStart(3)} | Rules: ${event.rules.join(", ") || "None"}`,
   );
 }
 

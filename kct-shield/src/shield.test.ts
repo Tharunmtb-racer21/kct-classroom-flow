@@ -16,50 +16,38 @@ describe("🛡️ KCT SHIELD WAF Unit Tests", () => {
   test("1. Input Normalization", () => {
     // URL decoding
     expect(normalizePayload("SELECT%20*%20FROM%20users")).toBe("select * from users");
-    
+
     // Double URL encoding bypass prevention
     expect(normalizePayload("%253cscript%253e")).toBe("<script>");
-    
+
     // Casing normalization
     expect(normalizePayload("<sCrIpT>alert(1)</ScRiPt>")).toBe("<script>alert(1)</script>");
-    
+
     // Whitespace collapse
     expect(normalizePayload("select   *   from\n\nusers")).toBe("select * from users");
   });
 
   test("2. Threat Detection Rules", () => {
     // SQL Injection in Query (Score: 45)
-    const sqliQuery = inspectRequest(
-      "/join/code", 
-      "input=1'+OR+1=1+--", 
-      new Headers(), 
-      "", 
-      0
-    );
+    const sqliQuery = inspectRequest("/join/code", "input=1'+OR+1=1+--", new Headers(), "", 0);
     expect(sqliQuery.score).toBe(45);
     expect(sqliQuery.triggeredRules).toContain("SQLI-001");
     expect(sqliQuery.action).toBe("MONITOR");
 
     // XSS payload triggers BLOCK (Score: 50)
     const xssQuery = inspectRequest(
-      "/join/code", 
-      "name=<script>alert('hack')</script>", 
-      new Headers(), 
-      "", 
-      0
+      "/join/code",
+      "name=<script>alert('hack')</script>",
+      new Headers(),
+      "",
+      0,
     );
     expect(xssQuery.score).toBe(50);
     expect(xssQuery.triggeredRules).toContain("XSS-001");
     expect(xssQuery.action).toBe("BLOCK");
 
     // Path traversal in path triggers BLOCK (Score: 40)
-    const traversalPath = inspectRequest(
-      "/static/../../etc/passwd", 
-      "", 
-      new Headers(), 
-      "", 
-      0
-    );
+    const traversalPath = inspectRequest("/static/../../etc/passwd", "", new Headers(), "", 0);
     expect(traversalPath.score).toBe(40);
     expect(traversalPath.triggeredRules).toContain("DIR-001");
     expect(traversalPath.action).toBe("MONITOR");

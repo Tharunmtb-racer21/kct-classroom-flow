@@ -162,10 +162,7 @@ function RootComponent() {
 
   useEffect(() => {
     // Allow local debugging on localhost/127.0.0.1, but block in Lovable sandbox and production
-    if (
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1"
-    ) {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
       return;
     }
 
@@ -207,7 +204,7 @@ function RootComponent() {
           <p style="font-size:16px; color:#4b5563; margin:0;">Please close Developer Tools and refresh the page.</p>
         </div>
       `;
-      
+
       // Stop all intervals and listeners to freeze execution in this safe state
       clearInterval(interval);
       window.removeEventListener("contextmenu", handleContextMenu);
@@ -226,7 +223,7 @@ function RootComponent() {
 
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
-    
+
     const interval = setInterval(runChecks, 1000);
 
     return () => {

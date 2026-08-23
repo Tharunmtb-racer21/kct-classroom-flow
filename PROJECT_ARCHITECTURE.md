@@ -1,11 +1,13 @@
 # KCT PULSE — Project Architecture & Developer Reference
 
 ## 🚀 Overview
+
 **KCT PULSE** is a real-time classroom engagement platform built for Kumaraguru College of Technology (KCT). It empowers faculty to host interactive live lectures with real-time polling, animated word clouds, quizzes, and slide embeds (for Google Slides & PowerPoint).
 
 ---
 
 ## 🛠️ Technology Stack
+
 - **Frontend & Router**: React 18, TanStack Router (SSR / TanStack Start), Vite, TailwindCSS, Lucide Icons, Shadcn UI.
 - **Authentication**: Firebase Authentication (Restricted to KCT institutional emails `@kct.ac.in`).
 - **Database & Realtime**: Supabase Postgres + Supabase Realtime Channels.
@@ -15,15 +17,15 @@
 
 ## 🔑 Key Hidden Routes & Access Points
 
-| Route Path | Description | Access Level |
-| :--- | :--- | :--- |
-| `/` | Landing page & Faculty login redirect | Public |
-| `/auth` | Faculty Sign In / Sign Up page | Public |
-| `/dashboard` | Faculty Session Management & Control Panel | Authenticated Faculty |
-| `/dashboard/session/$id` | Live Session Control Room (Poll controls, charts, QR code) | Session Creator |
-| `/join/$code` | Student Live Join & Answering Interface | Students (No Login Required) |
-| `/embed/$code` | PowerPoint / Google Slides Live iFrame Embed View | Public / Embedded iFrame |
-| `/developer` | System Telemetry, Faculty Monitor & Database Health |
+| Route Path               | Description                                                | Access Level                 |
+| :----------------------- | :--------------------------------------------------------- | :--------------------------- |
+| `/`                      | Landing page & Faculty login redirect                      | Public                       |
+| `/auth`                  | Faculty Sign In / Sign Up page                             | Public                       |
+| `/dashboard`             | Faculty Session Management & Control Panel                 | Authenticated Faculty        |
+| `/dashboard/session/$id` | Live Session Control Room (Poll controls, charts, QR code) | Session Creator              |
+| `/join/$code`            | Student Live Join & Answering Interface                    | Students (No Login Required) |
+| `/embed/$code`           | PowerPoint / Google Slides Live iFrame Embed View          | Public / Embedded iFrame     |
+| `/developer`             | System Telemetry, Faculty Monitor & Database Health        |
 
 > [!NOTE]
 > The `/developer` route is hidden from the sidebar menu and can only be accessed by manually entering `/developer` in the browser URL bar.
@@ -33,6 +35,7 @@
 ## 🗄️ Database Schemas (Supabase Postgres)
 
 ### 1. `sessions`
+
 - `id` (uuid, primary key)
 - `title` (text) — Session title (e.g. "Linear PDE", "Chemistry")
 - `code` (text, unique) — 6-character short code (e.g. `KCTJR9`)
@@ -46,6 +49,7 @@
 - `image_url` (text, optional) — Uploaded session banner image
 
 ### 2. `questions`
+
 - `id` (uuid, primary key)
 - `session_id` (uuid, foreign key -> `sessions.id`)
 - `type` (text) — `'poll' | 'wordcloud' | 'quiz'`
@@ -57,12 +61,14 @@
 - `created_at` (timestamptz)
 
 ### 3. `participants`
+
 - `id` (uuid, primary key)
 - `session_id` (uuid, foreign key -> `sessions.id`)
 - `name` (text) — Student display name
 - `joined_at` (timestamptz)
 
 ### 4. `responses`
+
 - `id` (uuid, primary key)
 - `question_id` (uuid, foreign key -> `questions.id`)
 - `participant_id` (uuid, foreign key -> `participants.id`)
@@ -70,6 +76,7 @@
 - `created_at` (timestamptz)
 
 ### 5. `profiles`
+
 - `id` (text, primary key) — Firebase UID
 - `email` (text) — Faculty email address
 - `full_name` (text) — Faculty full name

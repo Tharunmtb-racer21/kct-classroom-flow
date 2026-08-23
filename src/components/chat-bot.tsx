@@ -20,7 +20,8 @@ export function ChatBot() {
     setMessages([
       {
         role: "assistant",
-        content: "Hello! I am PULSE AI, your virtual assistant for KCT PULSE. How can I assist you with hosting sessions, managing polls, quizzes, word clouds, or securing your application today?",
+        content:
+          "Hello! I am PULSE AI, your virtual assistant for KCT PULSE. How can I assist you with hosting sessions, managing polls, quizzes, word clouds, or securing your application today?",
       },
     ]);
   }, []);
@@ -51,10 +52,7 @@ export function ChatBot() {
     setInput("");
 
     // Add user message
-    const updatedMessages: ChatMessage[] = [
-      ...messages,
-      { role: "user", content: userText },
-    ];
+    const updatedMessages: ChatMessage[] = [...messages, { role: "user", content: userText }];
     setMessages(updatedMessages);
     setLoading(true);
 
@@ -93,7 +91,10 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
       toast.error("Failed to receive reply from PULSE AI.");
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "I encountered a minor network error. Could you try sending that again?" },
+        {
+          role: "assistant",
+          content: "I encountered a minor network error. Could you try sending that again?",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -110,9 +111,9 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
         }}
         className={cn(
           "h-14 w-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer relative",
-          isOpen 
-            ? "bg-rose-600 hover:bg-rose-500 rotate-90" 
-            : "gradient-bg hover:brightness-110 shadow-primary/30"
+          isOpen
+            ? "bg-rose-600 hover:bg-rose-500 rotate-90"
+            : "gradient-bg hover:brightness-110 shadow-primary/30",
         )}
       >
         {isOpen ? (
@@ -123,7 +124,9 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
             {hasNewMessage && (
               <span className="absolute -top-1 -right-1 flex h-4 w-4">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-500 text-[9px] font-bold items-center justify-center text-white">1</span>
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-500 text-[9px] font-bold items-center justify-center text-white">
+                  1
+                </span>
               </span>
             )}
           </>
@@ -144,7 +147,8 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
                   PULSE AI Assistant <Sparkles className="h-3.5 w-3.5 text-yellow-300" />
                 </h4>
                 <p className="text-[10px] text-white/70 flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online • Nvidia / Groq powered
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>{" "}
+                  Online • Nvidia / Groq powered
                 </p>
               </div>
             </div>
@@ -165,7 +169,7 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
                   key={index}
                   className={cn(
                     "flex items-start gap-2 max-w-[85%] text-xs leading-relaxed animate-in fade-in duration-200",
-                    isAi ? "mr-auto flex-row" : "ml-auto flex-row-reverse"
+                    isAi ? "mr-auto flex-row" : "ml-auto flex-row-reverse",
                   )}
                 >
                   {isAi && (
@@ -178,7 +182,7 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
                       "p-3 rounded-2xl border",
                       isAi
                         ? "bg-card border-border/50 text-foreground rounded-tl-none"
-                        : "gradient-bg text-white border-primary/30 rounded-tr-none shadow-md"
+                        : "gradient-bg text-white border-primary/30 rounded-tr-none shadow-md",
                     )}
                   >
                     {msg.content}

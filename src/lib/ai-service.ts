@@ -187,120 +187,30 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
     .filter((q): q is GeneratedQuestion => q !== null);
 }
 
+import { generateQuestionsServerFn, generateChatServerFn } from "./ai-server";
+
 /**
  * Generate classroom questions from document text.
- * Automatically uses the active AI provider configured in .env,
- * falls back to other available keys in .env, and finally
- * falls back to local browser-based generation if no keys work.
+ * Routes request through secure server-side function to protect API keys.
+ * Falls back to local browser generation if server endpoints are unreachable.
  */
 export async function generateQuestionsFromText(
   opts: GenerateQuestionsOptions,
 ): Promise<GeneratedQuestion[]> {
   const { text, count, types, apiKey } = opts;
-  const env = (import.meta as any).env ?? {};
 
-  // 1. If user provided a specific API key in the UI, try that one first.
-  if (apiKey?.trim()) {
-    const trimmedKey = apiKey.trim();
-    let url = "https://integrate.api.nvidia.com/v1/chat/completions";
-    let model = "meta/llama-3.3-70b-instruct";
-    let name = "NVIDIA NIM";
-
-    // Auto-detect provider based on key format
-    if (trimmedKey.startsWith("AIzaSy")) {
-      url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-      model = "gemini-2.0-flash";
-      name = "Google AI Studio";
-    } else if (trimmedKey.startsWith("gsk_")) {
-      url = "https://api.groq.com/openai/v1/chat/completions";
-      model = "llama-3.3-70b-8192";
-      name = "Groq";
-    } else if (trimmedKey.startsWith("nvapi-")) {
-      url = "https://integrate.api.nvidia.com/v1/chat/completions";
-      model = "meta/llama-3.3-70b-instruct";
-      name = "NVIDIA NIM";
-    } else {
-      const active = getActiveProvider();
-      url = active?.provider.url ?? url;
-      model = active?.provider.model ?? model;
-      name = active?.provider.name ?? name;
+  // 1. Primary: Server-side secure execution
+  try {
+    const questions = await generateQuestionsServerFn({ data: { text, count, types, apiKey } });
+    if (questions && questions.length > 0) {
+      return questions;
     }
-
-    try {
-      return await callProviderAPI(url, model, trimmedKey, name, text, count, types);
-    } catch (err: any) {
-      console.warn(`User-provided key failed for ${name}:`, err.message);
-    }
+  } catch (serverErr: any) {
+    console.warn("Server-side AI question generation notice:", serverErr.message);
   }
 
-  // 2. Otherwise, construct a list of active provider/key configurations to try in order.
-  const activeProviders: Array<{ name: string; url: string; model: string; apiKey: string }> = [];
-
-  // Check if a specific provider is forced in .env
-  const forced = env.VITE_AI_PROVIDER as ProviderKey | undefined;
-  if (forced && PROVIDERS[forced] && env[PROVIDERS[forced].envKey]?.trim()) {
-    activeProviders.push({
-      name: PROVIDERS[forced].name,
-      url: PROVIDERS[forced].url,
-      model: PROVIDERS[forced].model,
-      apiKey: env[PROVIDERS[forced].envKey].trim(),
-    });
-  }
-
-  // Add the rest of the env keys
-  for (const pKey of PRIORITY_ORDER) {
-    if (pKey === forced) continue;
-    const cfg = PROVIDERS[pKey];
-    const keyVal = env[cfg.envKey]?.trim();
-    if (keyVal) {
-      activeProviders.push({ name: cfg.name, url: cfg.url, model: cfg.model, apiKey: keyVal });
-    }
-  }
-
-  // Add the 5 hardcoded Groq API keys provided by the user as next fallbacks
-  // Keys are reversed to bypass GitHub Push Protection and reversed back at runtime.
-  const decodeReversed = (s: string) => s.split("").reverse().join("");
-
-  const HARDCODED_GROQ_KEYS = [
-    "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
-    "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
-    "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
-    "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
-  ].map(decodeReversed);
-
-  for (let i = 0; i < HARDCODED_GROQ_KEYS.length; i++) {
-    activeProviders.push({
-      name: `Groq Shared Key #${i + 1}`,
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "llama-3.3-70b-8192",
-      apiKey: HARDCODED_GROQ_KEYS[i],
-    });
-  }
-
-  // Try each provider/key one-by-one until one succeeds
-  for (const prov of activeProviders) {
-    try {
-      console.log(`Attempting question generation with: ${prov.name}`);
-      const result = await callProviderAPI(
-        prov.url,
-        prov.model,
-        prov.apiKey,
-        prov.name,
-        text,
-        count,
-        types,
-      );
-      trackKeyUsage(prov.apiKey, true);
-      return result;
-    } catch (err: any) {
-      console.warn(`${prov.name} generation failed:`, err.message);
-      trackKeyUsage(prov.apiKey, false);
-    }
-  }
-
-  // 3. Fallback: If no API keys worked or no keys were provided, generate locally
-  console.log("No working API keys found. Generating questions locally in the browser...");
+  // 2. Fallback: Browser local question generator if server endpoint unreachable
+  console.log("Generating questions using browser fallback generator...");
   try {
     return generateQuestionsLocally(text, count, types);
   } catch (localErr: any) {

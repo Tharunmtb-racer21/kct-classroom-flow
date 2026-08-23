@@ -3,19 +3,19 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
-import { 
-  Users, 
-  HelpCircle, 
-  ChevronDown, 
-  ChevronUp, 
-  Award, 
-  CheckCircle2, 
+import {
+  Users,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  Award,
+  CheckCircle2,
   MessageSquare,
   BarChart3,
   Calendar,
   Sparkles,
   Download,
-  FileText
+  FileText,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -31,7 +31,13 @@ import { Input } from "@/components/ui/input";
 import { formatDisplayName } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { generateSessionPDF } from "@/lib/pdf-generator";
 import { exportSessionToCSV, exportSessionToExcel } from "@/lib/export-utils";
 
@@ -75,13 +81,28 @@ const PROGRAM_OPTIONS = [
   { degree: "B.E. Aeronautical Engineering", department: "Department of Aeronautical Engineering" },
   { degree: "B.E. Automobile Engineering", department: "Department of Automobile Engineering" },
   { degree: "B.E. Civil Engineering", department: "Department of Civil Engineering" },
-  { degree: "B.E. Computer Science and Engineering", department: "Department of Computer Science and Engineering" },
-  { degree: "B.E. Electrical and Electronics Engineering", department: "Department of Electrical and Electronics Engineering" },
-  { degree: "B.E. Electronics and Communication Engineering", department: "Department of Electronics and Communication Engineering" },
-  { degree: "B.E. Electronics and Instrumentation Engineering", department: "Department of Electronics and Instrumentation Engineering" },
+  {
+    degree: "B.E. Computer Science and Engineering",
+    department: "Department of Computer Science and Engineering",
+  },
+  {
+    degree: "B.E. Electrical and Electronics Engineering",
+    department: "Department of Electrical and Electronics Engineering",
+  },
+  {
+    degree: "B.E. Electronics and Communication Engineering",
+    department: "Department of Electronics and Communication Engineering",
+  },
+  {
+    degree: "B.E. Electronics and Instrumentation Engineering",
+    department: "Department of Electronics and Instrumentation Engineering",
+  },
   { degree: "B.E. Mechanical Engineering", department: "Department of Mechanical Engineering" },
   { degree: "B.E. Mechatronics Engineering", department: "Department of Mechatronics Engineering" },
-  { degree: "B.Tech. Artificial Intelligence and Data Science", department: "Department of Artificial Intelligence and Data Science" },
+  {
+    degree: "B.Tech. Artificial Intelligence and Data Science",
+    department: "Department of Artificial Intelligence and Data Science",
+  },
   { degree: "B.Tech. Biotechnology", department: "Department of Biotechnology" },
   { degree: "B.Tech. Fashion Technology", department: "Department of Fashion Technology" },
   { degree: "B.Tech. Information Technology", department: "Department of Information Technology" },
@@ -96,7 +117,7 @@ function ReportsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
-  
+
   // Custom PDF states
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Row | null>(null);
@@ -104,8 +125,12 @@ function ReportsPage() {
 
   const [collegeName, setCollegeName] = useState("Kumaraguru College of Technology");
   const [collegeLogoUrl, setCollegeLogoUrl] = useState("/kct-logo-pdf.png");
-  const [departmentSelection, setDepartmentSelection] = useState("Department of Computer Science and Engineering");
-  const [departmentName, setDepartmentName] = useState("Department of Computer Science and Engineering");
+  const [departmentSelection, setDepartmentSelection] = useState(
+    "Department of Computer Science and Engineering",
+  );
+  const [departmentName, setDepartmentName] = useState(
+    "Department of Computer Science and Engineering",
+  );
   const [reportTitle, setReportTitle] = useState("Student Assessment Report");
   const [registerNumber, setRegisterNumber] = useState("");
   const [semester, setSemester] = useState("Semester 5");
@@ -113,9 +138,11 @@ function ReportsPage() {
   const [courseName, setCourseName] = useState("B.E. Computer Science and Engineering");
   const [subject, setSubject] = useState("");
   const [facultyName, setFacultyName] = useState("");
-  const [questionOverrides, setQuestionOverrides] = useState<Record<string, { marks: number; feedback: string }>>({});
+  const [questionOverrides, setQuestionOverrides] = useState<
+    Record<string, { marks: number; feedback: string }>
+  >({});
   const [isGenerating, setIsGenerating] = useState(false);
-  
+
   // Use user from the route context (loaded securely in _authenticated beforeLoad)
   const { user } = Route.useRouteContext() as { user: any };
 
@@ -127,7 +154,8 @@ function ReportsPage() {
     try {
       const { data, error } = await supabase
         .from("sessions")
-        .select(`
+        .select(
+          `
           id,
           title,
           code,
@@ -152,7 +180,8 @@ function ReportsPage() {
               created_at
             )
           )
-        `)
+        `,
+        )
         .eq("creator_id", user.uid)
         .order("created_at", { ascending: false });
 
@@ -164,10 +193,11 @@ function ReportsPage() {
       }
 
       // Ensure questions are sorted by order_index
-      const formattedData = (data as unknown as Row[])?.map(session => ({
-        ...session,
-        questions: [...(session.questions ?? [])].sort((a, b) => a.order_index - b.order_index)
-      })) ?? [];
+      const formattedData =
+        (data as unknown as Row[])?.map((session) => ({
+          ...session,
+          questions: [...(session.questions ?? [])].sort((a, b) => a.order_index - b.order_index),
+        })) ?? [];
 
       setRows(formattedData);
     } catch (err: any) {
@@ -183,7 +213,11 @@ function ReportsPage() {
     if (!user) return;
     const channel = supabase
       .channel("reports-live-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` }, loadReports)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` },
+        loadReports,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, loadReports)
       .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadReports)
       .subscribe();
@@ -199,7 +233,7 @@ function ReportsPage() {
 
   const handleOpenModal = (session: Row) => {
     setSelectedSession(session);
-    
+
     // Set sensible defaults
     setCollegeName("Kumaraguru College of Technology");
     setCollegeLogoUrl("/kct-logo-pdf.png");
@@ -221,14 +255,14 @@ function ReportsPage() {
 
     try {
       // 1. Map students
-      const studentsList = selectedSession.participants.map(p => {
+      const studentsList = selectedSession.participants.map((p) => {
         let attempted = 0;
         let correct = 0;
         let wrong = 0;
         let quizQuestionsCount = 0;
 
-        selectedSession.questions.forEach(q => {
-          const response = q.responses?.find(r => r.participant_id === p.id);
+        selectedSession.questions.forEach((q) => {
+          const response = q.responses?.find((r) => r.participant_id === p.id);
           if (response) {
             attempted++;
             if (q.type === "quiz") {
@@ -243,10 +277,11 @@ function ReportsPage() {
         });
 
         const unanswered = selectedSession.questions.length - attempted;
-        const accuracy = quizQuestionsCount > 0 
-          ? (correct / quizQuestionsCount) * 100 
-          : (attempted / (selectedSession.questions.length || 1)) * 100;
-        
+        const accuracy =
+          quizQuestionsCount > 0
+            ? (correct / quizQuestionsCount) * 100
+            : (attempted / (selectedSession.questions.length || 1)) * 100;
+
         let status: "Excellent" | "Good" | "Average" | "Needs Improvement" | "Absent" = "Average";
         if (accuracy >= 85) status = "Excellent";
         else if (accuracy >= 70) status = "Good";
@@ -262,7 +297,7 @@ function ReportsPage() {
           wrong,
           unanswered,
           accuracy,
-          status
+          status,
         };
       });
 
@@ -272,7 +307,7 @@ function ReportsPage() {
         let wrongResponses = 0;
 
         if (q.type === "quiz") {
-          q.responses?.forEach(r => {
+          q.responses?.forEach((r) => {
             if (r.answer === q.correct_answer) {
               correctResponses++;
             } else {
@@ -289,7 +324,7 @@ function ReportsPage() {
           title: q.title,
           type: q.type,
           correctResponses,
-          wrongResponses
+          wrongResponses,
         };
       });
 
@@ -310,7 +345,7 @@ function ReportsPage() {
           logoUrl: collegeLogoUrl || null,
         },
         studentsList,
-        questionsList
+        questionsList,
       );
 
       const { toast } = await import("sonner");
@@ -328,7 +363,9 @@ function ReportsPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Detailed analytics and responses across your sessions.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Detailed analytics and responses across your sessions.
+      </p>
 
       {loading ? (
         <div className="mt-8 flex justify-center py-12">
@@ -342,12 +379,18 @@ function ReportsPage() {
         <div className="mt-8 space-y-4">
           {rows.map((r) => {
             const isExpanded = expandedSessionId === r.id;
-            const totalResponses = r.questions.reduce((sum, q) => sum + (q.responses?.length ?? 0), 0);
-            
+            const totalResponses = r.questions.reduce(
+              (sum, q) => sum + (q.responses?.length ?? 0),
+              0,
+            );
+
             return (
-              <div key={r.id} className="glass rounded-2xl overflow-hidden transition-all duration-300 border border-white/5 hover:border-white/10">
+              <div
+                key={r.id}
+                className="glass rounded-2xl overflow-hidden transition-all duration-300 border border-white/5 hover:border-white/10"
+              >
                 {/* Session Header Card */}
-                <div 
+                <div
                   onClick={() => toggleExpand(r.id)}
                   className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer select-none hover:bg-white/[0.02] transition"
                 >
@@ -357,23 +400,34 @@ function ReportsPage() {
                       <StatusPill status={r.status} />
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-mono tracking-widest bg-accent/50 px-2 py-0.5 rounded">{r.code}</span>
-                      <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {new Date(r.created_at).toLocaleDateString()}</span>
+                      <span className="font-mono tracking-widest bg-accent/50 px-2 py-0.5 rounded">
+                        {r.code}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />{" "}
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-6 self-end md:self-auto">
                     <div className="flex gap-4 text-center">
                       <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Participants</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Participants
+                        </div>
                         <div className="text-lg font-bold">{r.participants?.length ?? 0}</div>
                       </div>
                       <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Questions</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Questions
+                        </div>
                         <div className="text-lg font-bold">{r.questions?.length ?? 0}</div>
                       </div>
                       <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Resp.</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Total Resp.
+                        </div>
                         <div className="text-lg font-bold">{totalResponses}</div>
                       </div>
                     </div>
@@ -393,14 +447,20 @@ function ReportsPage() {
                     <Tabs defaultValue="analytics" className="w-full">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                         <TabsList className="grid w-full grid-cols-2 max-w-[400px] bg-white/5 border border-white/5 p-1 rounded-xl">
-                          <TabsTrigger value="analytics" className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold">
+                          <TabsTrigger
+                            value="analytics"
+                            className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
+                          >
                             <BarChart3 className="h-4 w-4" /> Session Analytics
                           </TabsTrigger>
-                          <TabsTrigger value="students" className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold">
+                          <TabsTrigger
+                            value="students"
+                            className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
+                          >
                             <Users className="h-4 w-4" /> Student Reports
                           </TabsTrigger>
                         </TabsList>
-                        
+
                         <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
                           <Button
                             onClick={() => exportSessionToCSV(r)}
@@ -427,12 +487,12 @@ function ReportsPage() {
                           </Button>
                         </div>
                       </div>
- 
+
                       <TabsContent value="analytics" className="space-y-6">
                         <h4 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2 mb-4">
                           <BarChart3 className="h-4 w-4" /> Question Breakdown
                         </h4>
- 
+
                         {r.questions.length === 0 ? (
                           <div className="text-sm text-muted-foreground py-4 text-center">
                             No questions were configured for this session.
@@ -440,17 +500,22 @@ function ReportsPage() {
                         ) : (
                           <div className="grid gap-6">
                             {r.questions.map((q, idx) => (
-                              <QuestionAnalyticsCard key={q.id} index={idx} question={q} participants={r.participants} />
+                              <QuestionAnalyticsCard
+                                key={q.id}
+                                index={idx}
+                                question={q}
+                                participants={r.participants}
+                              />
                             ))}
                           </div>
                         )}
                       </TabsContent>
- 
+
                       <TabsContent value="students" className="space-y-6">
                         <h4 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2 mb-4">
                           <Users className="h-4 w-4" /> Student Performance Register
                         </h4>
- 
+
                         {r.participants.length === 0 ? (
                           <div className="text-sm text-muted-foreground py-4 text-center">
                             No participants joined this session.
@@ -462,26 +527,39 @@ function ReportsPage() {
                                 <tr>
                                   <th className="px-4 py-3 font-semibold">Student Name</th>
                                   <th className="px-4 py-3 font-semibold">Joined At</th>
-                                  <th className="px-4 py-3 font-semibold text-center">Questions Attempted</th>
-                                  <th className="px-4 py-3 font-semibold text-center">Quiz Score</th>
+                                  <th className="px-4 py-3 font-semibold text-center">
+                                    Questions Attempted
+                                  </th>
+                                  <th className="px-4 py-3 font-semibold text-center">
+                                    Quiz Score
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/5">
                                 {r.participants.map((p) => {
-                                  const quizQuestions = r.questions.filter((q) => q.type === "quiz");
+                                  const quizQuestions = r.questions.filter(
+                                    (q) => q.type === "quiz",
+                                  );
                                   const responsesCount = r.questions.reduce((sum, q) => {
-                                    const hasResponse = q.responses?.some((resp) => resp.participant_id === p.id);
+                                    const hasResponse = q.responses?.some(
+                                      (resp) => resp.participant_id === p.id,
+                                    );
                                     return sum + (hasResponse ? 1 : 0);
                                   }, 0);
                                   const correctAnswers = quizQuestions.reduce((sum, q) => {
-                                    const response = q.responses?.find((resp) => resp.participant_id === p.id);
-                                    const isCorrect = response && response.answer === q.correct_answer;
+                                    const response = q.responses?.find(
+                                      (resp) => resp.participant_id === p.id,
+                                    );
+                                    const isCorrect =
+                                      response && response.answer === q.correct_answer;
                                     return sum + (isCorrect ? 1 : 0);
                                   }, 0);
- 
+
                                   return (
                                     <tr key={p.id} className="hover:bg-white/[0.02] transition">
-                                      <td className="px-4 py-3.5 font-medium text-foreground">{p.name}</td>
+                                      <td className="px-4 py-3.5 font-medium text-foreground">
+                                        {p.name}
+                                      </td>
                                       <td className="px-4 py-3.5 text-xs">
                                         {new Date(p.joined_at).toLocaleString()}
                                       </td>
@@ -490,9 +568,13 @@ function ReportsPage() {
                                       </td>
                                       <td className="px-4 py-3.5 text-center font-semibold text-emerald-400">
                                         {quizQuestions.length > 0 ? (
-                                          <span>{correctAnswers} / {quizQuestions.length}</span>
+                                          <span>
+                                            {correctAnswers} / {quizQuestions.length}
+                                          </span>
                                         ) : (
-                                          <span className="text-muted-foreground text-xs italic">N/A (No Quizzes)</span>
+                                          <span className="text-muted-foreground text-xs italic">
+                                            N/A (No Quizzes)
+                                          </span>
                                         )}
                                       </td>
                                     </tr>
@@ -511,15 +593,18 @@ function ReportsPage() {
           })}
         </div>
       )}
- 
+
       {/* PDF customization Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border text-card-foreground scrollbar-thin p-6 rounded-2xl">
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        {" "}
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border text-card-foreground scrollbar-thin p-6 rounded-2xl">
           <DialogHeader className="space-y-1">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
               <FileText className="h-5 w-5 text-primary" /> Customize Session Assessment Report
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
-              Customize the details below to generate a professional, consolidated PDF report for the entire session.
+              Customize the details below to generate a professional, consolidated PDF report for
+              the entire session.
             </DialogDescription>
           </DialogHeader>
 
@@ -531,7 +616,9 @@ function ReportsPage() {
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="departmentName" className="text-xs text-foreground">Department Name</Label>
+                  <Label htmlFor="departmentName" className="text-xs text-foreground">
+                    Department Name
+                  </Label>
                   <Select
                     value={departmentSelection}
                     onValueChange={(value) => {
@@ -567,7 +654,9 @@ function ReportsPage() {
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="reportTitle" className="text-xs text-foreground">Report Title</Label>
+                  <Label htmlFor="reportTitle" className="text-xs text-foreground">
+                    Report Title
+                  </Label>
                   <Input
                     id="reportTitle"
                     value={reportTitle}
@@ -576,7 +665,9 @@ function ReportsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="semester" className="text-xs text-foreground">Year / Semester</Label>
+                  <Label htmlFor="semester" className="text-xs text-foreground">
+                    Year / Semester
+                  </Label>
                   <Select value={semester} onValueChange={setSemester}>
                     <SelectTrigger id="semester" className="bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Semester" />
@@ -596,7 +687,9 @@ function ReportsPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="courseName" className="text-xs text-foreground">Course/Degree Name</Label>
+                  <Label htmlFor="courseName" className="text-xs text-foreground">
+                    Course/Degree Name
+                  </Label>
                   <Select
                     value={courseSelection}
                     onValueChange={(value) => {
@@ -632,7 +725,9 @@ function ReportsPage() {
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="facultyName" className="text-xs text-foreground">Faculty/Instructor Name</Label>
+                  <Label htmlFor="facultyName" className="text-xs text-foreground">
+                    Faculty/Instructor Name
+                  </Label>
                   <Input
                     id="facultyName"
                     value={facultyName}
@@ -641,7 +736,9 @@ function ReportsPage() {
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="subject" className="text-xs text-foreground">Subject / Course Topic</Label>
+                  <Label htmlFor="subject" className="text-xs text-foreground">
+                    Subject / Course Topic
+                  </Label>
                   <Input
                     id="subject"
                     value={subject}
@@ -684,20 +781,28 @@ function ReportsPage() {
   );
 }
 
-function QuestionAnalyticsCard({ index, question, participants }: { index: number; question: Question; participants: Participant[] }) {
+function QuestionAnalyticsCard({
+  index,
+  question,
+  participants,
+}: {
+  index: number;
+  question: Question;
+  participants: Participant[];
+}) {
   const responses = question.responses ?? [];
   const totalResp = responses.length;
 
   const typeLabels = {
     poll: "Poll (MCQ)",
     quiz: "Quiz",
-    wordcloud: "Word Cloud"
+    wordcloud: "Word Cloud",
   };
 
   const typeStyles = {
     poll: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     quiz: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    wordcloud: "bg-purple-500/10 text-purple-400 border-purple-500/20"
+    wordcloud: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   };
 
   return (
@@ -707,14 +812,17 @@ function QuestionAnalyticsCard({ index, question, participants }: { index: numbe
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground">Q{index + 1}</span>
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${typeStyles[question.type]}`}>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${typeStyles[question.type]}`}
+            >
               {typeLabels[question.type]}
             </span>
           </div>
           <h5 className="font-medium text-foreground">{question.title}</h5>
         </div>
         <div className="text-xs text-muted-foreground text-left sm:text-right shrink-0">
-          <span className="font-semibold text-foreground">{totalResp}</span> / {participants.length} responses
+          <span className="font-semibold text-foreground">{totalResp}</span> / {participants.length}{" "}
+          responses
         </div>
       </div>
 
@@ -724,11 +832,14 @@ function QuestionAnalyticsCard({ index, question, participants }: { index: numbe
           <PollAnalytics options={question.options} responses={responses} />
         )}
         {question.type === "quiz" && (
-          <QuizAnalytics options={question.options} correct={question.correct_answer} responses={responses} participants={participants} />
+          <QuizAnalytics
+            options={question.options}
+            correct={question.correct_answer}
+            responses={responses}
+            participants={participants}
+          />
         )}
-        {question.type === "wordcloud" && (
-          <WordCloudAnalytics responses={responses} />
-        )}
+        {question.type === "wordcloud" && <WordCloudAnalytics responses={responses} />}
       </div>
 
       {/* ── Student Responses breakdown list ── */}
@@ -737,17 +848,22 @@ function QuestionAnalyticsCard({ index, question, participants }: { index: numbe
           <Users className="h-3.5 w-3.5" /> Student Submissions ({responses.length})
         </div>
         {responses.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic py-1">No responses captured for this question.</div>
+          <div className="text-xs text-muted-foreground italic py-1">
+            No responses captured for this question.
+          </div>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {responses.map((r) => {
-              const studentName = participants.find((p) => p.id === r.participant_id)?.name || "Anonymous Student";
+              const studentName =
+                participants.find((p) => p.id === r.participant_id)?.name || "Anonymous Student";
               return (
                 <div
                   key={r.id}
                   className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2 text-xs hover:bg-white/[0.03] transition"
                 >
-                  <span className="font-semibold text-foreground/80 truncate max-w-[150px]">{studentName}</span>
+                  <span className="font-semibold text-foreground/80 truncate max-w-[150px]">
+                    {studentName}
+                  </span>
                   <span className="rounded bg-black/40 border border-white/5 px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate max-w-[180px] select-all">
                     {r.answer}
                   </span>
@@ -780,10 +896,15 @@ function PollAnalytics({ options, responses }: { options: string[]; responses: R
           <div key={o} className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{o}</span>
-              <span className="font-semibold">{c} ({pct}%)</span>
+              <span className="font-semibold">
+                {c} ({pct}%)
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-white/5">
-              <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
             </div>
           </div>
         );
@@ -792,7 +913,17 @@ function PollAnalytics({ options, responses }: { options: string[]; responses: R
   );
 }
 
-function QuizAnalytics({ options, correct, responses, participants }: { options: string[]; correct: string | null; responses: Response[]; participants: Participant[] }) {
+function QuizAnalytics({
+  options,
+  correct,
+  responses,
+  participants,
+}: {
+  options: string[];
+  correct: string | null;
+  responses: Response[];
+  participants: Participant[];
+}) {
   const counts = useMemo(() => {
     const m = new Map<string, number>();
     options.forEach((o) => m.set(o, 0));
@@ -826,17 +957,25 @@ function QuizAnalytics({ options, correct, responses, participants }: { options:
           return (
             <div key={o} className="space-y-1">
               <div className="flex justify-between text-sm">
-                <span className={`flex items-center gap-1.5 ${isCorrect ? "text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                <span
+                  className={`flex items-center gap-1.5 ${isCorrect ? "text-emerald-400 font-medium" : "text-muted-foreground"}`}
+                >
                   {isCorrect && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
                   {o}
-                  {isCorrect && <span className="text-[10px] uppercase font-bold text-emerald-500/80 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">Correct</span>}
+                  {isCorrect && (
+                    <span className="text-[10px] uppercase font-bold text-emerald-500/80 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                      Correct
+                    </span>
+                  )}
                 </span>
-                <span className="font-semibold">{c} ({pct}%)</span>
+                <span className="font-semibold">
+                  {c} ({pct}%)
+                </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-white/5">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ${isCorrect ? "bg-emerald-500" : "bg-neutral-500"}`} 
-                  style={{ width: `${pct}%` }} 
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${isCorrect ? "bg-emerald-500" : "bg-neutral-500"}`}
+                  style={{ width: `${pct}%` }}
                 />
               </div>
             </div>
@@ -852,10 +991,15 @@ function QuizAnalytics({ options, correct, responses, participants }: { options:
           </div>
           <div className="space-y-1.5">
             {scores.length === 0 ? (
-              <div className="text-xs text-muted-foreground py-1">No correct responses submitted yet.</div>
+              <div className="text-xs text-muted-foreground py-1">
+                No correct responses submitted yet.
+              </div>
             ) : (
               scores.map(([pid, s], idx) => (
-                <div key={pid} className="flex items-center justify-between rounded bg-white/[0.01] border border-white/5 px-2.5 py-1.5 text-xs">
+                <div
+                  key={pid}
+                  className="flex items-center justify-between rounded bg-white/[0.01] border border-white/5 px-2.5 py-1.5 text-xs"
+                >
                   <span className="flex items-center gap-2">
                     <span className="font-bold text-amber-500">#{idx + 1}</span>
                     <span>{nameById.get(pid) ?? "Anonymous"}</span>
@@ -875,9 +1019,13 @@ function WordCloudAnalytics({ responses }: { responses: Response[] }) {
   const words = useMemo(() => {
     const counts = new Map<string, number>();
     responses.forEach((r) => {
-      r.answer.split(/[\s,]+/).map((w) => w.trim().toLowerCase()).filter(Boolean).forEach((w) => {
-        counts.set(w, (counts.get(w) ?? 0) + 1);
-      });
+      r.answer
+        .split(/[\s,]+/)
+        .map((w) => w.trim().toLowerCase())
+        .filter(Boolean)
+        .forEach((w) => {
+          counts.set(w, (counts.get(w) ?? 0) + 1);
+        });
     });
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
   }, [responses]);
@@ -896,14 +1044,22 @@ function WordCloudAnalytics({ responses }: { responses: Response[] }) {
           // Scale size between 0.8rem and 1.8rem
           const scale = 0.8 + (c / maxCount) * 1.0;
           const colors = [
-            "text-purple-400", "text-pink-400", "text-blue-400", 
-            "text-indigo-400", "text-cyan-400", "text-teal-400"
+            "text-purple-400",
+            "text-pink-400",
+            "text-blue-400",
+            "text-indigo-400",
+            "text-cyan-400",
+            "text-teal-400",
           ];
-          const colorClass = colors[Math.abs(w.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length];
+          const colorClass =
+            colors[
+              Math.abs(w.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) %
+                colors.length
+            ];
 
           return (
-            <span 
-              key={w} 
+            <span
+              key={w}
               className={`font-semibold transition-all hover:scale-110 duration-200 cursor-default ${colorClass}`}
               style={{ fontSize: `${scale}rem` }}
               title={`Submitted ${c} time${c > 1 ? "s" : ""}`}
@@ -918,9 +1074,14 @@ function WordCloudAnalytics({ responses }: { responses: Response[] }) {
       {/* Linear frequency ranking */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {words.slice(0, 9).map(([w, c]) => (
-          <div key={w} className="flex items-center justify-between px-2 py-1.5 rounded bg-white/[0.01] border border-white/5 text-xs">
+          <div
+            key={w}
+            className="flex items-center justify-between px-2 py-1.5 rounded bg-white/[0.01] border border-white/5 text-xs"
+          >
             <span className="text-muted-foreground truncate">{w}</span>
-            <span className="font-semibold bg-purple-500/10 text-purple-400 px-1.5 py-0.2 rounded font-mono">{c}</span>
+            <span className="font-semibold bg-purple-500/10 text-purple-400 px-1.5 py-0.2 rounded font-mono">
+              {c}
+            </span>
           </div>
         ))}
       </div>

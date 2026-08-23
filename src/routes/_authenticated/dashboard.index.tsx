@@ -1,19 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
-import { 
-  Plus, 
-  Radio, 
-  CheckCircle2, 
-  Clock, 
-  Users, 
-  HelpCircle, 
-  MessageSquare, 
-  BarChart3, 
+import {
+  Plus,
+  Radio,
+  CheckCircle2,
+  Clock,
+  Users,
+  HelpCircle,
+  MessageSquare,
+  BarChart3,
   Sparkles,
   Calendar,
   Activity,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,8 @@ function DashboardHome() {
       // 1. Fetch logged in faculty's sessions with detailed participants and questions/responses
       const { data, error } = await supabase
         .from("sessions")
-        .select(`
+        .select(
+          `
           id,
           title,
           code,
@@ -82,7 +83,8 @@ function DashboardHome() {
               id
             )
           )
-        `)
+        `,
+        )
         .eq("creator_id", user.uid)
         .order("created_at", { ascending: false });
 
@@ -121,8 +123,16 @@ function DashboardHome() {
 
     const channel = supabase
       .channel("faculty-dashboard-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` }, loadFacultyData)
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, loadFacultyData)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` },
+        loadFacultyData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "participants" },
+        loadFacultyData,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadFacultyData)
       .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, loadFacultyData)
       .subscribe();
@@ -161,13 +171,12 @@ function DashboardHome() {
       });
     });
 
-    const avgParticipationPct = totalPossibleResponses > 0
-      ? Math.min(100, Math.round((totalResponsesReceived / totalPossibleResponses) * 100))
-      : 0;
+    const avgParticipationPct =
+      totalPossibleResponses > 0
+        ? Math.min(100, Math.round((totalResponsesReceived / totalPossibleResponses) * 100))
+        : 0;
 
-    const avgAttendanceCount = totalSessions > 0
-      ? Math.round(sumAttendance / totalSessions)
-      : 0;
+    const avgAttendanceCount = totalSessions > 0 ? Math.round(sumAttendance / totalSessions) : 0;
 
     return {
       totalSessions,
@@ -194,44 +203,154 @@ function DashboardHome() {
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">Faculty Analytics & Dashboard</h1>
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-wider flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE DATABASE SYNC
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
+              DATABASE SYNC
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Realtime metrics for your classrooms • {lastLoginTime ? `Last Login: ${lastLoginTime}` : "Active Session"}
+            Realtime metrics for your classrooms •{" "}
+            {lastLoginTime ? `Last Login: ${lastLoginTime}` : "Active Session"}
           </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-white h-10 px-4 flex items-center justify-center rounded-md shadow-sm">
-            <img src="/kumaraguru-logo.jpg" alt="Kumaraguru Institutions" className="h-6 object-contain" />
+            <img
+              src="/kumaraguru-logo.jpg"
+              alt="Kumaraguru Institutions"
+              className="h-6 object-contain"
+            />
           </div>
           <Link to="/dashboard/sessions">
-            <Button className="gradient-bg font-semibold"><Plus className="mr-2 h-4 w-4" /> New Session</Button>
+            <Button className="gradient-bg font-semibold">
+              <Plus className="mr-2 h-4 w-4" /> New Session
+            </Button>
           </Link>
         </div>
       </div>
 
       {/* KPI Cards Row 1: Session Status Breakdown */}
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="My Sessions" value={metrics.totalSessions} icon={Layers} accent="text-primary" description="Total created" />
-        <StatCard label="Active Sessions" value={metrics.activeSessions} icon={Radio} accent="text-emerald-400" description="Live classroom" />
-        <StatCard label="Completed" value={metrics.completedSessions} icon={CheckCircle2} accent="text-blue-400" description="Conducted" />
-        <StatCard label="Draft Sessions" value={metrics.draftSessions} icon={Clock} accent="text-amber-400" description="Saved drafts" />
+        <StatCard
+          label="My Sessions"
+          value={metrics.totalSessions}
+          icon={Layers}
+          accent="text-primary"
+          description="Total created"
+        />
+        <StatCard
+          label="Active Sessions"
+          value={metrics.activeSessions}
+          icon={Radio}
+          accent="text-emerald-400"
+          description="Live classroom"
+        />
+        <StatCard
+          label="Completed"
+          value={metrics.completedSessions}
+          icon={CheckCircle2}
+          accent="text-blue-400"
+          description="Conducted"
+        />
+        <StatCard
+          label="Draft Sessions"
+          value={metrics.draftSessions}
+          icon={Clock}
+          accent="text-amber-400"
+          description="Saved drafts"
+        />
       </div>
 
       {/* KPI Cards Row 2: Live Database Student Engagement */}
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Students Engaged" value={metrics.totalStudentsEngaged} icon={Users} accent="text-purple-400" description="Total distinct students" />
-        <StatCard label="Questions Created" value={metrics.totalQuestionsCreated} icon={HelpCircle} accent="text-cyan-400" description="Across all sessions" />
-        <StatCard label="Responses Collected" value={metrics.totalResponsesReceived} icon={MessageSquare} accent="text-emerald-400" description="Total student submissions" />
-        <StatCard label="Avg Participation" value={`${metrics.avgParticipationPct}%`} icon={BarChart3} accent="text-indigo-400" description="Engagement rate" />
+        <StatCard
+          label="Students Engaged"
+          value={metrics.totalStudentsEngaged}
+          icon={Users}
+          accent="text-purple-400"
+          description="Total distinct students"
+        />
+        <StatCard
+          label="Questions Created"
+          value={metrics.totalQuestionsCreated}
+          icon={HelpCircle}
+          accent="text-cyan-400"
+          description="Across all sessions"
+        />
+        <StatCard
+          label="Responses Collected"
+          value={metrics.totalResponsesReceived}
+          icon={MessageSquare}
+          accent="text-emerald-400"
+          description="Total student submissions"
+        />
+        <StatCard
+          label="Avg Participation"
+          value={`${metrics.avgParticipationPct}%`}
+          icon={BarChart3}
+          accent="text-indigo-400"
+          description="Engagement rate"
+        />
+      </div>
+
+      {/* Intelligence & Security Shortcuts Banner */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Link
+          to="/dashboard/intelligence"
+          className="glass rounded-2xl p-6 border border-primary/20 hover:border-primary/50 transition-all shadow-md group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  🧠 Classroom Intelligence
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase">
+                    ML Active
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Student engagement scores, weak topic detection & pedagogical advice
+                </p>
+              </div>
+            </div>
+            <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+          </div>
+        </Link>
+
+        <Link
+          to="/dashboard/security"
+          className="glass rounded-2xl p-6 border border-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-md group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-105 transition-transform">
+                <Activity className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  🛡️ Security Intelligence
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 uppercase">
+                    Protected
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  WAF defense telemetry, behavioral anomaly scoring & threat logs
+                </p>
+              </div>
+            </div>
+            <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+          </div>
+        </Link>
       </div>
 
       {/* Active Sessions Section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Radio className="h-4 w-4 text-emerald-400 animate-pulse" /> Active Live Sessions ({activeSessionsList.length})
+            <Radio className="h-4 w-4 text-emerald-400 animate-pulse" /> Active Live Sessions (
+            {activeSessionsList.length})
           </h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
@@ -240,7 +359,9 @@ function DashboardHome() {
               No live sessions currently running. Launch a session from your session manager.
             </div>
           )}
-          {activeSessionsList.map((s) => <SessionCard key={s.id} s={s} />)}
+          {activeSessionsList.map((s) => (
+            <SessionCard key={s.id} s={s} />
+          ))}
         </div>
       </section>
 
@@ -248,9 +369,13 @@ function DashboardHome() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" /> Recent Sessions & Analytics ({recentSessionsList.length})
+            <Clock className="h-4 w-4 text-primary" /> Recent Sessions & Analytics (
+            {recentSessionsList.length})
           </h2>
-          <Link to="/dashboard/sessions" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+          <Link
+            to="/dashboard/sessions"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+          >
             View All <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -261,38 +386,40 @@ function DashboardHome() {
               Your classroom sessions will appear here.
             </div>
           )}
-          {recentSessionsList.map((s) => <SessionCard key={s.id} s={s} />)}
+          {recentSessionsList.map((s) => (
+            <SessionCard key={s.id} s={s} />
+          ))}
         </div>
       </section>
     </div>
   );
 }
 
-function StatCard({ 
-  label, 
-  value, 
-  icon: Icon, 
-  accent, 
-  description 
-}: { 
-  label: string; 
-  value: number | string; 
-  icon: React.ComponentType<{ className?: string }>; 
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  accent,
+  description,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ComponentType<{ className?: string }>;
   accent: string;
   description?: string;
 }) {
   return (
     <div className="glass rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-all duration-200">
       <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</span>
+        <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+          {label}
+        </span>
         <div className={cn("p-2 rounded-xl bg-white/[0.03]", accent)}>
           <Icon className="h-4 w-4" />
         </div>
       </div>
       <div className="mt-3 text-3xl font-black tracking-tight">{value}</div>
-      {description && (
-        <div className="mt-1 text-[11px] text-muted-foreground">{description}</div>
-      )}
+      {description && <div className="mt-1 text-[11px] text-muted-foreground">{description}</div>}
     </div>
   );
 }
@@ -300,18 +427,23 @@ function StatCard({
 function SessionCard({ s }: { s: Session }) {
   const participantCount = s.participants?.length ?? 0;
   const questionCount = s.questions?.length ?? 0;
-  const totalResponses = (s.questions ?? []).reduce((acc, q) => acc + (q.responses?.length ?? 0), 0);
+  const totalResponses = (s.questions ?? []).reduce(
+    (acc, q) => acc + (q.responses?.length ?? 0),
+    0,
+  );
 
   return (
-    <Link 
-      to="/dashboard/session/$id" 
-      params={{ id: s.id }} 
+    <Link
+      to="/dashboard/session/$id"
+      params={{ id: s.id }}
       className="glass rounded-2xl p-5 transition hover:-translate-y-0.5 hover:border-primary/50 border border-white/5 space-y-3"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-foreground text-base">{s.title}</h3>
-          <div className="mt-1 font-mono text-xs tracking-[0.2em] text-primary font-bold">{s.code}</div>
+          <div className="mt-1 font-mono text-xs tracking-[0.2em] text-primary font-bold">
+            {s.code}
+          </div>
         </div>
         <StatusPill status={s.status} />
       </div>
@@ -337,12 +469,18 @@ function SessionCard({ s }: { s: Session }) {
 export function StatusPill({ status }: { status: "draft" | "live" | "ended" }) {
   const map = {
     live: "bg-[color:var(--accent-emerald)]/20 text-[color:var(--accent-emerald)] border-[color:var(--accent-emerald)]/40",
-    draft: "bg-[color:var(--primary-glow)]/20 text-[color:var(--primary-glow)] border-[color:var(--primary-glow)]/40",
+    draft:
+      "bg-[color:var(--primary-glow)]/20 text-[color:var(--primary-glow)] border-[color:var(--primary-glow)]/40",
     ended: "bg-muted text-muted-foreground border-border",
   } as const;
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider shrink-0", map[status])}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider shrink-0",
+        map[status],
+      )}
+    >
       {status === "live" && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
       {status}
     </span>

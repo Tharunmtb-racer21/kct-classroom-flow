@@ -19,8 +19,10 @@ import { Route as EmbedCodeRouteImport } from './routes/embed.$code'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as AuthenticatedDashboardSessionsRouteImport } from './routes/_authenticated/dashboard.sessions'
+import { Route as AuthenticatedDashboardSecurityRouteImport } from './routes/_authenticated/dashboard.security'
 import { Route as AuthenticatedDashboardReportsRouteImport } from './routes/_authenticated/dashboard.reports'
 import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_authenticated/dashboard.profile'
+import { Route as AuthenticatedDashboardIntelligenceRouteImport } from './routes/_authenticated/dashboard.intelligence'
 import { Route as AuthenticatedDashboardGuideRouteImport } from './routes/_authenticated/dashboard.guide'
 import { Route as AuthenticatedDashboardSessionIdRouteImport } from './routes/_authenticated/dashboard.session.$id'
 
@@ -75,6 +77,12 @@ const AuthenticatedDashboardSessionsRoute =
     path: '/sessions',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardSecurityRoute =
+  AuthenticatedDashboardSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardReportsRoute =
   AuthenticatedDashboardReportsRouteImport.update({
     id: '/reports',
@@ -85,6 +93,12 @@ const AuthenticatedDashboardProfileRoute =
   AuthenticatedDashboardProfileRouteImport.update({
     id: '/profile',
     path: '/profile',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
+const AuthenticatedDashboardIntelligenceRoute =
+  AuthenticatedDashboardIntelligenceRouteImport.update({
+    id: '/intelligence',
+    path: '/intelligence',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardGuideRoute =
@@ -109,8 +123,10 @@ export interface FileRoutesByFullPath {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
+  '/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
+  '/dashboard/security': typeof AuthenticatedDashboardSecurityRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
@@ -123,8 +139,10 @@ export interface FileRoutesByTo {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
+  '/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
+  '/dashboard/security': typeof AuthenticatedDashboardSecurityRoute
   '/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
@@ -140,8 +158,10 @@ export interface FileRoutesById {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/_authenticated/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
+  '/_authenticated/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/_authenticated/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
   '/_authenticated/dashboard/reports': typeof AuthenticatedDashboardReportsRoute
+  '/_authenticated/dashboard/security': typeof AuthenticatedDashboardSecurityRoute
   '/_authenticated/dashboard/sessions': typeof AuthenticatedDashboardSessionsRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/dashboard/session/$id': typeof AuthenticatedDashboardSessionIdRoute
@@ -157,8 +177,10 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/dashboard/guide'
+    | '/dashboard/intelligence'
     | '/dashboard/profile'
     | '/dashboard/reports'
+    | '/dashboard/security'
     | '/dashboard/sessions'
     | '/dashboard/'
     | '/dashboard/session/$id'
@@ -171,8 +193,10 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/dashboard/guide'
+    | '/dashboard/intelligence'
     | '/dashboard/profile'
     | '/dashboard/reports'
+    | '/dashboard/security'
     | '/dashboard/sessions'
     | '/dashboard'
     | '/dashboard/session/$id'
@@ -187,8 +211,10 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/_authenticated/dashboard/guide'
+    | '/_authenticated/dashboard/intelligence'
     | '/_authenticated/dashboard/profile'
     | '/_authenticated/dashboard/reports'
+    | '/_authenticated/dashboard/security'
     | '/_authenticated/dashboard/sessions'
     | '/_authenticated/dashboard/'
     | '/_authenticated/dashboard/session/$id'
@@ -276,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardSessionsRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/dashboard/security': {
+      id: '/_authenticated/dashboard/security'
+      path: '/security'
+      fullPath: '/dashboard/security'
+      preLoaderRoute: typeof AuthenticatedDashboardSecurityRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/dashboard/reports': {
       id: '/_authenticated/dashboard/reports'
       path: '/reports'
@@ -288,6 +321,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/dashboard/profile'
       preLoaderRoute: typeof AuthenticatedDashboardProfileRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
+    '/_authenticated/dashboard/intelligence': {
+      id: '/_authenticated/dashboard/intelligence'
+      path: '/intelligence'
+      fullPath: '/dashboard/intelligence'
+      preLoaderRoute: typeof AuthenticatedDashboardIntelligenceRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/dashboard/guide': {
@@ -309,8 +349,10 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardGuideRoute: typeof AuthenticatedDashboardGuideRoute
+  AuthenticatedDashboardIntelligenceRoute: typeof AuthenticatedDashboardIntelligenceRoute
   AuthenticatedDashboardProfileRoute: typeof AuthenticatedDashboardProfileRoute
   AuthenticatedDashboardReportsRoute: typeof AuthenticatedDashboardReportsRoute
+  AuthenticatedDashboardSecurityRoute: typeof AuthenticatedDashboardSecurityRoute
   AuthenticatedDashboardSessionsRoute: typeof AuthenticatedDashboardSessionsRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDashboardSessionIdRoute: typeof AuthenticatedDashboardSessionIdRoute
@@ -319,8 +361,11 @@ interface AuthenticatedDashboardRouteChildren {
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
     AuthenticatedDashboardGuideRoute: AuthenticatedDashboardGuideRoute,
+    AuthenticatedDashboardIntelligenceRoute:
+      AuthenticatedDashboardIntelligenceRoute,
     AuthenticatedDashboardProfileRoute: AuthenticatedDashboardProfileRoute,
     AuthenticatedDashboardReportsRoute: AuthenticatedDashboardReportsRoute,
+    AuthenticatedDashboardSecurityRoute: AuthenticatedDashboardSecurityRoute,
     AuthenticatedDashboardSessionsRoute: AuthenticatedDashboardSessionsRoute,
     AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
     AuthenticatedDashboardSessionIdRoute: AuthenticatedDashboardSessionIdRoute,

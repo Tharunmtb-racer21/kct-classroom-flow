@@ -5,10 +5,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
-import { User, Calendar, Shield, Presentation, Upload, Loader2, Pencil, Trash2, CheckCircle2, BookOpen } from "lucide-react";
+import {
+  User,
+  Calendar,
+  Shield,
+  Presentation,
+  Upload,
+  Loader2,
+  Pencil,
+  Trash2,
+  CheckCircle2,
+  BookOpen,
+} from "lucide-react";
 import { formatDisplayName } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
@@ -18,7 +38,7 @@ export const Route = createFileRoute("/_authenticated/dashboard/profile")({
 function ProfilePage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -33,7 +53,7 @@ function ProfilePage() {
   const loadProfile = async () => {
     const user = auth.currentUser;
     if (!user) return;
-    
+
     setEmail(user.email ?? "");
 
     // 1. Get profile data
@@ -48,11 +68,13 @@ function ProfilePage() {
       setAvatarUrl(profile.avatar_url); // Remain null (empty placeholder) if no photo exists
 
       if (profile.created_at) {
-        setCreatedAt(new Date(profile.created_at).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }));
+        setCreatedAt(
+          new Date(profile.created_at).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+        );
       }
     }
 
@@ -62,7 +84,7 @@ function ProfilePage() {
       .select("role")
       .eq("user_id", user.uid)
       .maybeSingle();
-    
+
     if (userRole?.role) {
       setRole(userRole.role.charAt(0).toUpperCase() + userRole.role.slice(1));
     }
@@ -72,7 +94,7 @@ function ProfilePage() {
       .from("sessions")
       .select("*", { count: "exact", head: true })
       .eq("creator_id", user.uid);
-    
+
     setSessionCount(count ?? 0);
   };
 
@@ -84,7 +106,10 @@ function ProfilePage() {
     setSaving(true);
     const user = auth.currentUser;
     if (!user) return;
-    const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", user.uid);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName })
+      .eq("id", user.uid);
     setSaving(false);
     if (error) {
       toast.error(error.message);
@@ -118,9 +143,9 @@ function ProfilePage() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("question-images")
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("question-images").getPublicUrl(fileName);
 
       const { error: updateError } = await supabase
         .from("profiles")
@@ -186,7 +211,9 @@ function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="text-3xl font-bold tracking-tight">Faculty Profile</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Your institutional profile details and account metadata.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Your institutional profile details and account metadata.
+      </p>
 
       <Link to="/dashboard/guide" className="mt-5 inline-flex">
         <Button className="gradient-bg font-semibold gap-2">
@@ -197,11 +224,13 @@ function ProfilePage() {
 
       {/* Chrome Profile Settings style Header Card */}
       <div className="mt-8 glass rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-border/40 bg-[#1c2230]/40">
-        
         {/* Left Side: Avatar & Details */}
         <div className="flex flex-col sm:flex-row items-center gap-5 w-full sm:w-auto">
           {/* Avatar Image container (Perfect circle) */}
-          <div className="relative group cursor-pointer h-20 w-20" onClick={() => fileInputRef.current?.click()}>
+          <div
+            className="relative group cursor-pointer h-20 w-20"
+            onClick={() => fileInputRef.current?.click()}
+          >
             {avatarUrl ? (
               <img
                 src={avatarUrl}
@@ -214,7 +243,7 @@ function ProfilePage() {
                 <User className="h-8 w-8 text-muted-foreground/60" />
               </div>
             )}
-            
+
             {/* Hover overlay to upload photo */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-all">
               {uploading ? (
@@ -223,7 +252,7 @@ function ProfilePage() {
                 <Upload className="h-5 w-5 text-white" />
               )}
             </div>
-            
+
             <input
               ref={fileInputRef}
               type="file"
@@ -299,7 +328,9 @@ function ProfilePage() {
         </div>
       ) : (
         <div className="mt-6 glass rounded-2xl p-6 space-y-4 border border-border/40 text-sm">
-          <h3 className="text-base font-semibold border-b border-border/30 pb-2">Academic Information</h3>
+          <h3 className="text-base font-semibold border-b border-border/30 pb-2">
+            Academic Information
+          </h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <div className="text-muted-foreground text-xs uppercase">Role</div>
@@ -338,7 +369,10 @@ function ProfilePage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteAccount} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+            <AlertDialogAction
+              onClick={confirmDeleteAccount}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
               Delete Account
             </AlertDialogAction>
           </AlertDialogFooter>

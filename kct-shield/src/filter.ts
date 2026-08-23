@@ -25,14 +25,16 @@ export function initIPFilter() {
       continue;
     }
 
-    if (rule.type === 'allow') {
+    if (rule.type === "allow") {
       allowlist.add(rule.ip);
     } else {
       blocklist.add(rule.ip);
     }
   }
 
-  console.log(`[KCT SHIELD] IP Filter loaded: ${allowlist.size} allowed, ${blocklist.size} blocked from DB.`);
+  console.log(
+    `[KCT SHIELD] IP Filter loaded: ${allowlist.size} allowed, ${blocklist.size} blocked from DB.`,
+  );
 }
 
 /**
@@ -72,7 +74,7 @@ export function blockIP(ip: string) {
   allowlist.delete(ip);
 
   blocklist.add(ip);
-  saveIPRule(ip, 'block', null);
+  saveIPRule(ip, "block", null);
   console.log(`[KCT SHIELD] IP permanently blocked: ${ip}`);
 }
 
@@ -95,7 +97,7 @@ export function allowIP(ip: string) {
   temporaryBlocks.delete(ip);
 
   allowlist.add(ip);
-  saveIPRule(ip, 'allow', null);
+  saveIPRule(ip, "allow", null);
   console.log(`[KCT SHIELD] IP permanently allowed: ${ip}`);
 }
 

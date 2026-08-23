@@ -34,17 +34,20 @@ function AuthenticatedLayout() {
     const user = auth.currentUser;
     if (user && user.email) {
       const resolvedName = formatDisplayName(user.displayName, user.email);
-      supabase.from("profiles").upsert({
-        id: user.uid,
-        email: user.email,
-        full_name: resolvedName,
-        avatar_url: user.photoURL,
-      }).then(({ error }) => {
-        if (error) console.error("Auto profile sync error:", error.message);
-      });
+      supabase
+        .from("profiles")
+        .upsert({
+          id: user.uid,
+          email: user.email,
+          full_name: resolvedName,
+          avatar_url: user.photoURL,
+        })
+        .then(({ error }) => {
+          if (error) console.error("Auto profile sync error:", error.message);
+        });
     }
   }, []);
-  
+
   // 30 minutes in milliseconds
   const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 
@@ -86,4 +89,4 @@ function AuthenticatedLayout() {
   }, []);
 
   return <Outlet />;
-}
+}

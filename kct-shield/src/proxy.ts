@@ -1,4 +1,3 @@
-
 import { logSecurityEventAsync } from "./logger";
 import { isIPBlocked, isIPAllowed, blockIPTemp } from "./filter";
 import { checkRateLimit } from "./limiter";
@@ -58,7 +57,7 @@ export async function handleProxyRequest(request: Request, server: any): Promise
       {
         status: 403,
         headers: { "Content-Type": "text/html" },
-      }
+      },
     );
   }
 
@@ -88,7 +87,7 @@ export async function handleProxyRequest(request: Request, server: any): Promise
       {
         status: 429,
         headers: { "Content-Type": "text/html", "Retry-After": "60" },
-      }
+      },
     );
   }
 
@@ -125,7 +124,7 @@ export async function handleProxyRequest(request: Request, server: any): Promise
     queryString,
     request.headers,
     bodyText,
-    requestSize
+    requestSize,
   );
 
   // 6. Execute Decision Logic (ALLOW / MONITOR / BLOCK)
@@ -155,7 +154,7 @@ export async function handleProxyRequest(request: Request, server: any): Promise
       {
         status: 403,
         headers: { "Content-Type": "text/html" },
-      }
+      },
     );
   }
 
@@ -177,7 +176,11 @@ export async function handleProxyRequest(request: Request, server: any): Promise
 /**
  * Tunneling fetch function that forwards HTTP requests to KCT Classroom Flow on port 8080.
  */
-async function forwardToBackend(request: Request, clientIp: string, bodyText?: string): Promise<Response> {
+async function forwardToBackend(
+  request: Request,
+  clientIp: string,
+  bodyText?: string,
+): Promise<Response> {
   const targetUrl = new URL(request.url);
   targetUrl.host = "localhost:8080";
   targetUrl.protocol = "http:";
@@ -216,7 +219,7 @@ async function forwardToBackend(request: Request, clientIp: string, bodyText?: s
       {
         status: 502,
         headers: { "Content-Type": "text/plain" },
-      }
+      },
     );
   }
 }

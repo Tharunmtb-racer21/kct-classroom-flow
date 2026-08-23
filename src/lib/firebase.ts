@@ -4,17 +4,17 @@ import { getAuth } from "firebase/auth";
 const env = (import.meta as any).env ?? {};
 
 const REQUIRED_FIREBASE_KEYS = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
+  "VITE_FIREBASE_API_KEY",
+  "VITE_FIREBASE_AUTH_DOMAIN",
+  "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_STORAGE_BUCKET",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "VITE_FIREBASE_APP_ID",
 ] as const;
 
 const missing = REQUIRED_FIREBASE_KEYS.filter((k) => !env[k]);
 if (missing.length > 0) {
-  const msg = `[Firebase] Missing environment variable(s): ${missing.join(', ')}. Set them in your .env file or Lovable Cloud.`;
+  const msg = `[Firebase] Missing environment variable(s): ${missing.join(", ")}. Set them in your .env file or Lovable Cloud.`;
   console.error(msg);
   throw new Error(msg);
 }

@@ -1,14 +1,29 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, LogOut, Presentation, User } from "lucide-react";
+import {
+  BarChart3,
+  Brain,
+  LayoutDashboard,
+  LogOut,
+  Presentation,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
 import { logUserLogout } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const items: { title: string; url: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }[] = [
+const items: {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  exact?: boolean;
+}[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, exact: true },
+  { title: "Intelligence", url: "/dashboard/intelligence", icon: Brain },
   { title: "Sessions", url: "/dashboard/sessions", icon: Presentation },
   { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
+  { title: "Security", url: "/dashboard/security", icon: ShieldCheck },
   { title: "Profile", url: "/dashboard/profile", icon: User },
 ];
 
@@ -28,7 +43,9 @@ export function AppSidebar() {
         <div className="grid h-12 w-12 place-items-center rounded-xl overflow-hidden shadow-[var(--shadow-glow)]">
           <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-12 w-12 object-cover" />
         </div>
-        <span className="font-extrabold text-lg tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
+        <span className="font-extrabold text-lg tracking-tight">
+          KCT <span className="gradient-text">PULSE</span>
+        </span>
       </div>
       <nav className="flex-1 space-y-1 p-4 overflow-hidden">
         {items.map((item) => {
@@ -51,7 +68,11 @@ export function AppSidebar() {
         })}
       </nav>
       <div className="p-4 border-t border-border/60 space-y-1">
-        <ThemeToggle showLabel variant="ghost" className="w-full justify-start px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-foreground" />
+        <ThemeToggle
+          showLabel
+          variant="ghost"
+          className="w-full justify-start px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+        />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
@@ -59,7 +80,6 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4" /> Logout
         </button>
       </div>
-
     </aside>
   );
 }

@@ -368,7 +368,8 @@ export function startDashboard() {
       const corsHeaders = {
         "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
-        "Access-Control-Allow-Headers": "Content-Type, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning",
         "Access-Control-Allow-Private-Network": "true",
       };
 
@@ -403,10 +404,12 @@ export function startDashboard() {
 
       // 4. API: rules (allowlist / blocklist)
       if (req.method === "GET" && path === "/api/rules") {
-        return addCors(Response.json({
-          rules: getAllIPRules(),
-          tempBlocks: getTemporaryBlocks(),
-        }));
+        return addCors(
+          Response.json({
+            rules: getAllIPRules(),
+            tempBlocks: getTemporaryBlocks(),
+          }),
+        );
       }
 
       // 5. API: add rule
@@ -414,7 +417,7 @@ export function startDashboard() {
         try {
           const body: any = await req.json();
           const { ip, type } = body;
-          
+
           if (type === "allow") {
             allowIP(ip);
           } else if (type === "block") {
@@ -422,7 +425,7 @@ export function startDashboard() {
           } else if (type === "unblock") {
             unblockIP(ip);
           }
-          
+
           return addCors(Response.json({ success: true }));
         } catch (err: any) {
           return addCors(Response.json({ success: false, error: err.message }, { status: 400 }));
@@ -445,5 +448,7 @@ export function startDashboard() {
     },
   });
 
-  console.log(`\x1b[35m📊  KCT SHIELD Dashboard running on http://localhost:${ADMIN_PORT}\x1b[0m\n`);
+  console.log(
+    `\x1b[35m📊  KCT SHIELD Dashboard running on http://localhost:${ADMIN_PORT}\x1b[0m\n`,
+  );
 }

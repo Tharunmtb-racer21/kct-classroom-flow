@@ -51,32 +51,30 @@ async function extractFromPdf(file: File): Promise<string> {
   for (let i = 1; i <= maxPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item: any) => ("str" in item ? item.str : ""))
-      .join(" ");
+    const pageText = content.items.map((item: any) => ("str" in item ? item.str : "")).join(" ");
     textParts.push(pageText);
   }
 
   return textParts.join("\n\n");
 }
 
+import { validateUploadedFile, sanitizeExtractedText } from "./secure-file-validator";
+
 /**
- * Main entry point — auto-detects file type and returns extracted text.
- * Throws a user-friendly error if file type is unsupported or parsing fails.
+ * Main entry point — auto-detects file type, runs secure quarantine validation, and returns sanitized text.
+ * Throws a user-friendly error if file type is unsupported or validation fails.
  */
 export async function extractTextFromDocument(file: File): Promise<string> {
-  // 5 MB guard
-  if (file.size > 5 * 1024 * 1024) {
-    throw new Error(
-      "File is too large (max 5 MB). Please upload a smaller document."
-    );
+  // Run secure file validation pipeline (size, MIME, extension, magic bytes quarantine)
+  const validation = await validateUploadedFile(file, { maxSizeBytes: 10 * 1024 * 1024 });
+
+  if (!validation.isValid) {
+    throw new Error(validation.errorReason || "File security validation failed.");
   }
 
   const type = getFileType(file);
   if (!type) {
-    throw new Error(
-      "Unsupported file type. Please upload a PDF, DOCX, or TXT file."
-    );
+    throw new Error("Unsupported file type. Please upload a PDF, DOCX, or TXT file.");
   }
 
   let text = "";
@@ -84,16 +82,16 @@ export async function extractTextFromDocument(file: File): Promise<string> {
   else if (type === "docx") text = await extractFromDocx(file);
   else if (type === "pdf") text = await extractFromPdf(file);
 
+  // Sanitize extracted text (strip malicious control chars/scripts)
+  text = sanitizeExtractedText(text);
+
   // Trim and cap the text to ~8000 characters so the AI prompt stays manageable
-  text = text.trim();
   if (text.length > 8000) {
     text = text.slice(0, 8000) + "\n\n[Document truncated for processing...]";
   }
 
   if (!text) {
-    throw new Error(
-      "No readable text found in the document. Try a different file."
-    );
+    throw new Error("No readable text found in the document. Try a different file.");
   }
 
   return text;

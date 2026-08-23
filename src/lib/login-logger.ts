@@ -28,7 +28,10 @@ export function getClientMetadata() {
   return { browser, device, os };
 }
 
-export async function logUserLogin(user: { uid: string; email: string | null }, role: string = "faculty") {
+export async function logUserLogin(
+  user: { uid: string; email: string | null },
+  role: string = "faculty",
+) {
   try {
     const { browser, device, os } = getClientMetadata();
     const loginTime = new Date().toISOString();
@@ -77,7 +80,10 @@ export async function logUserLogout() {
 
     if (loginTimeStr) {
       const loginTime = new Date(loginTimeStr);
-      sessionDurationSeconds = Math.max(0, Math.floor((logoutTime.getTime() - loginTime.getTime()) / 1000));
+      sessionDurationSeconds = Math.max(
+        0,
+        Math.floor((logoutTime.getTime() - loginTime.getTime()) / 1000),
+      );
     }
 
     if (logId) {

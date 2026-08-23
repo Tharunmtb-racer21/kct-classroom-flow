@@ -84,7 +84,7 @@ function EmbedPage() {
         { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
         (payload) => {
           setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
-        }
+        },
       )
       .subscribe();
 
@@ -134,10 +134,15 @@ function EmbedPage() {
       .channel(`embed-responses-${question.id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "responses", filter: `question_id=eq.${question.id}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "responses",
+          filter: `question_id=eq.${question.id}`,
+        },
         (payload) => {
           setResponses((prev) => [...prev, payload.new as Response]);
-        }
+        },
       )
       .subscribe();
 
@@ -163,8 +168,13 @@ function EmbedPage() {
       .channel(`embed-participants-${session.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "participants", filter: `session_id=eq.${session.id}` },
-        loadCount
+        {
+          event: "*",
+          schema: "public",
+          table: "participants",
+          filter: `session_id=eq.${session.id}`,
+        },
+        loadCount,
       )
       .subscribe();
 
@@ -179,7 +189,9 @@ function EmbedPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-6">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-3 text-sm font-medium text-muted-foreground">Loading presentation slide view...</p>
+        <p className="mt-3 text-sm font-medium text-muted-foreground">
+          Loading presentation slide view...
+        </p>
       </div>
     );
   }
@@ -191,7 +203,10 @@ function EmbedPage() {
           <Radio className="h-7 w-7" />
         </div>
         <h2 className="text-2xl font-bold">Session Not Found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Session code <span className="font-mono font-bold text-foreground">{upperCode}</span> does not exist or has expired.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Session code <span className="font-mono font-bold text-foreground">{upperCode}</span> does
+          not exist or has expired.
+        </p>
       </div>
     );
   }
@@ -206,17 +221,25 @@ function EmbedPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-black text-base tracking-tight">KCT <span className="gradient-text">PULSE</span></span>
-              <span className="rounded-full bg-primary/10 border border-primary/30 px-2.5 py-0.5 text-[11px] font-bold text-primary tracking-wide uppercase">SLIDE EMBED</span>
+              <span className="font-black text-base tracking-tight">
+                KCT <span className="gradient-text">PULSE</span>
+              </span>
+              <span className="rounded-full bg-primary/10 border border-primary/30 px-2.5 py-0.5 text-[11px] font-bold text-primary tracking-wide uppercase">
+                SLIDE EMBED
+              </span>
             </div>
-            <h1 className="text-xs font-medium text-muted-foreground truncate max-w-[280px] sm:max-w-[450px]">{session.title}</h1>
+            <h1 className="text-xs font-medium text-muted-foreground truncate max-w-[280px] sm:max-w-[450px]">
+              {session.title}
+            </h1>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-medium text-foreground bg-card border border-border/80 px-3 py-1.5 rounded-full shadow-sm">
             <Users className="h-4 w-4 text-primary animate-pulse" />
-            <span><strong className="text-primary font-bold">{participantCount}</strong> Active Students</span>
+            <span>
+              <strong className="text-primary font-bold">{participantCount}</strong> Active Students
+            </span>
           </div>
           <ThemeToggle variant="ghost" size="sm" />
         </div>
@@ -235,9 +258,12 @@ function EmbedPage() {
                 </div>
               </div>
               <div>
-                <h2 className="text-2xl font-extrabold tracking-tight">Waiting for Faculty to Activate Question</h2>
+                <h2 className="text-2xl font-extrabold tracking-tight">
+                  Waiting for Faculty to Activate Question
+                </h2>
                 <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  This presentation slide will automatically update in real-time as soon as a live poll or quiz question is pushed from the faculty control dashboard.
+                  This presentation slide will automatically update in real-time as soon as a live
+                  poll or quiz question is pushed from the faculty control dashboard.
                 </p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-500">
@@ -257,7 +283,9 @@ function EmbedPage() {
                     {responses.length} {responses.length === 1 ? "Response" : "Responses"} Submitted
                   </span>
                 </div>
-                <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight leading-snug">{question.title}</h2>
+                <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight leading-snug">
+                  {question.title}
+                </h2>
               </div>
 
               {/* Render Chart / WordCloud */}
@@ -275,8 +303,12 @@ function EmbedPage() {
         {/* Right 1 Column: QR Code & Join Info */}
         <div className="md:col-span-1 glass rounded-3xl p-6 flex flex-col items-center justify-center text-center space-y-5 border border-border/60 shadow-xl relative">
           <div className="space-y-1">
-            <div className="text-xs uppercase tracking-widest font-black text-primary">Scan to Join Live</div>
-            <p className="text-[11px] text-muted-foreground">Point your phone camera at the screen</p>
+            <div className="text-xs uppercase tracking-widest font-black text-primary">
+              Scan to Join Live
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Point your phone camera at the screen
+            </p>
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-xl border border-border/40 transform hover:scale-105 transition-transform duration-300">
@@ -284,8 +316,12 @@ function EmbedPage() {
           </div>
 
           <div className="w-full space-y-1 bg-card/60 border border-border/60 p-3 rounded-2xl">
-            <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Session Code</div>
-            <div className="font-mono text-2xl font-black tracking-[0.25em] gradient-text select-all">{session.code}</div>
+            <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              Session Code
+            </div>
+            <div className="font-mono text-2xl font-black tracking-[0.25em] gradient-text select-all">
+              {session.code}
+            </div>
           </div>
 
           <div className="w-full text-[11px] text-muted-foreground break-all px-2 font-mono select-all bg-accent/40 py-1.5 rounded-lg border border-border/30">
@@ -334,13 +370,15 @@ function PollChartView({ question, responses }: { question: Question; responses:
                   </span>
                 )}
               </span>
-              <span className="font-mono text-sm font-extrabold text-foreground">{count} ({pct}%)</span>
+              <span className="font-mono text-sm font-extrabold text-foreground">
+                {count} ({pct}%)
+              </span>
             </div>
             <div className="h-5 w-full bg-accent/70 rounded-full overflow-hidden p-1 border border-border/50 shadow-inner">
               <div
                 className={cn(
                   "h-full rounded-full transition-all duration-500 shadow-md",
-                  isCorrect ? "bg-emerald-500" : "gradient-bg"
+                  isCorrect ? "bg-emerald-500" : "gradient-bg",
                 )}
                 style={{ width: `${pct}%` }}
               />
@@ -363,7 +401,9 @@ function WordCloudView({ responses }: { responses: Response[] }) {
         }
       });
     });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 25);
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 25);
   }, [responses]);
 
   if (frequencies.length === 0) {
@@ -387,7 +427,9 @@ function WordCloudView({ responses }: { responses: Response[] }) {
             style={{ fontSize: `${sizeRem}rem` }}
           >
             {word}
-            <sub className="text-[11px] opacity-70 ml-1 font-mono text-muted-foreground">({count})</sub>
+            <sub className="text-[11px] opacity-70 ml-1 font-mono text-muted-foreground">
+              ({count})
+            </sub>
           </span>
         );
       })}

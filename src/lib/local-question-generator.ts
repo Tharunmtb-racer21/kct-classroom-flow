@@ -17,35 +17,265 @@ import type { GeneratedQuestion, QType } from "./ai-service";
 // ─── English Stop Words (common words to ignore) ──────────────────────────────
 
 const STOP_WORDS = new Set([
-  "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-  "with", "by", "from", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-  "may", "might", "shall", "can", "need", "must", "it", "its", "this", "that",
-  "these", "those", "i", "you", "he", "she", "we", "they", "me", "him", "her",
-  "us", "them", "my", "your", "his", "our", "their", "mine", "yours", "hers",
-  "ours", "theirs", "what", "which", "who", "whom", "whose", "when", "where",
-  "why", "how", "if", "then", "else", "so", "no", "not", "only", "very",
-  "also", "just", "than", "too", "each", "every", "all", "both", "few",
-  "more", "most", "other", "some", "such", "any", "many", "much", "own",
-  "same", "about", "above", "after", "again", "against", "before", "below",
-  "between", "during", "into", "through", "under", "until", "up", "down",
-  "out", "off", "over", "here", "there", "further", "once", "as", "while",
-  "because", "since", "although", "however", "therefore", "thus", "hence",
-  "yet", "still", "already", "even", "now", "then", "like", "get", "got",
-  "make", "made", "take", "took", "come", "came", "go", "went", "see", "saw",
-  "know", "knew", "think", "thought", "say", "said", "use", "used", "find",
-  "found", "give", "gave", "tell", "told", "work", "become", "leave", "put",
-  "mean", "keep", "let", "begin", "seem", "help", "show", "hear", "play",
-  "run", "move", "try", "ask", "new", "old", "first", "last", "long", "great",
-  "little", "own", "right", "big", "small", "large", "next", "early", "young",
-  "important", "public", "bad", "good", "well", "way", "case", "point",
-  "part", "place", "time", "year", "day", "thing", "man", "woman", "child",
-  "world", "life", "hand", "high", "low", "number", "different", "another",
-  "example", "following", "using", "called", "based", "include", "including",
-  "within", "given", "without", "set", "among", "often", "per", "along",
-  "may", "able", "one", "two", "three", "four", "five", "six", "seven",
-  "eight", "nine", "ten", "also", "well", "back", "being", "after",
-  "etc", "eg", "ie", "vs", "via",
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "shall",
+  "can",
+  "need",
+  "must",
+  "it",
+  "its",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "me",
+  "him",
+  "her",
+  "us",
+  "them",
+  "my",
+  "your",
+  "his",
+  "our",
+  "their",
+  "mine",
+  "yours",
+  "hers",
+  "ours",
+  "theirs",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "whose",
+  "when",
+  "where",
+  "why",
+  "how",
+  "if",
+  "then",
+  "else",
+  "so",
+  "no",
+  "not",
+  "only",
+  "very",
+  "also",
+  "just",
+  "than",
+  "too",
+  "each",
+  "every",
+  "all",
+  "both",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "any",
+  "many",
+  "much",
+  "own",
+  "same",
+  "about",
+  "above",
+  "after",
+  "again",
+  "against",
+  "before",
+  "below",
+  "between",
+  "during",
+  "into",
+  "through",
+  "under",
+  "until",
+  "up",
+  "down",
+  "out",
+  "off",
+  "over",
+  "here",
+  "there",
+  "further",
+  "once",
+  "as",
+  "while",
+  "because",
+  "since",
+  "although",
+  "however",
+  "therefore",
+  "thus",
+  "hence",
+  "yet",
+  "still",
+  "already",
+  "even",
+  "now",
+  "then",
+  "like",
+  "get",
+  "got",
+  "make",
+  "made",
+  "take",
+  "took",
+  "come",
+  "came",
+  "go",
+  "went",
+  "see",
+  "saw",
+  "know",
+  "knew",
+  "think",
+  "thought",
+  "say",
+  "said",
+  "use",
+  "used",
+  "find",
+  "found",
+  "give",
+  "gave",
+  "tell",
+  "told",
+  "work",
+  "become",
+  "leave",
+  "put",
+  "mean",
+  "keep",
+  "let",
+  "begin",
+  "seem",
+  "help",
+  "show",
+  "hear",
+  "play",
+  "run",
+  "move",
+  "try",
+  "ask",
+  "new",
+  "old",
+  "first",
+  "last",
+  "long",
+  "great",
+  "little",
+  "own",
+  "right",
+  "big",
+  "small",
+  "large",
+  "next",
+  "early",
+  "young",
+  "important",
+  "public",
+  "bad",
+  "good",
+  "well",
+  "way",
+  "case",
+  "point",
+  "part",
+  "place",
+  "time",
+  "year",
+  "day",
+  "thing",
+  "man",
+  "woman",
+  "child",
+  "world",
+  "life",
+  "hand",
+  "high",
+  "low",
+  "number",
+  "different",
+  "another",
+  "example",
+  "following",
+  "using",
+  "called",
+  "based",
+  "include",
+  "including",
+  "within",
+  "given",
+  "without",
+  "set",
+  "among",
+  "often",
+  "per",
+  "along",
+  "may",
+  "able",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "also",
+  "well",
+  "back",
+  "being",
+  "after",
+  "etc",
+  "eg",
+  "ie",
+  "vs",
+  "via",
 ]);
 
 // ─── Text Processing Utilities ────────────────────────────────────────────────
@@ -54,7 +284,7 @@ const STOP_WORDS = new Set([
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s'-]/g, " ")  // Remove punctuation except hyphens/apostrophes
+    .replace(/[^a-z0-9\s'-]/g, " ") // Remove punctuation except hyphens/apostrophes
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
 }
@@ -138,7 +368,7 @@ interface ScoredSentence {
 function extractKeySentences(
   text: string,
   keywords: KeywordScore[],
-  maxSentences = 20
+  maxSentences = 20,
 ): ScoredSentence[] {
   const sentences = splitSentences(text);
   const keywordSet = new Set(keywords.map((k) => k.word));
@@ -167,7 +397,7 @@ function extractKeySentences(
 function generateQuizQuestions(
   sentences: ScoredSentence[],
   keywords: KeywordScore[],
-  count: number
+  count: number,
 ): GeneratedQuestion[] {
   const questions: GeneratedQuestion[] = [];
   const usedSentences = new Set<number>();
@@ -177,8 +407,7 @@ function generateQuizQuestions(
   const templates = [
     (keyword: string, context: string) =>
       `According to the document, what is "${keyword}" related to?`,
-    (keyword: string, context: string) =>
-      `Which of the following best describes "${keyword}"?`,
+    (keyword: string, context: string) => `Which of the following best describes "${keyword}"?`,
     (keyword: string, context: string) =>
       `What role does "${keyword}" play in the context discussed?`,
     (keyword: string, context: string) =>
@@ -189,8 +418,7 @@ function generateQuizQuestions(
       `What concept is most closely associated with "${keyword}"?`,
     (keyword: string, context: string) =>
       `In the context of the document, "${keyword}" primarily refers to:`,
-    (keyword: string, context: string) =>
-      `Which of the following is true about "${keyword}"?`,
+    (keyword: string, context: string) => `Which of the following is true about "${keyword}"?`,
   ];
 
   for (let i = 0; i < sentences.length && questions.length < count; i++) {
@@ -202,22 +430,14 @@ function generateQuizQuestions(
     // Pick the best keyword from this sentence
     const mainKeyword = sentence.keywords[0];
     const mainKeywordDisplay =
-      keywords.find((k) => k.word === mainKeyword)?.displayForm ||
-      titleCase(mainKeyword);
+      keywords.find((k) => k.word === mainKeyword)?.displayForm || titleCase(mainKeyword);
 
     // Correct answer — a phrase from the sentence itself
-    const correctAnswer = sentence.text.length > 80
-      ? sentence.text.slice(0, 77) + "..."
-      : sentence.text;
+    const correctAnswer =
+      sentence.text.length > 80 ? sentence.text.slice(0, 77) + "..." : sentence.text;
 
     // Generate 3 distractor options from other keywords/sentences
-    const distractors = generateDistractors(
-      correctAnswer,
-      sentences,
-      i,
-      allKeywords,
-      3
-    );
+    const distractors = generateDistractors(correctAnswer, sentences, i, allKeywords, 3);
 
     if (distractors.length < 3) continue; // Need exactly 3 distractors
 
@@ -247,7 +467,7 @@ function generateDistractors(
   sentences: ScoredSentence[],
   correctIndex: number,
   allKeywords: string[],
-  count: number
+  count: number,
 ): string[] {
   const distractors: string[] = [];
   const used = new Set<string>([correctAnswer.toLowerCase()]);
@@ -255,9 +475,8 @@ function generateDistractors(
   // Strategy 1: Use other sentences as distractors
   for (let i = 0; i < sentences.length && distractors.length < count; i++) {
     if (i === correctIndex) continue;
-    const candidate = sentences[i].text.length > 80
-      ? sentences[i].text.slice(0, 77) + "..."
-      : sentences[i].text;
+    const candidate =
+      sentences[i].text.length > 80 ? sentences[i].text.slice(0, 77) + "..." : sentences[i].text;
 
     if (!used.has(candidate.toLowerCase())) {
       distractors.push(candidate);
@@ -272,11 +491,7 @@ function generateDistractors(
       "A concept not discussed in the document",
       "None of the above applies in this context",
     ];
-    for (
-      let i = 0;
-      i < keywordPhrases.length && distractors.length < count;
-      i++
-    ) {
+    for (let i = 0; i < keywordPhrases.length && distractors.length < count; i++) {
       if (!used.has(keywordPhrases[i].toLowerCase())) {
         distractors.push(keywordPhrases[i]);
         used.add(keywordPhrases[i].toLowerCase());
@@ -288,17 +503,13 @@ function generateDistractors(
 }
 
 /** Generate poll questions (opinion-based, no correct answer) */
-function generatePollQuestions(
-  keywords: KeywordScore[],
-  count: number
-): GeneratedQuestion[] {
+function generatePollQuestions(keywords: KeywordScore[], count: number): GeneratedQuestion[] {
   const questions: GeneratedQuestion[] = [];
   const usedKeywords = new Set<number>();
 
   const templates = [
     {
-      title: (kw: string) =>
-        `Which aspect of "${kw}" do you find most interesting?`,
+      title: (kw: string) => `Which aspect of "${kw}" do you find most interesting?`,
       options: (kw: string) => [
         `The theoretical foundations of ${kw}`,
         `The practical applications of ${kw}`,
@@ -307,8 +518,7 @@ function generatePollQuestions(
       ],
     },
     {
-      title: (kw: string) =>
-        `How well do you understand the concept of "${kw}"?`,
+      title: (kw: string) => `How well do you understand the concept of "${kw}"?`,
       options: () => [
         "Very well — I can explain it to others",
         "Somewhat — I understand the basics",
@@ -317,8 +527,7 @@ function generatePollQuestions(
       ],
     },
     {
-      title: (kw: string) =>
-        `In your opinion, how important is "${kw}" in this subject?`,
+      title: (kw: string) => `In your opinion, how important is "${kw}" in this subject?`,
       options: () => [
         "Extremely important — it's a core concept",
         "Important — good to know",
@@ -327,8 +536,7 @@ function generatePollQuestions(
       ],
     },
     {
-      title: (kw: string) =>
-        `Which learning method would help you best understand "${kw}"?`,
+      title: (kw: string) => `Which learning method would help you best understand "${kw}"?`,
       options: () => [
         "Visual diagrams and flowcharts",
         "Real-world examples and case studies",
@@ -337,8 +545,7 @@ function generatePollQuestions(
       ],
     },
     {
-      title: (kw: string) =>
-        `Where do you think "${kw}" is most applicable?`,
+      title: (kw: string) => `Where do you think "${kw}" is most applicable?`,
       options: (kw: string) => [
         "In research and academia",
         "In industry and professional settings",
@@ -347,8 +554,7 @@ function generatePollQuestions(
       ],
     },
     {
-      title: (kw: string) =>
-        `What would you like to explore more about "${kw}"?`,
+      title: (kw: string) => `What would you like to explore more about "${kw}"?`,
       options: () => [
         "More in-depth theory",
         "Practical projects and assignments",
@@ -378,26 +584,17 @@ function generatePollQuestions(
 }
 
 /** Generate word cloud questions (open-ended, single word/phrase) */
-function generateWordCloudQuestions(
-  keywords: KeywordScore[],
-  count: number
-): GeneratedQuestion[] {
+function generateWordCloudQuestions(keywords: KeywordScore[], count: number): GeneratedQuestion[] {
   const questions: GeneratedQuestion[] = [];
   const usedKeywords = new Set<number>();
 
   const templates = [
-    (kw: string) =>
-      `Describe "${kw}" in one word or short phrase.`,
-    (kw: string) =>
-      `What comes to mind when you think of "${kw}"?`,
-    (kw: string) =>
-      `In one word, how would you summarize "${kw}"?`,
-    (kw: string) =>
-      `What is the most important aspect of "${kw}"? (one word)`,
-    (kw: string) =>
-      `If you had to teach "${kw}" to someone, what key word would you use?`,
-    (kw: string) =>
-      `What feeling or thought does "${kw}" evoke? (one word)`,
+    (kw: string) => `Describe "${kw}" in one word or short phrase.`,
+    (kw: string) => `What comes to mind when you think of "${kw}"?`,
+    (kw: string) => `In one word, how would you summarize "${kw}"?`,
+    (kw: string) => `What is the most important aspect of "${kw}"? (one word)`,
+    (kw: string) => `If you had to teach "${kw}" to someone, what key word would you use?`,
+    (kw: string) => `What feeling or thought does "${kw}" evoke? (one word)`,
   ];
 
   for (let i = 0; i < keywords.length && questions.length < count; i++) {
@@ -445,39 +642,54 @@ const GENERIC_BACKUPS: GeneratedQuestion[] = [
   {
     type: "quiz",
     title: "What is the primary topic of the document we just uploaded?",
-    options: ["The core concepts and definitions", "Historical background and dates", "Practical implementation guides", "Future research opportunities"],
-    correct_answer: "The core concepts and definitions"
+    options: [
+      "The core concepts and definitions",
+      "Historical background and dates",
+      "Practical implementation guides",
+      "Future research opportunities",
+    ],
+    correct_answer: "The core concepts and definitions",
   },
   {
     type: "poll",
     title: "How clear were the explanations in the uploaded document?",
     options: ["Extremely clear", "Moderately clear", "A bit confusing", "Not clear at all"],
-    correct_answer: null
+    correct_answer: null,
   },
   {
     type: "wordcloud",
     title: "Write down one key word that summarizes today's reading.",
     options: [],
-    correct_answer: null
+    correct_answer: null,
   },
   {
     type: "quiz",
     title: "Based on the text, which of the following is the most critical takeaway?",
-    options: ["Understanding the foundational definitions", "Applying the concepts to practical examples", "Memorizing the key terminology", "Analyzing the relationships between concepts"],
-    correct_answer: "Understanding the foundational definitions"
+    options: [
+      "Understanding the foundational definitions",
+      "Applying the concepts to practical examples",
+      "Memorizing the key terminology",
+      "Analyzing the relationships between concepts",
+    ],
+    correct_answer: "Understanding the foundational definitions",
   },
   {
     type: "poll",
     title: "Which part of the material would you like to review in detail next class?",
-    options: ["Basic terminology", "Advanced applications", "Practical code examples", "Theoretical proofs"],
-    correct_answer: null
+    options: [
+      "Basic terminology",
+      "Advanced applications",
+      "Practical code examples",
+      "Theoretical proofs",
+    ],
+    correct_answer: null,
   },
   {
     type: "wordcloud",
     title: "What is one question you still have after reviewing this document?",
     options: [],
-    correct_answer: null
-  }
+    correct_answer: null,
+  },
 ];
 
 /**
@@ -492,7 +704,7 @@ const GENERIC_BACKUPS: GeneratedQuestion[] = [
 export function generateQuestionsLocally(
   text: string,
   count: number,
-  types: QType[]
+  types: QType[],
 ): GeneratedQuestion[] {
   // Step 1: Extract keywords from the document
   const keywords = extractKeywords(text, 30);
@@ -512,17 +724,13 @@ export function generateQuestionsLocally(
 
       switch (type) {
         case "quiz":
-          allQuestions.push(
-            ...generateQuizQuestions(keySentences, keywords, toGenerate)
-          );
+          allQuestions.push(...generateQuizQuestions(keySentences, keywords, toGenerate));
           break;
         case "poll":
           allQuestions.push(...generatePollQuestions(keywords, toGenerate));
           break;
         case "wordcloud":
-          allQuestions.push(
-            ...generateWordCloudQuestions(keywords, toGenerate)
-          );
+          allQuestions.push(...generateWordCloudQuestions(keywords, toGenerate));
           break;
       }
     }
@@ -530,10 +738,7 @@ export function generateQuestionsLocally(
 
   // If we couldn't generate enough from the text, fill remaining using keywords
   if (allQuestions.length < count && keywords.length > 0) {
-    const extraPolls = generatePollQuestions(
-      keywords,
-      count - allQuestions.length
-    );
+    const extraPolls = generatePollQuestions(keywords, count - allQuestions.length);
     allQuestions.push(...extraPolls);
   }
 
@@ -543,12 +748,12 @@ export function generateQuestionsLocally(
     const backup = GENERIC_BACKUPS[backupIdx % GENERIC_BACKUPS.length];
     // Adapt type if requested
     const targetType = types[allQuestions.length % types.length];
-    
+
     // Add backup question matching the target type
-    const matchingBackup = GENERIC_BACKUPS.find(b => b.type === targetType) || backup;
+    const matchingBackup = GENERIC_BACKUPS.find((b) => b.type === targetType) || backup;
     allQuestions.push({
       ...matchingBackup,
-      title: matchingBackup.title
+      title: matchingBackup.title,
     });
     backupIdx++;
   }
