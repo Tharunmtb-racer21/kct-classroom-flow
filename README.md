@@ -29,7 +29,7 @@
     *   **Status & Timeframe Filters**: Instant filter buttons for `ALL`, `🟢 Live`, `📝 Draft`, and `🏁 Ended` sessions, plus timeframes (`1D`, `7D`, `30D`, `ALL`).
     *   **System Diagnostics**: Latency ping (ms), Supabase WebSocket channel connection status, and Firebase Auth domain statistics (`@kct.ac.in`, `@kongu.edu`).
 *   ⏱️ **Automated 1-Hour Session Management** — Background cleanup loop automatically demotes live sessions active for > 1 hour back to `draft` mode.
-*   🔒 **Enterprise Security & Inactivity Guard** — Restricted exclusively to verified institutional emails (`@kct.ac.in` and `@kongu.edu`) with 30-minute faculty inactivity auto-logout.
+*   🔒 **Enterprise Security & Inactivity Guard** — Restricted exclusively to verified institutional emails `@kct.ac.in` with 30-minute faculty inactivity auto-logout.
 *   🤖 **Multi-Provider AI Engine** — Automated failover question generator (**NVIDIA NIM (Primary)** → **Groq** → **Google AI Studio** → **Together AI**) ensuring 16,000+ free queries/day.
 *   📈 **Rich PDF Analytical Reports** — Export post-session analytics with exact student responses formatted as PDF downloads.
 
