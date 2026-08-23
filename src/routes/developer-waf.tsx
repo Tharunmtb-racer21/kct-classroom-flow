@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { verifyDevPassword } from "@/lib/dev-auth";
 
 export const Route = createFileRoute("/developer-waf")({
   head: () => ({
@@ -97,9 +98,10 @@ function WafMonitorDashboard() {
     }
   }, []);
 
-  const handleAuthenticate = (e: React.FormEvent) => {
+  const handleAuthenticate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passkey.trim() === "Pulse_2026") {
+    const isValid = await verifyDevPassword(passkey);
+    if (isValid) {
       setIsAuthenticated(true);
       setErrorMsg("");
       localStorage.setItem("kct_dev_auth", "true");

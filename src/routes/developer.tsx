@@ -45,6 +45,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn, formatDisplayName } from "@/lib/utils";
+import { verifyDevPassword } from "@/lib/dev-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { testGroqKey, getGroqKeySignature } from "@/lib/ai-service";
@@ -337,10 +338,11 @@ function DeveloperDashboard() {
     }
   };
 
-  // Passkey Login Handler
-  const handleAuthenticate = (e: React.FormEvent) => {
+  // Passkey Login Handler (SHA-256 hash comparison — plaintext never in bundle)
+  const handleAuthenticate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passkey.trim() === "Pulse_2026") {
+    const isValid = await verifyDevPassword(passkey);
+    if (isValid) {
       setIsAuthenticated(true);
       setErrorMsg("");
       localStorage.setItem("kct_dev_auth", "true");

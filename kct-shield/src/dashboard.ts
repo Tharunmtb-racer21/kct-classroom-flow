@@ -355,8 +355,18 @@ export function startDashboard() {
       const url = new URL(req.url);
       const path = url.pathname;
 
+      const origin = req.headers.get("origin") || "";
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+      ];
+      const isAllowedOrigin = allowedOrigins.includes(origin) || origin.endsWith(".vercel.app");
+      const corsOrigin = isAllowedOrigin ? origin : allowedOrigins[0];
+
       const corsHeaders = {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
         "Access-Control-Allow-Headers": "Content-Type, Bypass-Tunnel-Reminder, ngrok-skip-browser-warning",
         "Access-Control-Allow-Private-Network": "true",
