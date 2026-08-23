@@ -78,14 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "KCT PULSE — Real-time Classroom Engagement" },
+      { title: "KCT PULSE" },
       {
         name: "description",
         content:
           "KCT PULSE turns classrooms into interactive experiences with live polls, word clouds, and quizzes for Kumaraguru College of Technology.",
       },
       { name: "author", content: "KCT PULSE" },
-      { property: "og:title", content: "KCT PULSE — Real-time Classroom Engagement" },
+      { property: "og:title", content: "KCT PULSE" },
       {
         property: "og:description",
         content: "Live polls, word clouds & quizzes for KCT classrooms.",
@@ -95,7 +95,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:image", content: "https://kct-classroom-flow.vercel.app/kct-logo-opt.jpg" },
       { property: "og:site_name", content: "KCT PULSE" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "KCT PULSE — Real-time Classroom Engagement" },
+      { name: "twitter:title", content: "KCT PULSE" },
       {
         name: "twitter:description",
         content: "Live polls, word clouds & quizzes for KCT classrooms.",
