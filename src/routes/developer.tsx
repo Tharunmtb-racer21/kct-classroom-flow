@@ -141,7 +141,7 @@ type ContactMessageRow = {
 export const Route = createFileRoute("/developer")({
   head: () => ({
     meta: [
-      { title: "Developer Telemetry & System Analytics · KCT PULSE" },
+      { title: "KCT PULSE" },
       {
         name: "description",
         content:

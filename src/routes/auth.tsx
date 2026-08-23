@@ -43,7 +43,7 @@ const isKctEmail = (email: string | null, user?: any): boolean => {
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Faculty Sign In · KCT PULSE" },
+      { title: "KCT PULSE" },
       { name: "description", content: "Sign in to KCT PULSE to launch live classroom sessions." },
     ],
   }),

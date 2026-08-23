@@ -157,6 +157,7 @@ function RootComponent() {
 
   useEffect(() => {
     applyTheme(getStoredTheme());
+    document.title = "KCT PULSE";
   }, []);
 
   useEffect(() => {

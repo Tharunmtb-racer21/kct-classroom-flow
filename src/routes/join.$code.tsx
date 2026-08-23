@@ -53,7 +53,7 @@ const isMultipleCorrect = (q: Question | null | undefined): boolean => {
 export const Route = createFileRoute("/join/$code")({
   head: () => ({
     meta: [
-      { title: "Join Session · KCT PULSE" },
+      { title: "KCT PULSE" },
       { name: "description", content: "Join a live KCT PULSE classroom session." },
       { name: "robots", content: "noindex" },
     ],

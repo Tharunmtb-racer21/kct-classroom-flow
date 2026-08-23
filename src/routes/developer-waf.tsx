@@ -35,7 +35,7 @@ import { verifyDevPassword } from "@/lib/dev-auth";
 export const Route = createFileRoute("/developer-waf")({
   head: () => ({
     meta: [
-      { title: "KCT SHIELD Firewall Telemetry Monitor · KCT PULSE" },
+      { title: "KCT PULSE" },
       {
         name: "description",
         content:
