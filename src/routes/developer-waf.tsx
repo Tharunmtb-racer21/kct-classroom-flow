@@ -31,6 +31,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { verifyDevPassword } from "@/lib/dev-auth";
+import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 
 export const Route = createFileRoute("/developer-waf")({
   head: () => ({
@@ -64,6 +65,32 @@ function WafMonitorDashboard() {
   const [connectedWafUrl, setConnectedWafUrl] = useState("");
   const [isProduction, setIsProduction] = useState(false);
   const [edgeWafActive, setEdgeWafActive] = useState(false);
+  const [isServerDown, setIsServerDown] = useState(false);
+
+  useEffect(() => {
+    setIsServerDown(isSupabaseServerDown());
+  }, []);
+
+  const handleToggleServerDown = () => {
+    const nextState = !isServerDown;
+    setSupabaseServerDown(nextState);
+    setIsServerDown(nextState);
+    if (nextState) {
+      toast.error(
+        "🚨 SUPABASE SERVER DOWN MODE ENABLED! Main application will display emergency developer contact warning.",
+        {
+          duration: 6000,
+        },
+      );
+    } else {
+      toast.success(
+        "🟢 SUPABASE SERVER DOWN MODE DISABLED! Main application restored to normal operation.",
+        {
+          duration: 6000,
+        },
+      );
+    }
+  };
 
   const DEV_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -338,6 +365,21 @@ function WafMonitorDashboard() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            onClick={handleToggleServerDown}
+            variant="outline"
+            size="sm"
+            className={cn(
+              "gap-2 text-xs font-black transition-all border animate-pulse",
+              isServerDown
+                ? "bg-rose-600 text-white border-rose-400 hover:bg-rose-700 shadow-lg shadow-rose-600/30"
+                : "border-rose-500/50 text-rose-400 hover:bg-rose-500/10",
+            )}
+          >
+            <AlertOctagon className="h-4 w-4" />
+            {isServerDown ? "🚨 DISABLE Server Down Mode" : "⚠️ TRIGGER Supabase Server Down Mode"}
+          </Button>
+
           <Button
             onClick={fetchWafData}
             variant="outline"

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  AlertOctagon,
   BarChart3,
   Brain,
   CheckCircle2,
@@ -52,6 +53,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { testGroqKey, getGroqKeySignature } from "@/lib/ai-service";
 import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
+import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 
 type SessionRow = {
   id: string;
@@ -239,6 +241,32 @@ function DeveloperDashboard() {
   const [selectedSessionForModal, setSelectedSessionForModal] = useState<SessionRow | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState<FailedAttemptRecord[]>([]);
+  const [isServerDown, setIsServerDown] = useState(false);
+
+  useEffect(() => {
+    setIsServerDown(isSupabaseServerDown());
+  }, []);
+
+  const handleToggleServerDown = () => {
+    const nextState = !isServerDown;
+    setSupabaseServerDown(nextState);
+    setIsServerDown(nextState);
+    if (nextState) {
+      toast.error(
+        "🚨 SUPABASE SERVER DOWN MODE ENABLED! Main app will display emergency developer contact warning.",
+        {
+          duration: 6000,
+        },
+      );
+    } else {
+      toast.success(
+        "🟢 SUPABASE SERVER DOWN MODE DISABLED! Main app restored to normal operation.",
+        {
+          duration: 6000,
+        },
+      );
+    }
+  };
 
   // Groq API Keys Telemetry State
   const [groqKeysStatus, setGroqKeysStatus] = useState<
@@ -962,6 +990,21 @@ function DeveloperDashboard() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            onClick={handleToggleServerDown}
+            variant="outline"
+            size="sm"
+            className={cn(
+              "gap-2 text-xs font-black transition-all border animate-pulse",
+              isServerDown
+                ? "bg-rose-600 text-white border-rose-400 hover:bg-rose-700 shadow-lg shadow-rose-600/30"
+                : "border-rose-500/50 text-rose-400 hover:bg-rose-500/10",
+            )}
+          >
+            <AlertOctagon className="h-4 w-4" />
+            {isServerDown ? "🚨 DISABLE Server Down Mode" : "⚠️ TRIGGER Server Down Mode"}
+          </Button>
+
           {/* Timeframe Selector */}
           <div className="flex items-center bg-card border border-border rounded-xl p-1 text-xs">
             {(["1D", "7D", "30D", "ALL"] as const).map((tf) => (

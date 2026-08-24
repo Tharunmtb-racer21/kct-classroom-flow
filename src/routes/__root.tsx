@@ -8,10 +8,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { isSupabaseServerDown, subscribeServerDownChanges } from "@/lib/server-down-guard";
+import { AlertOctagon, RefreshCw } from "lucide-react";
 
 function NotFoundComponent() {
   return (
@@ -154,6 +156,15 @@ import { ChatBot } from "@/components/chat-bot";
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [isServerDown, setIsServerDown] = useState(false);
+
+  useEffect(() => {
+    setIsServerDown(isSupabaseServerDown());
+    const unsubscribe = subscribeServerDownChanges((enabled) => {
+      setIsServerDown(enabled);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     applyTheme(getStoredTheme());
@@ -214,6 +225,7 @@ function RootComponent() {
     const runChecks = () => {
       // Debugger timing check (highly reliable, zero false positives from scaling/zoom)
       const start = Date.now();
+      /* eslint-disable-next-line no-debugger */
       debugger;
       const end = Date.now();
       if (end - start > 100) {
@@ -234,13 +246,64 @@ function RootComponent() {
   }, []);
 
   const showChatBot = pathname.startsWith("/dashboard");
+  const isDeveloperRoute = pathname.startsWith("/developer");
+  const showEmergencyServerDownScreen = isServerDown && !isDeveloperRoute;
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster />
-      {showChatBot && <ChatBot />}
+      {showEmergencyServerDownScreen ? (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-[#080b11] text-foreground p-6 select-none font-sans">
+          <div className="max-w-md w-full glass rounded-3xl p-8 border border-rose-500/50 shadow-2xl text-center space-y-6 animate-pulse">
+            <div className="h-20 w-20 rounded-3xl bg-rose-500/10 border border-rose-500/30 grid place-items-center text-rose-500 mx-auto shadow-inner">
+              <AlertOctagon className="h-10 w-10 animate-bounce" />
+            </div>
+            <div>
+              <div className="inline-block px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest mb-3">
+                ⚠️ CRITICAL DATABASE ALERT
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-white">
+                Supabase Server Down
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                The database connection is currently experiencing unexpected downtime or
+                maintenance.
+                <strong className="block font-extrabold text-rose-400 mt-1 text-base">
+                  Please contact developer!
+                </strong>
+              </p>
+            </div>
+
+            <div className="bg-card/60 rounded-2xl p-4 border border-border/60 text-xs font-mono space-y-1.5 text-left text-muted-foreground">
+              <div>
+                <span className="text-foreground font-bold">Status:</span> Offline (Maintenance)
+              </div>
+              <div>
+                <span className="text-foreground font-bold">Campus Domain:</span> @kct.ac.in
+              </div>
+              <div>
+                <span className="text-foreground font-bold">Developer Support:</span> Navneeth V /
+                Tharun N E
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-5 py-2.5 rounded-xl gradient-bg text-white font-bold text-xs flex items-center gap-2 hover:opacity-90 transition shadow-lg cursor-pointer"
+              >
+                <RefreshCw className="h-4 w-4" /> Check Connection Again
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster />
+          {showChatBot && <ChatBot />}
+        </>
+      )}
     </QueryClientProvider>
   );
 }
