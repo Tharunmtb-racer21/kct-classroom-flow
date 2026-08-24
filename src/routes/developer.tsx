@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Database,
+  Download,
   Eye,
   Flame,
   Globe,
@@ -50,6 +51,7 @@ import { verifyDevPassword } from "@/lib/dev-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { testGroqKey, getGroqKeySignature } from "@/lib/ai-service";
+import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 
 type SessionRow = {
   id: string;
@@ -1003,6 +1005,24 @@ function DeveloperDashboard() {
             className="gap-2 text-xs border-border"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+
+          <Button
+            onClick={async () => {
+              try {
+                toast.info("Extracting and anonymizing ML training dataset...");
+                await downloadMLDatasetCSV();
+                toast.success("ML Training Dataset exported successfully (CSV)!");
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                toast.error(`Export failed: ${msg}`);
+              }
+            }}
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 font-bold"
+          >
+            <Download className="h-3.5 w-3.5" /> Export ML Dataset (CSV)
           </Button>
 
           <Link to="/dashboard/intelligence">
