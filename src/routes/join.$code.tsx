@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ContactUsModal } from "@/components/contact-us-modal";
 import { useExamIntegrity } from "@/hooks/use-exam-integrity";
+import { VoiceInputButton } from "@/components/voice-input-button";
 
 type Session = {
   id: string;
@@ -836,6 +837,25 @@ function JoinPage() {
                   </div>
                 ) : q.type === "wordcloud" ? (
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-muted-foreground">
+                        Your Answer
+                      </Label>
+                      <VoiceInputButton
+                        currentValue={qAnswer}
+                        onTranscriptFinal={(txt) => {
+                          setAnswerMap((p) => ({ ...p, [q.id]: txt }));
+                          setUnansweredQuestionIds((prev) => {
+                            if (!prev.has(q.id)) return prev;
+                            const next = new Set(prev);
+                            next.delete(q.id);
+                            return next;
+                          });
+                        }}
+                        buttonText="Speak Answer"
+                        size="sm"
+                      />
+                    </div>
                     <Textarea
                       value={qAnswer}
                       onChange={(e) => {
@@ -847,7 +867,7 @@ function JoinPage() {
                           return next;
                         });
                       }}
-                      placeholder="Type your thoughts..."
+                      placeholder="Type or speak your thoughts..."
                       rows={2}
                       maxLength={200}
                       aria-invalid={isUnanswered}
@@ -1013,13 +1033,23 @@ function JoinPage() {
             void handleSubmit();
           }}
         >
-          <Textarea
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Type your thoughts..."
-            rows={4}
-            maxLength={200}
-          />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-muted-foreground">Your Thoughts</Label>
+              <VoiceInputButton
+                currentValue={answer}
+                onTranscriptFinal={(txt) => setAnswer(txt)}
+                buttonText="Dictate Answer 🎙️"
+              />
+            </div>
+            <Textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Type or speak your thoughts..."
+              rows={4}
+              maxLength={200}
+            />
+          </div>
 
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">

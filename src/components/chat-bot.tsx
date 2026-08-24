@@ -4,6 +4,7 @@ import { generateChatResponse, type ChatMessage } from "@/lib/ai-service";
 import { findRelevantContext } from "@/lib/chatbot-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { VoiceInputButton } from "@/components/voice-input-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -86,7 +87,7 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
 
       const reply = await generateChatResponse(payload);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[KCT Chatbot] Reply failure:", err);
       toast.error("Failed to receive reply from PULSE AI.");
       setMessages((prev) => [
@@ -207,15 +208,22 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
           {/* Send Input Area */}
           <form
             onSubmit={handleSend}
-            className="p-3 bg-card/60 border-t border-border/60 flex gap-2"
+            className="p-3 bg-card/60 border-t border-border/60 flex items-center gap-1.5"
           >
             <Input
               type="text"
-              placeholder="Ask PULSE AI anything..."
+              placeholder="Ask PULSE AI or speak..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 h-9 text-xs bg-background/50 border-border focus-visible:ring-primary"
               disabled={loading}
+            />
+            <VoiceInputButton
+              currentValue={input}
+              onTranscriptFinal={(txt) => setInput(txt)}
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-primary"
             />
             <Button
               type="submit"
