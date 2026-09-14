@@ -13,6 +13,7 @@
 
 import { generateQuestionsLocally } from "./local-question-generator";
 import { toast } from "sonner";
+import { recordTokenUsage, estimateTokenCount } from "./token-tracker";
 
 export type QType = "quiz" | "poll" | "wordcloud";
 
@@ -201,9 +202,23 @@ export async function generateQuestionsFromText(
 
   // 1. Primary: Server-side secure execution
   try {
-    const questions = await generateQuestionsServerFn({ data: { text, count, types, apiKey } });
-    if (questions && questions.length > 0) {
-      return questions;
+    const serverResult: any = await generateQuestionsServerFn({ data: { text, count, types, apiKey } });
+    if (serverResult) {
+      const questions = Array.isArray(serverResult) ? serverResult : serverResult.questions;
+      if (questions && questions.length > 0) {
+        if (!Array.isArray(serverResult) && serverResult.usage) {
+          recordTokenUsage({
+            provider: serverResult.provider || "ai_server",
+            model: serverResult.model || "gemini-2.5-flash",
+            feature: "question_generation",
+            promptTokens: serverResult.usage.promptTokens,
+            completionTokens: serverResult.usage.completionTokens,
+            totalTokens: serverResult.usage.totalTokens,
+            success: true,
+          });
+        }
+        return questions;
+      }
     }
   } catch (serverErr: any) {
     console.warn("Server-side AI question generation notice:", serverErr.message);
@@ -280,6 +295,20 @@ async function callProviderAPI(
   if (!rawContent) {
     throw new Error(`Empty response returned.`);
   }
+
+  const promptTokens = data?.usage?.prompt_tokens ?? estimateTokenCount(prompt);
+  const completionTokens = data?.usage?.completion_tokens ?? estimateTokenCount(rawContent);
+  const totalTokens = data?.usage?.total_tokens ?? (promptTokens + completionTokens);
+
+  recordTokenUsage({
+    provider: providerName,
+    model: model,
+    feature: "question_generation",
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    success: true,
+  });
 
   return parseAIResponse(rawContent);
 }
@@ -363,6 +392,16 @@ export async function testGroqKey(
     if (response.ok) {
       // Also record this test as a successful attempt in localStorage
       trackKeyUsage(key, true);
+      recordTokenUsage({
+        provider: "groq",
+        model: "llama-3.3-70b-8192",
+        keySignature: getGroqKeySignature(index),
+        feature: "diagnostic_test",
+        promptTokens: 4,
+        completionTokens: 2,
+        totalTokens: 6,
+        success: true,
+      });
       return { status: "active" };
     }
 
@@ -375,6 +414,87 @@ export async function testGroqKey(
       return { status: "rate_limited", errorMsg: "Rate limit reached" };
     }
 
+    const errText = await response.text().catch(() => "");
+    return { status: "error", errorMsg: `API Error ${response.status}: ${errText || "Unknown"}` };
+  } catch (err: any) {
+    trackKeyUsage(key, false);
+    if (err.name === "AbortError") {
+      return { status: "error", errorMsg: "Request timed out (10s)" };
+    }
+    return { status: "error", errorMsg: err.message || "Network connection error" };
+  }
+}
+
+export const BACKUP_GEMINI_KEYS = [
+  "QdSYY9k08ffMr7aw6SZNS7OTdlPp2Arp9HKluVnMINpK6NR8bA.QA",
+  "AFHdyaEhum2KhTtuxDIl9uPuGA-OjP_RCI-wSjhjNbwK6NR8bA.QA",
+  "AmZyzIGn5lEMMkVXIiYz4sjQPmBIpKaA2NyR9Mxu3UKK6NR8bA.QA",
+  "Qxb9jPVpFUY4VyNPBrOhnZ-jd5OQV1eb2eaKdvxQdICK6NR8bA.QA",
+  "wAV5wHmfmL29soGcauZzyHh9Y6Q8uzxbfXruTv16P7DL6NR8bA.QA",
+  "A3On1PzMy67WWN4WgbL-paEdB63MswfzD6iEyvociAzK6NR8bA.QA",
+  "QzDGHiLuOZbGAZfP-QvM08mIXqbiuQcs5eBMAjMXCYxJ6NR8bA.QA",
+  "QqYUQCdVegvOFkAX_uDBGGbD9d5UKeXTPQUg5ZngC4xK6NR8bA.QA",
+  "QWCodX4Xx63FXHhMlaKxNkmsoiQfwPIto_Ib78NCMFiJ6NR8bA.QA",
+  "Q0Q3edeolPBhFz3RFOhxneftIHuvLir23KiWxFYY2UNJ6NR8bA.QA",
+  "QATcgQ1VvSDXqGvq3pLzG8oeVQfU-aVE2fUNXDuNOFZJ6NR8bA.QA",
+].map((s) => s.split("").reverse().join(""));
+
+export const GEMINI_KEYS_COUNT = BACKUP_GEMINI_KEYS.length;
+
+export function getGeminiKeySignature(index: number): string {
+  const k = BACKUP_GEMINI_KEYS[index];
+  if (!k) return "Unknown Key";
+  return `${k.slice(0, 10)}...${k.slice(-6)}`;
+}
+
+export async function testGeminiKey(
+  index: number,
+): Promise<{ status: "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }> {
+  const key = BACKUP_GEMINI_KEYS[index];
+  if (!key) return { status: "invalid", errorMsg: "Key index out of range" };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ping" }] }],
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      trackKeyUsage(key, true);
+      recordTokenUsage({
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+        keySignature: getGeminiKeySignature(index),
+        feature: "diagnostic_test",
+        promptTokens: 4,
+        completionTokens: 2,
+        totalTokens: 6,
+        success: true,
+      });
+      return { status: "active" };
+    }
+
+    trackKeyUsage(key, false);
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return { status: "invalid", errorMsg: `Unauthorized / Invalid (${response.status})` };
+    }
+    if (response.status === 429) {
+      return { status: "rate_limited", errorMsg: "Rate limit reached (429)" };
+    }
     const errText = await response.text().catch(() => "");
     return { status: "error", errorMsg: `API Error ${response.status}: ${errText || "Unknown"}` };
   } catch (err: any) {
@@ -436,12 +556,12 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
       model: "groq/compound",
       apiKey: decodeReversed("u4HKbjJebhZ6u1XNlBT1Z0avYF3bydGWWm2IohDL4qmKvIxcfNeh_ksg"),
     },
-    {
-      name: "Google Gemini (Active Fallback)",
+    ...BACKUP_GEMINI_KEYS.map((k, idx) => ({
+      name: `Google Gemini (Pool #${idx + 1})`,
       url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
       model: "gemini-2.5-flash",
-      apiKey: decodeReversed("E6flCl7KJ7ZPQGxQ0RpR2zZpMBPeSyAzaIA"),
-    },
+      apiKey: k,
+    })),
   ];
 
   for (const prov of DEFAULT_WORKING_KEYS) {
@@ -453,6 +573,7 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
   // Try each API until success
   for (const prov of activeProviders) {
     try {
+      const reqStart = performance.now();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout for chat
 
@@ -477,6 +598,24 @@ export async function generateChatResponse(messages: ChatMessage[]): Promise<str
         const data = await response.json();
         const content = data?.choices?.[0]?.message?.content ?? "";
         if (content) {
+          const latencyMs = Math.round(performance.now() - reqStart);
+          const usage = data?.usage;
+          const promptTokens = usage?.prompt_tokens ?? estimateTokenCount(messages);
+          const completionTokens = usage?.completion_tokens ?? estimateTokenCount(content);
+          const totalTokens = usage?.total_tokens ?? (promptTokens + completionTokens);
+
+          recordTokenUsage({
+            provider: prov.name,
+            model: prov.model,
+            keySignature: prov.name,
+            feature: "chatbot",
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            latencyMs,
+            success: true,
+          });
+
           return content;
         }
       }

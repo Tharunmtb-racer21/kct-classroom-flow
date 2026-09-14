@@ -141,6 +141,35 @@ function SessionControl() {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
 
+  // Session Rename States
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
+
+  const handleRenameSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session || !renameTitle.trim()) return;
+    setRenaming(true);
+    try {
+      const trimmed = renameTitle.trim();
+      const { error } = await supabase
+        .from("sessions")
+        .update({ title: trimmed })
+        .eq("id", session.id);
+
+      if (error) throw error;
+
+      setSession((prev) => (prev ? { ...prev, title: trimmed } : null));
+      toast.success("Session renamed successfully! ✏️");
+      setRenameDialogOpen(false);
+    } catch (err: any) {
+      console.error("Rename session error:", err);
+      toast.error(err.message || "Failed to rename session.");
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const handleGenerateAiSummary = async () => {
     if (!selectedStudent) return;
     setGeneratingAiSummary(true);
@@ -554,7 +583,21 @@ function SessionControl() {
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4 relative z-20">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{session.title}</h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-3xl font-bold tracking-tight">{session.title}</h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRenameTitle(session.title);
+                setRenameDialogOpen(true);
+              }}
+              className="h-8 px-2.5 text-xs gap-1.5 border-border/80 text-muted-foreground hover:text-foreground rounded-lg"
+              title="Rename Session"
+            >
+              <Pencil className="h-3.5 w-3.5 text-primary" /> Rename
+            </Button>
+          </div>
           <div className="mt-2 flex items-center gap-3">
             <StatusPill status={session.status} />
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -742,6 +785,59 @@ function SessionControl() {
           )}
         </div>
       </div>
+
+      {/* Rename Session Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+              <Pencil className="h-5 w-5 text-primary" />
+              Rename Session
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Update the name of this classroom session. Students and participants will see the updated title automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRenameSession} className="space-y-4 pt-2">
+            <div className="space-y-2 text-left">
+              <Label htmlFor="session-rename-title" className="text-xs font-semibold text-muted-foreground">
+                Session Title
+              </Label>
+              <Input
+                id="session-rename-title"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                required
+                autoFocus
+                placeholder="e.g. Thermodynamics & Heat Flow - Lecture 2"
+                className="rounded-xl border-border bg-background/50 h-10 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Session Code: <span className="font-mono font-bold text-primary">{session.code}</span>
+              </p>
+            </div>
+
+            <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameDialogOpen(false)}
+                className="rounded-xl text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={renaming || !renameTitle.trim() || renameTitle.trim() === session.title}
+                className="gradient-bg text-white font-semibold rounded-xl text-xs h-9 gap-1.5 shadow-md"
+              >
+                {renaming ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Dynamic Session Analytics Summary Bar */}
       <div className="mt-6 glass rounded-2xl p-5 border border-white/10 bg-white/[0.02] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 text-xs">

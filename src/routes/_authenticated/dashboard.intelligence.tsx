@@ -5,7 +5,7 @@
  * student classification, weak topic detection, performance trends, and pedagogical advice.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,6 +15,21 @@ import {
   type ClassroomEngagementBreakdown,
 } from "@/lib/ml-engine";
 import { analyzeWeakTopics, type WeakTopicAnalysis } from "@/lib/weak-topic-engine";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+  CartesianGrid,
+  AreaChart,
+  Area,
+} from "recharts";
 import {
   Brain,
   TrendingUp,
@@ -27,6 +42,8 @@ import {
   Sparkles,
   BookOpen,
   ChevronRight,
+  PieChart as PieChartIcon,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -209,6 +226,67 @@ export default function ClassroomIntelligenceDashboard() {
     };
   }, [runMLAnalytics]);
 
+  // Memoized Chart Data: Cohort Engagement Distribution
+  const engagementDistributionData = useMemo(() => {
+    if (!classroomStats) return [];
+    return [
+      {
+        name: "Highly Engaged (≥75%)",
+        value: classroomStats.studentDistribution.highlyEngaged,
+        color: "#10b981",
+      },
+      {
+        name: "Moderately Engaged (45–74%)",
+        value: classroomStats.studentDistribution.moderatelyEngaged,
+        color: "#f59e0b",
+      },
+      {
+        name: "Needs Attention (<45%)",
+        value: classroomStats.studentDistribution.needsAttention,
+        color: "#f43f5e",
+      },
+    ].filter((d) => d.value > 0);
+  }, [classroomStats]);
+
+  // Memoized Chart Data: Topic Accuracy Comparison
+  const topicChartData = useMemo(() => {
+    if (!weakTopicData?.topics || weakTopicData.topics.length === 0) return [];
+    return weakTopicData.topics.map((t) => ({
+      name: t.topicName.length > 14 ? `${t.topicName.slice(0, 14)}…` : t.topicName,
+      fullName: t.topicName,
+      accuracy: t.accuracyPercentage,
+      skipRate: t.skipRatePercentage,
+      speedSec: Number((t.avgResponseTimeMs / 1000).toFixed(1)),
+      color:
+        t.status === "weak"
+          ? "#f43f5e"
+          : t.status === "moderate"
+            ? "#f59e0b"
+            : "#10b981",
+    }));
+  }, [weakTopicData]);
+
+  // Memoized Chart Data: Student Score Spectrum
+  const scoreSpectrumData = useMemo(() => {
+    const brackets = [
+      { range: "0–25%", label: "Starter", count: 0 },
+      { range: "26–50%", label: "Developing", count: 0 },
+      { range: "51–75%", label: "Active", count: 0 },
+      { range: "76–100%", label: "Mastery", count: 0 },
+    ];
+    if (studentAnalyses.length === 0) {
+      return brackets;
+    }
+    studentAnalyses.forEach((s) => {
+      const sc = s.engagementScore;
+      if (sc <= 25) brackets[0].count++;
+      else if (sc <= 50) brackets[1].count++;
+      else if (sc <= 75) brackets[2].count++;
+      else brackets[3].count++;
+    });
+    return brackets;
+  }, [studentAnalyses]);
+
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
@@ -250,76 +328,119 @@ export default function ClassroomIntelligenceDashboard() {
         </div>
       </div>
 
-      {/* Main Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Overall Engagement */}
-        <Card className="shadow-md hover:shadow-lg transition">
-          <CardHeader className="pb-2">
+      {/* Main Stats & Graphical Engagement Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Engagement Donut Chart Card */}
+        <Card className="shadow-md hover:shadow-lg transition lg:col-span-1 flex flex-col justify-between">
+          <CardHeader className="pb-1">
             <CardDescription className="flex items-center justify-between font-semibold">
-              <span>Overall Engagement</span>
-              <Sparkles className="h-4 w-4 text-amber-500" />
+              <span>Cohort Distribution</span>
+              <PieChartIcon className="h-4 w-4 text-primary" />
             </CardDescription>
-            <CardTitle className="text-4xl font-extrabold text-primary">
-              {classroomStats ? `${classroomStats.overallScore}%` : "—"}
+            <CardTitle className="text-xl font-bold flex items-center justify-between pt-1">
+              <span>Overall Score</span>
+              <span className="text-2xl font-black text-primary">
+                {classroomStats ? `${classroomStats.overallScore}%` : "—"}
+              </span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Progress value={classroomStats?.overallScore || 0} className="h-2 mb-2" />
-            <p className="text-xs text-muted-foreground">
-              {classroomStats?.hasSufficientData
-                ? `Derived from participation, quiz accuracy, and interaction timing.`
-                : `Not enough session data collected.`}
+          <CardContent className="pt-0">
+            <div className="h-36 w-full flex items-center justify-center">
+              {engagementDistributionData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={engagementDistributionData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={36}
+                      outerRadius={56}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {engagementDistributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        borderRadius: "0.75rem",
+                        fontSize: "0.75rem",
+                        color: "hsl(var(--foreground))",
+                        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                      }}
+                      formatter={(val: any) => [`${val} students`, "Cohort"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-xs text-muted-foreground italic text-center py-6">
+                  {classroomStats?.hasSufficientData
+                    ? "Evaluating cohorts..."
+                    : "Awaiting responses..."}
+                </div>
+              )}
+            </div>
+            <Progress value={classroomStats?.overallScore || 0} className="h-1.5 mb-1.5" />
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Derived from student attendance, quiz accuracy, and answering tempo.
             </p>
           </CardContent>
         </Card>
 
-        {/* Highly Engaged */}
-        <Card className="shadow-md border-l-4 border-l-emerald-500">
+        {/* Highly Engaged Card */}
+        <Card className="shadow-md border-l-4 border-l-emerald-500 flex flex-col justify-between">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center justify-between font-semibold text-emerald-600 dark:text-emerald-400">
               <span>Highly Engaged 🟢</span>
               <CheckCircle2 className="h-4 w-4" />
             </CardDescription>
-            <CardTitle className="text-3xl font-extrabold">
+            <CardTitle className="text-3xl font-extrabold text-foreground">
               {classroomStats?.studentDistribution.highlyEngaged ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Students scoring ≥ 75% in engagement model.
+              Students scoring ≥ 75% in engagement model with consistent responses.
             </p>
           </CardContent>
         </Card>
 
-        {/* Moderately Engaged */}
-        <Card className="shadow-md border-l-4 border-l-amber-500">
+        {/* Moderately Engaged Card */}
+        <Card className="shadow-md border-l-4 border-l-amber-500 flex flex-col justify-between">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center justify-between font-semibold text-amber-600 dark:text-amber-400">
               <span>Moderately Engaged 🟡</span>
               <Users className="h-4 w-4" />
             </CardDescription>
-            <CardTitle className="text-3xl font-extrabold">
+            <CardTitle className="text-3xl font-extrabold text-foreground">
               {classroomStats?.studentDistribution.moderatelyEngaged ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">Students scoring 45–74% consistency.</p>
+            <p className="text-xs text-muted-foreground">
+              Students scoring 45–74% consistency. Likely to benefit from interactive prompts.
+            </p>
           </CardContent>
         </Card>
 
-        {/* Needs Attention */}
-        <Card className="shadow-md border-l-4 border-l-rose-500">
+        {/* Needs Attention Card */}
+        <Card className="shadow-md border-l-4 border-l-rose-500 flex flex-col justify-between">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center justify-between font-semibold text-rose-600 dark:text-rose-400">
               <span>Needs Attention 🔴</span>
               <AlertTriangle className="h-4 w-4" />
             </CardDescription>
-            <CardTitle className="text-3xl font-extrabold">
+            <CardTitle className="text-3xl font-extrabold text-foreground">
               {classroomStats?.studentDistribution.needsAttention ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">Low interaction or high skip rates.</p>
+            <p className="text-xs text-muted-foreground">
+              Students with high skip rate or score &lt;45%. Flagged for gentle mentoring.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -363,6 +484,42 @@ export default function ClassroomIntelligenceDashboard() {
           <CardContent>
             {weakTopicData?.topics && weakTopicData.topics.length > 0 ? (
               <div className="space-y-4">
+                {/* Visual Topic Accuracy Bar Chart */}
+                <div className="rounded-xl border border-border/60 bg-accent/20 p-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" /> Concept Accuracy Comparison (%)
+                  </div>
+                  <div className="h-44 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topicChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="name" angle={-15} textAnchor="end" tick={{ fill: "currentColor", fontSize: 10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fill: "currentColor", fontSize: 10 }} unit="%" />
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            fontSize: "0.75rem",
+                            color: "hsl(var(--foreground))",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          }}
+                          formatter={(val: any, name: any, item: any) => [
+                            `${val}% (Latency: ${item.payload.speedSec}s, Skip: ${item.payload.skipRate}%)`,
+                            "Accuracy",
+                          ]}
+                          labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                        />
+                        <Bar dataKey="accuracy" radius={[4, 4, 0, 0]}>
+                          {topicChartData.map((entry, index) => (
+                            <Cell key={`bar-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
                 {weakTopicData.topics.map((t) => (
                   <div
                     key={t.topicName}
@@ -426,7 +583,52 @@ export default function ClassroomIntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             {studentAnalyses.length > 0 ? (
-              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+              <div className="space-y-4">
+                {/* Visual Score Spectrum Area Chart */}
+                <div className="rounded-xl border border-border/60 bg-accent/20 p-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-primary" /> Class Score Distribution Curve
+                    </span>
+                    <span className="font-mono text-primary font-bold">{studentAnalyses.length} Students</span>
+                  </div>
+                  <div className="h-36 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={scoreSpectrumData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="scoreCurveGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.6} />
+                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="range" tick={{ fill: "currentColor", fontSize: 10 }} />
+                        <YAxis allowDecimals={false} tick={{ fill: "currentColor", fontSize: 10 }} />
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            fontSize: "0.75rem",
+                            color: "hsl(var(--foreground))",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          }}
+                          formatter={(val: any) => [`${val} students`, "Cohort"]}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="count"
+                          stroke="#6366f1"
+                          strokeWidth={2.5}
+                          fillOpacity={1}
+                          fill="url(#scoreCurveGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
                 {studentAnalyses.map((s) => (
                   <div
                     key={s.participantId}
@@ -464,6 +666,7 @@ export default function ClassroomIntelligenceDashboard() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground space-y-2">

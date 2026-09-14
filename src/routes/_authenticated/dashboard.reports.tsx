@@ -17,6 +17,17 @@ import {
   Download,
   FileText,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+  CartesianGrid,
+  Cell,
+} from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -489,6 +500,72 @@ function ReportsPage() {
                       </div>
 
                       <TabsContent value="analytics" className="space-y-6">
+                        {/* Graphical Session Overview Bar Chart */}
+                        {r.questions.length > 0 && (
+                          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <BarChart3 className="h-4 w-4 text-primary" /> Session Question Accuracy & Response Stream
+                              </span>
+                              <span className="text-xs font-mono text-muted-foreground">
+                                {r.questions.length} Questions Plotted
+                              </span>
+                            </div>
+                            <div className="h-48 w-full pt-2">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={r.questions.map((q, qIdx) => {
+                                    const totalAnswers = q.responses?.length || 0;
+                                    const correctAnswers =
+                                      q.type === "quiz"
+                                        ? q.responses?.filter((resp) => resp.answer === q.correct_answer).length || 0
+                                        : totalAnswers;
+                                    return {
+                                      name: `Q${qIdx + 1}`,
+                                      title: q.title,
+                                      type: q.type,
+                                      responses: totalAnswers,
+                                      correct: correctAnswers,
+                                      incorrect: Math.max(0, totalAnswers - correctAnswers),
+                                    };
+                                  })}
+                                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                                  <XAxis dataKey="name" tick={{ fill: "currentColor", fontSize: 11 }} />
+                                  <YAxis allowDecimals={false} tick={{ fill: "currentColor", fontSize: 10 }} />
+                                  <RechartsTooltip
+                                    contentStyle={{
+                                      backgroundColor: "hsl(var(--card))",
+                                      borderColor: "hsl(var(--border))",
+                                      borderRadius: "0.75rem",
+                                      fontSize: "0.75rem",
+                                      color: "hsl(var(--foreground))",
+                                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                                    }}
+                                    formatter={(val: any, name: any) => [
+                                      `${val} submissions`,
+                                      name === "correct" ? "Correct / Positive" : "Incorrect / Other",
+                                    ]}
+                                    labelFormatter={(label, payload) => `${label}: ${payload?.[0]?.payload?.title || ""}`}
+                                  />
+                                  <RechartsLegend
+                                    verticalAlign="bottom"
+                                    height={28}
+                                    formatter={(val) => (
+                                      <span className="text-[11px] font-semibold text-foreground/90">
+                                        {val === "correct" ? "Correct Answers" : "Incorrect / Other"}
+                                      </span>
+                                    )}
+                                  />
+                                  <Bar dataKey="correct" fill="#10b981" radius={[4, 4, 0, 0]} name="correct" />
+                                  <Bar dataKey="incorrect" fill="#f43f5e" radius={[4, 4, 0, 0]} name="incorrect" />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+
                         <h4 className="text-xs font-semibold tracking-wider uppercase text-muted-foreground flex items-center gap-2 mb-4">
                           <BarChart3 className="h-4 w-4" /> Question Breakdown
                         </h4>
@@ -887,28 +964,77 @@ function PollAnalytics({ options, responses }: { options: string[]; responses: R
 
   const total = responses.length || 1;
 
+  const chartData = useMemo(() => {
+    return options.map((o, idx) => {
+      const c = counts.get(o) ?? 0;
+      const pct = Math.round((c / total) * 100);
+      return {
+        option: o.length > 18 ? `${o.slice(0, 18)}…` : o,
+        fullOption: o,
+        votes: c,
+        percentage: pct,
+        label: `Opt ${String.fromCharCode(65 + idx)}`,
+      };
+    });
+  }, [options, counts, total]);
+
   return (
-    <div className="space-y-3">
-      {options.map((o) => {
-        const c = counts.get(o) ?? 0;
-        const pct = Math.round((c / total) * 100);
-        return (
-          <div key={o} className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{o}</span>
-              <span className="font-semibold">
-                {c} ({pct}%)
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-white/5">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                style={{ width: `${pct}%` }}
+    <div className="space-y-4">
+      {/* Graphical Bar Distribution */}
+      {responses.length > 0 && (
+        <div className="h-36 w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: "currentColor", fontSize: 10 }} unit="%" domain={[0, 100]} />
+              <YAxis dataKey="label" type="category" tick={{ fill: "currentColor", fontSize: 11 }} width={55} />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  borderColor: "hsl(var(--border))",
+                  borderRadius: "0.75rem",
+                  fontSize: "0.75rem",
+                  color: "hsl(var(--foreground))",
+                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                }}
+                formatter={(val: any, name: any, item: any) => [
+                  `${item.payload.votes} votes (${val}%)`,
+                  item.payload.fullOption,
+                ]}
               />
+              <Bar dataKey="percentage" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {options.map((o, idx) => {
+          const c = counts.get(o) ?? 0;
+          const pct = Math.round((c / total) * 100);
+          return (
+            <div key={o} className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <span className="h-4 w-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] font-bold grid place-items-center">
+                    {String.fromCharCode(65 + idx)}
+                  </span>
+                  {o}
+                </span>
+                <span className="font-semibold">
+                  {c} ({pct}%)
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -945,11 +1071,60 @@ function QuizAnalytics({
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [responses, correct]);
 
+  const chartData = useMemo(() => {
+    return options.map((o, idx) => {
+      const c = counts.get(o) ?? 0;
+      const pct = Math.round((c / total) * 100);
+      const isCorrect = o === correct;
+      return {
+        option: o.length > 18 ? `${o.slice(0, 18)}…` : o,
+        fullOption: o,
+        votes: c,
+        percentage: pct,
+        isCorrect,
+        color: isCorrect ? "#10b981" : "#64748b",
+        label: `Opt ${String.fromCharCode(65 + idx)}${isCorrect ? " ✓" : ""}`,
+      };
+    });
+  }, [options, counts, total, correct]);
+
   return (
     <div className="space-y-5">
+      {/* Graphical Bar Distribution */}
+      {responses.length > 0 && (
+        <div className="h-36 w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: "currentColor", fontSize: 10 }} unit="%" domain={[0, 100]} />
+              <YAxis dataKey="label" type="category" tick={{ fill: "currentColor", fontSize: 11 }} width={65} />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  borderColor: "hsl(var(--border))",
+                  borderRadius: "0.75rem",
+                  fontSize: "0.75rem",
+                  color: "hsl(var(--foreground))",
+                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                }}
+                formatter={(val: any, name: any, item: any) => [
+                  `${item.payload.votes} votes (${val}%) ${item.payload.isCorrect ? "— Correct Answer" : ""}`,
+                  item.payload.fullOption,
+                ]}
+              />
+              <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={`bar-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Option Breakdown */}
       <div className="space-y-3">
-        {options.map((o) => {
+        {options.map((o, idx) => {
           const c = counts.get(o) ?? 0;
           const pct = Math.round((c / total) * 100);
           const isCorrect = o === correct;
@@ -960,6 +1135,11 @@ function QuizAnalytics({
                 <span
                   className={`flex items-center gap-1.5 ${isCorrect ? "text-emerald-400 font-medium" : "text-muted-foreground"}`}
                 >
+                  <span
+                    className={`h-4 w-4 rounded-full text-[10px] font-bold grid place-items-center ${isCorrect ? "bg-emerald-500/20 text-emerald-400" : "bg-neutral-500/20 text-neutral-400"}`}
+                  >
+                    {String.fromCharCode(65 + idx)}
+                  </span>
                   {isCorrect && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
                   {o}
                   {isCorrect && (
@@ -968,7 +1148,7 @@ function QuizAnalytics({
                     </span>
                   )}
                 </span>
-                <span className="font-semibold">
+                <span className={`font-semibold ${isCorrect ? "text-emerald-400" : ""}`}>
                   {c} ({pct}%)
                 </span>
               </div>

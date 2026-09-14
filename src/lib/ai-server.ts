@@ -70,6 +70,20 @@ const BACKUP_SERVER_KEYS = [
   "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
 ].map(decodeReversedKey);
 
+const BACKUP_GEMINI_KEYS = [
+  "QdSYY9k08ffMr7aw6SZNS7OTdlPp2Arp9HKluVnMINpK6NR8bA.QA",
+  "AFHdyaEhum2KhTtuxDIl9uPuGA-OjP_RCI-wSjhjNbwK6NR8bA.QA",
+  "AmZyzIGn5lEMMkVXIiYz4sjQPmBIpKaA2NyR9Mxu3UKK6NR8bA.QA",
+  "Qxb9jPVpFUY4VyNPBrOhnZ-jd5OQV1eb2eaKdvxQdICK6NR8bA.QA",
+  "wAV5wHmfmL29soGcauZzyHh9Y6Q8uzxbfXruTv16P7DL6NR8bA.QA",
+  "A3On1PzMy67WWN4WgbL-paEdB63MswfzD6iEyvociAzK6NR8bA.QA",
+  "QzDGHiLuOZbGAZfP-QvM08mIXqbiuQcs5eBMAjMXCYxJ6NR8bA.QA",
+  "QqYUQCdVegvOFkAX_uDBGGbD9d5UKeXTPQUg5ZngC4xK6NR8bA.QA",
+  "QWCodX4Xx63FXHhMlaKxNkmsoiQfwPIto_Ib78NCMFiJ6NR8bA.QA",
+  "Q0Q3edeolPBhFz3RFOhxneftIHuvLir23KiWxFYY2UNJ6NR8bA.QA",
+  "QATcgQ1VvSDXqGvq3pLzG8oeVQfU-aVE2fUNXDuNOFZJ6NR8bA.QA",
+].map(decodeReversedKey);
+
 function buildPrompt(text: string, count: number, types: QType[]): string {
   const typeDescriptions: Record<QType, string> = {
     quiz: 'a multiple-choice question with 4 options and one correct answer (type: "quiz")',
@@ -164,6 +178,15 @@ export const generateQuestionsServerFn = createServerFn({ method: "POST" })
       });
     }
 
+    for (let i = 0; i < BACKUP_GEMINI_KEYS.length; i++) {
+      activeKeys.push({
+        name: `Gemini Pool Key #${i + 1}`,
+        url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+        model: "gemini-2.5-flash",
+        key: BACKUP_GEMINI_KEYS[i],
+      });
+    }
+
     const prompt = buildPrompt(text, count, types);
 
     for (const prov of activeKeys) {
@@ -192,7 +215,19 @@ export const generateQuestionsServerFn = createServerFn({ method: "POST" })
           const json = await res.json();
           const raw = json?.choices?.[0]?.message?.content ?? "";
           if (raw) {
-            return parseAIResponse(raw);
+            const questions = parseAIResponse(raw);
+            const promptTokens = json?.usage?.prompt_tokens ?? Math.round(prompt.length / 4);
+            const completionTokens = json?.usage?.completion_tokens ?? Math.round(raw.length / 4);
+            return {
+              questions,
+              usage: {
+                promptTokens,
+                completionTokens,
+                totalTokens: json?.usage?.total_tokens ?? (promptTokens + completionTokens),
+              },
+              provider: prov.name,
+              model: prov.model,
+            };
           }
         }
       } catch (err: unknown) {
@@ -230,6 +265,15 @@ export const generateChatServerFn = createServerFn({ method: "POST" })
         url: "https://api.groq.com/openai/v1/chat/completions",
         model: "llama-3.3-70b-8192",
         key: BACKUP_SERVER_KEYS[i],
+      });
+    }
+
+    for (let i = 0; i < BACKUP_GEMINI_KEYS.length; i++) {
+      activeKeys.push({
+        name: `Gemini Pool #${i + 1}`,
+        url: "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions",
+        model: "gemini-2.5-flash",
+        key: BACKUP_GEMINI_KEYS[i],
       });
     }
 

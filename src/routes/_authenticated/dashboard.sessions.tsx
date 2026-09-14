@@ -10,6 +10,7 @@ import {
   Building2,
   FolderGit2,
   Layers,
+  Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,12 @@ function SessionsPage() {
   const [selectedShareSession, setSelectedShareSession] = useState<Row | null>(null);
   const [coHostEmail, setCoHostEmail] = useState("");
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+
+  // Rename Session Modal States
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [sessionToRename, setSessionToRename] = useState<Row | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   const navigate = Route.useNavigate();
 
@@ -260,6 +267,39 @@ function SessionsPage() {
     setShareModalOpen(false);
   };
 
+  const handleOpenRename = (r: Row) => {
+    setSessionToRename(r);
+    setNewTitle(r.title);
+    setRenameModalOpen(true);
+  };
+
+  const handleSaveRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionToRename || !newTitle.trim()) return;
+    setRenaming(true);
+    try {
+      const trimmed = newTitle.trim();
+      const { error } = await supabase
+        .from("sessions")
+        .update({ title: trimmed })
+        .eq("id", sessionToRename.id);
+
+      if (error) throw error;
+
+      setRows((prev) =>
+        prev.map((s) => (s.id === sessionToRename.id ? { ...s, title: trimmed } : s)),
+      );
+      toast.success("Session renamed successfully! ✏️");
+      setRenameModalOpen(false);
+      setSessionToRename(null);
+    } catch (err: any) {
+      console.error("Rename session error:", err);
+      toast.error(err.message || "Failed to rename session.");
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const handleDelete = (id: string) => {
     setDeleteSessionId(id);
   };
@@ -337,9 +377,9 @@ function SessionsPage() {
             <div className="grid grid-cols-12 gap-4 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/60">
               <div className="col-span-4">Title</div>
               <div className="col-span-2">Code</div>
-              <div className="col-span-2">Status</div>
+              <div className="col-span-1">Status</div>
               <div className="col-span-2">Participants</div>
-              <div className="col-span-2 text-right">Actions</div>
+              <div className="col-span-3 text-right">Actions</div>
             </div>
             {rows.length === 0 && (
               <div className="p-10 text-center text-sm text-muted-foreground">
@@ -351,23 +391,42 @@ function SessionsPage() {
                 key={r.id}
                 className="grid grid-cols-12 gap-4 items-center px-5 py-4 border-b border-border/40 last:border-0 hover:bg-accent/40 transition"
               >
-                <Link
-                  to="/dashboard/session/$id"
-                  params={{ id: r.id }}
-                  className="col-span-4 font-semibold truncate hover:text-primary transition"
-                >
-                  {r.title}
-                </Link>
+                <div className="col-span-4 flex items-center gap-2 min-w-0">
+                  <Link
+                    to="/dashboard/session/$id"
+                    params={{ id: r.id }}
+                    className="font-semibold truncate hover:text-primary transition"
+                    title={r.title}
+                  >
+                    {r.title}
+                  </Link>
+                  <button
+                    onClick={() => handleOpenRename(r)}
+                    className="text-muted-foreground hover:text-primary p-1 rounded-md hover:bg-accent transition shrink-0 opacity-60 hover:opacity-100"
+                    title="Rename Session"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <div className="col-span-2 font-mono text-sm tracking-widest text-primary font-bold">
                   {r.code}
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   <StatusPill status={r.status} />
                 </div>
                 <div className="col-span-2 text-sm text-muted-foreground flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5" /> {r.participants?.[0]?.count ?? 0} Students
                 </div>
-                <div className="col-span-2 text-right flex items-center justify-end gap-2">
+                <div className="col-span-3 text-right flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
+                  <Button
+                    onClick={() => handleOpenRename(r)}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1 border-border/80 text-foreground hover:bg-accent"
+                    title="Rename Session"
+                  >
+                    <Pencil className="h-3 w-3 text-primary" /> Rename
+                  </Button>
                   <Button
                     onClick={() => {
                       setSelectedShareSession(r);
@@ -382,7 +441,7 @@ function SessionsPage() {
                   </Button>
                   <button
                     onClick={() => handleDelete(r.id)}
-                    className="text-muted-foreground hover:text-destructive p-1 transition"
+                    className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition"
                     title="Delete Session"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -475,6 +534,71 @@ function SessionsPage() {
             <Button type="submit" className="w-full gradient-bg font-semibold text-xs gap-2">
               <Share2 className="h-4 w-4" /> Send Co-Host Access Invite
             </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Session Modal */}
+      <Dialog open={renameModalOpen} onOpenChange={setRenameModalOpen}>
+        <DialogContent className="max-w-md bg-card border border-border text-foreground p-6 rounded-2xl shadow-2xl">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
+              <Pencil className="h-5 w-5 text-primary" /> Rename Session
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveRename} className="space-y-4 pt-2">
+            <div className="space-y-2 text-left">
+              <Label htmlFor="session-new-title" className="text-xs font-semibold text-muted-foreground">
+                Session Title
+              </Label>
+              <Input
+                id="session-new-title"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                required
+                autoFocus
+                placeholder="e.g. Data Structures & Algorithms - Lecture 4"
+                className="bg-card/50 border-border text-sm rounded-xl h-10"
+              />
+              {sessionToRename && (
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                  <span>
+                    Session Code:{" "}
+                    <span className="font-mono font-bold text-primary">
+                      {sessionToRename.code}
+                    </span>
+                  </span>
+                  <span className="capitalize">
+                    Status:{" "}
+                    <span className="font-semibold text-foreground">
+                      {sessionToRename.status}
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameModalOpen(false)}
+                className="rounded-xl text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  renaming ||
+                  !newTitle.trim() ||
+                  newTitle.trim() === sessionToRename?.title
+                }
+                className="gradient-bg text-white font-semibold rounded-xl text-xs h-9 gap-1.5 shadow-md"
+              >
+                {renaming ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

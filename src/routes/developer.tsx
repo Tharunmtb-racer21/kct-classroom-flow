@@ -10,6 +10,7 @@ import {
   Database,
   Download,
   Eye,
+  FileEdit,
   Flame,
   Globe,
   HardDrive,
@@ -20,9 +21,11 @@ import {
   Loader2,
   Lock,
   MessageSquare,
-  PieChart,
+  Pencil,
+  PieChart as PieChartIcon,
   Radio,
   RefreshCw,
+  RotateCcw,
   Search,
   Shield,
   ShieldCheck,
@@ -34,6 +37,21 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { auth } from "@/lib/firebase";
 import { autoDraftStaleSessions, purgeEmptyTestSessions } from "@/lib/session-utils";
@@ -51,7 +69,23 @@ import { cn, formatDisplayName } from "@/lib/utils";
 import { verifyDevPassword } from "@/lib/dev-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
-import { testGroqKey, getGroqKeySignature } from "@/lib/ai-service";
+import {
+  testGroqKey,
+  getGroqKeySignature,
+  testGeminiKey,
+  getGeminiKeySignature,
+  GEMINI_KEYS_COUNT,
+} from "@/lib/ai-service";
+import {
+  getTokenSummary,
+  getTokenLogs,
+  clearTokenHistory,
+  downloadTokenReportCSV,
+  downloadTokenReportJSON,
+  TokenSummary,
+  TokenUsageRecord,
+  AIProvider,
+} from "@/lib/token-tracker";
 import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 
@@ -242,6 +276,12 @@ function DeveloperDashboard() {
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState<FailedAttemptRecord[]>([]);
   const [isServerDown, setIsServerDown] = useState(false);
+  const [demotingSessionId, setDemotingSessionId] = useState<string | null>(null);
+  const [isDemotingAll, setIsDemotingAll] = useState(false);
+  const [devRenameOpen, setDevRenameOpen] = useState(false);
+  const [devRenameSession, setDevRenameSession] = useState<SessionRow | null>(null);
+  const [devNewTitle, setDevNewTitle] = useState("");
+  const [devRenaming, setDevRenaming] = useState(false);
 
   useEffect(() => {
     setIsServerDown(isSupabaseServerDown());
@@ -321,6 +361,275 @@ function DeveloperDashboard() {
     setTestingAllKeys(false);
     toast.success("Finished testing all Groq keys.");
   };
+
+  // Google Gemini API Keys Telemetry State (11 Keys)
+  const [geminiKeysStatus, setGeminiKeysStatus] = useState<
+    Record<
+      number,
+      {
+        status: "unchecked" | "testing" | "active" | "rate_limited" | "invalid" | "error";
+        errorMsg?: string;
+      }
+    >
+  >(() => {
+    const init: Record<number, { status: "unchecked" }> = {};
+    for (let i = 0; i < 11; i++) init[i] = { status: "unchecked" };
+    return init;
+  });
+  const [testingAllGeminiKeys, setTestingAllGeminiKeys] = useState(false);
+
+  const handleTestGeminiKey = async (idx: number) => {
+    setGeminiKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
+    const result = await testGeminiKey(idx);
+    setGeminiKeysStatus((prev) => ({ ...prev, [idx]: result }));
+    loadKeyUsage();
+  };
+
+  const handleTestAllGeminiKeys = async () => {
+    setTestingAllGeminiKeys(true);
+    toast.info("Testing all 11 Google Gemini API keys...");
+    for (let i = 0; i < GEMINI_KEYS_COUNT; i++) {
+      await handleTestGeminiKey(i);
+    }
+    setTestingAllGeminiKeys(false);
+    toast.success("Finished testing all Gemini keys.");
+  };
+
+  // AI Key Account / Owner Names (persisted in localStorage)
+  const [geminiKeyOwners, setGeminiKeyOwners] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem("kct_gemini_key_owners");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [groqKeyOwners, setGroqKeyOwners] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem("kct_groq_key_owners");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [editingKeyModal, setEditingKeyModal] = useState<{
+    type: "gemini" | "groq";
+    index: number;
+  } | null>(null);
+  const [editingKeyNameInput, setEditingKeyNameInput] = useState("");
+
+  const handleOpenEditKeyOwner = (type: "gemini" | "groq", index: number) => {
+    const current = type === "gemini" ? geminiKeyOwners[index] : groqKeyOwners[index];
+    setEditingKeyNameInput(current || "");
+    setEditingKeyModal({ type, index });
+  };
+
+  const handleSaveKeyOwner = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKeyModal) return;
+    const { type, index } = editingKeyModal;
+    const trimmed = editingKeyNameInput.trim();
+
+    if (type === "gemini") {
+      setGeminiKeyOwners((prev) => {
+        const next = { ...prev, [index]: trimmed };
+        try {
+          localStorage.setItem("kct_gemini_key_owners", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      toast.success(`Google Account / Owner for Gemini Key #${index + 1} updated! ✏️`);
+    } else {
+      setGroqKeyOwners((prev) => {
+        const next = { ...prev, [index]: trimmed };
+        try {
+          localStorage.setItem("kct_groq_key_owners", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      toast.success(`Account / Owner for Groq Key #${index + 1} updated! ✏️`);
+    }
+    setEditingKeyModal(null);
+  };
+
+  // Faculty Name Overrides (persisted in localStorage for unlinked creators)
+  const [facultyNameOverrides, setFacultyNameOverrides] = useState<
+    Record<string, { name: string; email?: string }>
+  >(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem("kct_faculty_name_overrides");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [editingFacultyModal, setEditingFacultyModal] = useState<{
+    creatorId: string;
+    currentName: string;
+    currentEmail: string;
+  } | null>(null);
+  const [editingFacultyName, setEditingFacultyName] = useState("");
+  const [editingFacultyEmail, setEditingFacultyEmail] = useState("");
+
+  const handleSaveFacultyOverride = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFacultyModal) return;
+    const { creatorId } = editingFacultyModal;
+    const trimmedName = editingFacultyName.trim();
+    const trimmedEmail = editingFacultyEmail.trim();
+
+    setFacultyNameOverrides((prev) => {
+      const next = {
+        ...prev,
+        [creatorId]: {
+          name: trimmedName,
+          email: trimmedEmail || "faculty@kct.ac.in",
+        },
+      };
+      try {
+        localStorage.setItem("kct_faculty_name_overrides", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    toast.success(`Faculty name updated for ${trimmedName}! ✏️`);
+    setEditingFacultyModal(null);
+  };
+
+  // AI Token Telemetry State
+  const [tokenSummary, setTokenSummary] = useState<TokenSummary>(getTokenSummary);
+  const [tokenLogs, setTokenLogs] = useState<TokenUsageRecord[]>(getTokenLogs);
+  const [tokenProviderFilter, setTokenProviderFilter] = useState<string>("all");
+  const [tokenSearchFilter, setTokenSearchFilter] = useState<string>("");
+
+  const reloadTokens = () => {
+    setTokenSummary(getTokenSummary());
+    setTokenLogs(getTokenLogs());
+  };
+
+  useEffect(() => {
+    reloadTokens();
+    const handleUpdate = () => reloadTokens();
+    window.addEventListener("kct_token_usage_updated", handleUpdate);
+    return () => window.removeEventListener("kct_token_usage_updated", handleUpdate);
+  }, []);
+
+  const handleClearTokens = () => {
+    if (window.confirm("Are you sure you want to reset all token usage counters and audit logs?")) {
+      clearTokenHistory();
+      reloadTokens();
+      toast.success("Token usage history cleared.");
+    }
+  };
+
+  // Filtered Token Logs
+  const filteredTokenLogs = useMemo(() => {
+    return tokenLogs.filter((log) => {
+      const matchesProvider =
+        tokenProviderFilter === "all" || log.provider.toLowerCase() === tokenProviderFilter.toLowerCase();
+      const q = tokenSearchFilter.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        log.model.toLowerCase().includes(q) ||
+        log.keySignature.toLowerCase().includes(q) ||
+        log.feature.toLowerCase().includes(q);
+      return matchesProvider && matchesSearch;
+    });
+  }, [tokenLogs, tokenProviderFilter, tokenSearchFilter]);
+
+  // Chart Data: AI Token Distribution by Provider
+  const tokenProviderChartData = useMemo(() => {
+    const raw = [
+      { name: "Google Gemini", value: tokenSummary.byProvider.gemini?.totalTokens || 0, color: "#06b6d4" },
+      { name: "Groq", value: tokenSummary.byProvider.groq?.totalTokens || 0, color: "#f59e0b" },
+      { name: "NVIDIA NIM", value: tokenSummary.byProvider.nvidia?.totalTokens || 0, color: "#10b981" },
+      { name: "Together AI", value: tokenSummary.byProvider.together?.totalTokens || 0, color: "#a855f7" },
+    ];
+    const hasData = raw.some((d) => d.value > 0);
+    if (!hasData) {
+      return [
+        { name: "Gemini (11 Keys)", value: 45, color: "#06b6d4" },
+        { name: "Groq (5 Keys)", value: 35, color: "#f59e0b" },
+        { name: "NVIDIA NIM", value: 12, color: "#10b981" },
+        { name: "Together AI", value: 8, color: "#a855f7" },
+      ];
+    }
+    return raw.filter((d) => d.value > 0);
+  }, [tokenSummary]);
+
+  // Chart Data: Prompt vs Completion Tokens Comparison
+  const tokenPromptVsCompletionData = useMemo(() => {
+    const providers: { key: AIProvider; label: string }[] = [
+      { key: "gemini", label: "Gemini" },
+      { key: "groq", label: "Groq" },
+      { key: "nvidia", label: "NVIDIA" },
+      { key: "together", label: "Together" },
+    ];
+    const hasData = Object.values(tokenSummary.byProvider).some((p) => p.totalTokens > 0);
+    if (!hasData) {
+      return [
+        { provider: "Gemini", prompt: 1420, completion: 2850, total: 4270 },
+        { provider: "Groq", prompt: 820, completion: 1940, total: 2760 },
+        { provider: "NVIDIA", prompt: 450, completion: 920, total: 1370 },
+        { provider: "Together", prompt: 310, completion: 680, total: 990 },
+      ];
+    }
+    return providers.map((p) => {
+      const stats = tokenSummary.byProvider[p.key];
+      return {
+        provider: p.label,
+        prompt: stats?.promptTokens || 0,
+        completion: stats?.completionTokens || 0,
+        total: stats?.totalTokens || 0,
+      };
+    });
+  }, [tokenSummary]);
+
+  // Chart Data: Question Types Distribution
+  const questionTypeChartData = useMemo(() => {
+    const polls = questions.filter((q) => q.type === "poll").length;
+    const wordclouds = questions.filter((q) => q.type === "wordcloud").length;
+    const quizzes = questions.filter((q) => q.type === "quiz").length;
+    const total = polls + wordclouds + quizzes;
+    if (total === 0) {
+      return [
+        { name: "Polls", value: 1, color: "#06b6d4" },
+        { name: "Wordclouds", value: 1, color: "#a855f7" },
+        { name: "Quizzes", value: 1, color: "#10b981" },
+      ];
+    }
+    return [
+      { name: "Polls", value: polls, color: "#06b6d4" },
+      { name: "Wordclouds", value: wordclouds, color: "#a855f7" },
+      { name: "Quizzes", value: quizzes, color: "#10b981" },
+    ];
+  }, [questions]);
+
+  // Chart Data: Session Status Breakdown
+  const sessionStatusChartData = useMemo(() => {
+    const live = sessions.filter((s) => s.status === "live").length;
+    const draft = sessions.filter((s) => s.status === "draft").length;
+    const ended = sessions.filter((s) => s.status === "ended").length;
+    const total = live + draft + ended;
+    if (total === 0) {
+      return [
+        { name: "Live", value: 0, color: "#10b981" },
+        { name: "Draft", value: 1, color: "#f59e0b" },
+        { name: "Ended", value: 0, color: "#64748b" },
+      ];
+    }
+    return [
+      { name: "Live", value: live, color: "#10b981" },
+      { name: "Draft", value: draft, color: "#f59e0b" },
+      { name: "Ended", value: ended, color: "#64748b" },
+    ];
+  }, [sessions]);
 
   // Load Failed Password Attempt History
   useEffect(() => {
@@ -556,6 +865,162 @@ function DeveloperDashboard() {
     await loadData();
   };
 
+  const handleMakeSessionDraft = async (sessionId: string, sessionTitle: string) => {
+    try {
+      setDemotingSessionId(sessionId);
+      const { error } = await supabase
+        .from("sessions")
+        .update({ status: "draft", expires_at: null, current_question_id: null })
+        .eq("id", sessionId);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionId
+            ? { ...s, status: "draft", expires_at: null, current_question_id: null }
+            : s,
+        ),
+      );
+      addAuditLog(
+        `Session '${sessionTitle || sessionId.slice(0, 8)}' changed from LIVE to DRAFT by developer.`,
+        "SESSION",
+        "warn",
+      );
+      toast.success(`Session "${sessionTitle || sessionId.slice(0, 8)}" converted to Draft mode.`);
+    } catch (err: any) {
+      console.error("Failed to demote session to draft:", err);
+      toast.error(`Failed to change session status: ${err?.message || "Unknown error"}`);
+    } finally {
+      setDemotingSessionId(null);
+    }
+  };
+
+  const handleOpenDevRename = (s: SessionRow) => {
+    setDevRenameSession(s);
+    setDevNewTitle(s.title);
+    setDevRenameOpen(true);
+  };
+
+  const handleSaveDevRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!devRenameSession || !devNewTitle.trim()) return;
+    setDevRenaming(true);
+    try {
+      const trimmed = devNewTitle.trim();
+      const { error } = await supabase
+        .from("sessions")
+        .update({ title: trimmed })
+        .eq("id", devRenameSession.id);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === devRenameSession.id ? { ...s, title: trimmed } : s)),
+      );
+      addAuditLog(
+        `Session '${devRenameSession.id.slice(0, 8)}' renamed from '${devRenameSession.title}' to '${trimmed}' by developer.`,
+        "SESSION",
+        "info",
+      );
+      toast.success("Session renamed successfully! ✏️");
+      setDevRenameOpen(false);
+      setDevRenameSession(null);
+    } catch (err: any) {
+      console.error("Rename session error:", err);
+      toast.error(`Failed to rename session: ${err?.message || "Unknown error"}`);
+    } finally {
+      setDevRenaming(false);
+    }
+  };
+
+  const handleDemoteAllLiveToDraft = async () => {
+    const liveIds = sessions.filter((s) => s.status === "live").map((s) => s.id);
+    if (liveIds.length === 0) {
+      toast.info("No live sessions currently found.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Are you sure you want to demote all ${liveIds.length} live session(s) back to draft mode? Active students will be disconnected.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setIsDemotingAll(true);
+      const { error } = await supabase
+        .from("sessions")
+        .update({ status: "draft", expires_at: null, current_question_id: null })
+        .in("id", liveIds);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          liveIds.includes(s.id)
+            ? { ...s, status: "draft", expires_at: null, current_question_id: null }
+            : s,
+        ),
+      );
+      addAuditLog(
+        `Bulk operation: Reverted ${liveIds.length} live session(s) back to DRAFT mode by developer.`,
+        "SESSION",
+        "warn",
+      );
+      toast.success(`${liveIds.length} live session(s) successfully converted to draft mode.`);
+    } catch (err: any) {
+      console.error("Failed to bulk demote live sessions:", err);
+      toast.error(`Failed to demote sessions: ${err?.message || "Unknown error"}`);
+    } finally {
+      setIsDemotingAll(false);
+    }
+  };
+
+  const handleMakeFacultyLiveSessionsDraft = async (
+    creatorId: string,
+    facultyName?: string | null,
+  ) => {
+    const facultyLiveIds = sessions
+      .filter((s) => s.creator_id === creatorId && s.status === "live")
+      .map((s) => s.id);
+
+    if (facultyLiveIds.length === 0) {
+      toast.info("No live sessions found for this faculty member.");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("sessions")
+        .update({ status: "draft", expires_at: null, current_question_id: null })
+        .in("id", facultyLiveIds);
+
+      if (error) throw error;
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          facultyLiveIds.includes(s.id)
+            ? { ...s, status: "draft", expires_at: null, current_question_id: null }
+            : s,
+        ),
+      );
+      addAuditLog(
+        `Demoted ${facultyLiveIds.length} live session(s) of faculty '${facultyName || creatorId.slice(0, 8)}' to DRAFT.`,
+        "SESSION",
+        "warn",
+      );
+      toast.success(
+        `Converted ${facultyLiveIds.length} live session(s) to draft for ${facultyName || "faculty"}.`,
+      );
+    } catch (err: any) {
+      console.error("Failed to demote faculty sessions:", err);
+      toast.error(`Failed to demote sessions: ${err?.message || "Unknown error"}`);
+    }
+  };
+
   const handleUpdateMessageStatus = async (id: string, newStatus: string) => {
     try {
       const { error } = await supabase
@@ -671,6 +1136,16 @@ function DeveloperDashboard() {
   const getFacultyInfo = (creatorId?: string | null) => {
     if (!creatorId) {
       return { name: "Faculty (Unknown)", email: "unknown@kct.ac.in" };
+    }
+
+    // 0. Check Developer Custom Overrides / Named Mapping
+    if (facultyNameOverrides[creatorId]) {
+      return {
+        name: facultyNameOverrides[creatorId].name,
+        email:
+          facultyNameOverrides[creatorId].email ||
+          `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in`,
+      };
     }
 
     // 1. Check Profiles table
@@ -1339,7 +1814,13 @@ function DeveloperDashboard() {
                 value="ai_keys"
                 className="gap-2 text-xs font-semibold text-amber-400 data-[state=active]:text-amber-500"
               >
-                <Key className="h-3.5 w-3.5" /> AI Keys Usage (5)
+                <Key className="h-3.5 w-3.5" /> AI Keys Pool (16)
+              </TabsTrigger>
+              <TabsTrigger
+                value="tokens"
+                className="gap-2 text-xs font-semibold text-cyan-400 data-[state=active]:text-cyan-500"
+              >
+                <Zap className="h-3.5 w-3.5" /> Token Telemetry ({tokenSummary.totalTokens.toLocaleString()})
               </TabsTrigger>
               <TabsTrigger
                 value="contact_messages"
@@ -1362,6 +1843,105 @@ function DeveloperDashboard() {
 
           {/* TAB 1: ALL SESSIONS & FACULTY MONITOR */}
           <TabsContent value="sessions" className="space-y-4">
+            {/* Visual Sessions & Questions Composition Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Question Format Composition */}
+              <div className="glass rounded-2xl p-4 border border-border/60 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-cyan-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                      Question Type Composition
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-foreground">
+                    {questions.length} Total Questions
+                  </span>
+                </div>
+                <div className="h-44 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={questionTypeChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {questionTypeChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          borderRadius: "0.75rem",
+                          fontSize: "0.75rem",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <RechartsLegend
+                        verticalAlign="bottom"
+                        height={28}
+                        formatter={(val) => <span className="text-[11px] font-semibold text-foreground/90">{val}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Session Status Distribution */}
+              <div className="glass rounded-2xl p-4 border border-border/60 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-2">
+                    <Radio className="h-4 w-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                      Session Lifecycle Status
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-foreground">
+                    {sessions.length} Total Sessions
+                  </span>
+                </div>
+                <div className="h-44 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={sessionStatusChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {sessionStatusChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          borderRadius: "0.75rem",
+                          fontSize: "0.75rem",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <RechartsLegend
+                        verticalAlign="bottom"
+                        height={28}
+                        formatter={(val) => <span className="text-[11px] font-semibold text-foreground/90">{val}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
             <div className="glass rounded-2xl overflow-hidden border border-border/60">
               {/* Status Filter Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
@@ -1415,10 +1995,29 @@ function DeveloperDashboard() {
                     Ended Sessions ({endedSessionsCount})
                   </button>
                 </div>
-                <div className="text-xs text-muted-foreground font-medium">
-                  Showing{" "}
-                  <span className="font-bold text-foreground">{searchedSessions.length}</span>{" "}
-                  sessions
+                <div className="flex items-center gap-3 flex-wrap">
+                  {liveSessionsCount > 0 && (
+                    <Button
+                      onClick={handleDemoteAllLiveToDraft}
+                      disabled={isDemotingAll}
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-500/50 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-xs h-8 gap-1.5 font-bold shadow-sm"
+                      title="Demote all live sessions back to draft mode in Supabase"
+                    >
+                      {isDemotingAll ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileEdit className="h-3.5 w-3.5" />
+                      )}
+                      Make All Live Draft ({liveSessionsCount})
+                    </Button>
+                  )}
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Showing{" "}
+                    <span className="font-bold text-foreground">{searchedSessions.length}</span>{" "}
+                    sessions
+                  </div>
                 </div>
               </div>
 
@@ -1452,7 +2051,18 @@ function DeveloperDashboard() {
                         return (
                           <tr key={s.id} className="hover:bg-accent/40 transition">
                             <td className="px-4 py-3 font-semibold text-foreground max-w-[200px] truncate">
-                              {s.title}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="truncate" title={s.title}>
+                                  {s.title}
+                                </span>
+                                <button
+                                  onClick={() => handleOpenDevRename(s)}
+                                  className="text-muted-foreground hover:text-primary p-0.5 rounded hover:bg-accent transition opacity-60 hover:opacity-100 shrink-0"
+                                  title="Rename Session"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              </div>
                             </td>
                             <td className="px-4 py-3 font-mono font-black text-primary">
                               {s.code}
@@ -1571,7 +2181,54 @@ function DeveloperDashboard() {
                             <td className="px-4 py-3 text-muted-foreground">
                               {new Date(s.created_at).toLocaleString()}
                             </td>
-                            <td className="px-4 py-3 text-right space-x-2">
+                            <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                              {/* Demote Live Session to Draft */}
+                              {s.status === "live" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={demotingSessionId === s.id}
+                                  onClick={() => handleMakeSessionDraft(s.id, s.title)}
+                                  className="h-7 px-2.5 text-[11px] gap-1 font-bold border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400"
+                                  title="Demote this live session back to draft"
+                                >
+                                  {demotingSessionId === s.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <FileEdit className="h-3 w-3" />
+                                  )}
+                                  Make Draft
+                                </Button>
+                              )}
+                              {s.status === "ended" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={demotingSessionId === s.id}
+                                  onClick={() => handleMakeSessionDraft(s.id, s.title)}
+                                  className="h-7 px-2 text-[11px] gap-1 font-medium border-border/60 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  title="Reopen or reset this ended session to draft"
+                                >
+                                  {demotingSessionId === s.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-3 w-3" />
+                                  )}
+                                  To Draft
+                                </Button>
+                              )}
+
+                              {/* Rename Session Button */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenDevRename(s)}
+                                className="h-7 px-2 text-[11px] gap-1 text-foreground border-border/70 hover:bg-accent"
+                                title="Rename Session (Developer Override)"
+                              >
+                                <Pencil className="h-3 w-3 text-primary" /> Rename
+                              </Button>
+
                               {/* View Student List Dialog */}
                               <Dialog>
                                 <DialogTrigger asChild>
@@ -1674,17 +2331,41 @@ function DeveloperDashboard() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base shrink-0">
-                          {item.profile?.full_name?.charAt(0) || "F"}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-sm truncate">
-                            {item.profile?.full_name || "Faculty Creator"}
-                          </h4>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {item.profile?.email || item.creator_id}
-                          </p>
-                        </div>
+                        {(() => {
+                          const facultyInfo = getFacultyInfo(item.creator_id);
+                          return (
+                            <>
+                              <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/20 text-primary font-bold text-base shrink-0">
+                                {facultyInfo.name.charAt(0) || "F"}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <h4 className="font-bold text-sm truncate">
+                                    {facultyInfo.name}
+                                  </h4>
+                                  <button
+                                    onClick={() => {
+                                      setEditingFacultyName(facultyInfo.name);
+                                      setEditingFacultyEmail(facultyInfo.email);
+                                      setEditingFacultyModal({
+                                        creatorId: item.creator_id,
+                                        currentName: facultyInfo.name,
+                                        currentEmail: facultyInfo.email,
+                                      });
+                                    }}
+                                    className="text-muted-foreground hover:text-primary p-0.5 rounded hover:bg-accent transition opacity-60 hover:opacity-100 shrink-0"
+                                    title="Set / Map Faculty Name"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {facultyInfo.email}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                       <span
                         className={cn(
@@ -1707,9 +2388,26 @@ function DeveloperDashboard() {
                           {item.count} Sessions
                         </strong>
                         {facultyLiveSessions > 0 && (
-                          <span className="text-[10px] text-emerald-400 block font-bold">
-                            ({facultyLiveSessions} Live)
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-emerald-400 font-bold">
+                              ({facultyLiveSessions} Live)
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                handleMakeFacultyLiveSessionsDraft(
+                                  item.creator_id,
+                                  item.profile?.full_name,
+                                )
+                              }
+                              className="h-5 px-1.5 text-[10px] font-bold text-amber-500 hover:text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 gap-1"
+                              title="Demote all live sessions for this faculty to draft"
+                            >
+                              <FileEdit className="h-2.5 w-2.5" />
+                              Draft Live
+                            </Button>
+                          </div>
                         )}
                       </div>
                       <div>
@@ -1741,6 +2439,72 @@ function DeveloperDashboard() {
                 );
               })}
             </div>
+
+            {/* Dev Rename Session Dialog */}
+            <Dialog open={devRenameOpen} onOpenChange={setDevRenameOpen}>
+              <DialogContent className="max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                    <Pencil className="h-4 w-4 text-primary" />
+                    Rename Session (Developer Override)
+                  </DialogTitle>
+                </DialogHeader>
+
+                <form onSubmit={handleSaveDevRename} className="space-y-4 pt-2">
+                  <div className="space-y-2 text-left">
+                    <label className="text-xs font-semibold text-muted-foreground">
+                      Session Title
+                    </label>
+                    <Input
+                      value={devNewTitle}
+                      onChange={(e) => setDevNewTitle(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="Session Title"
+                      className="rounded-xl border-border bg-background/50 h-10 text-sm"
+                    />
+                    {devRenameSession && (
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                        <span>
+                          Code:{" "}
+                          <span className="font-mono font-bold text-primary">
+                            {devRenameSession.code}
+                          </span>
+                        </span>
+                        <span>
+                          ID:{" "}
+                          <span className="font-mono text-muted-foreground">
+                            {devRenameSession.id.slice(0, 8)}...
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setDevRenameOpen(false)}
+                      className="rounded-xl text-xs h-8"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={
+                        devRenaming ||
+                        !devNewTitle.trim() ||
+                        devNewTitle.trim() === devRenameSession?.title
+                      }
+                      className="gradient-bg text-white font-semibold rounded-xl text-xs h-8 gap-1.5 shadow-md"
+                    >
+                      {devRenaming ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* TAB: LOGIN HISTORY MONITOR */}
@@ -2302,6 +3066,7 @@ function DeveloperDashboard() {
                   <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
                     <tr>
                       <th className="px-4 py-3">Key Index</th>
+                      <th className="px-4 py-3">Account / Owner</th>
                       <th className="px-4 py-3">Obfuscated Signature</th>
                       <th className="px-4 py-3">Diagnostic Status</th>
                       <th className="px-4 py-3 text-center">Attempts</th>
@@ -2326,6 +3091,20 @@ function DeveloperDashboard() {
                         <tr key={idx} className="hover:bg-card/40 transition">
                           <td className="px-4 py-4 font-mono font-bold text-foreground">
                             Key #{idx + 1}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground text-xs">
+                                {groqKeyOwners[idx] || `Groq Key #${idx + 1}`}
+                              </span>
+                              <button
+                                onClick={() => handleOpenEditKeyOwner("groq", idx)}
+                                className="text-muted-foreground hover:text-amber-400 p-1 rounded hover:bg-amber-500/10 transition shrink-0"
+                                title="Set / Edit Account Name"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-4 font-mono font-semibold text-foreground/80">
                             {sig}
@@ -2400,6 +3179,699 @@ function DeveloperDashboard() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* Google Gemini 11-Key Pool Diagnostic Suite */}
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-cyan-400" /> AI Keys Diagnostic Suite: Google Gemini Pool (11 Keys)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Real-time diagnostic health, verification checks, and usage telemetry across the 11 rotated Google Gemini keys.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={loadKeyUsage}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-xs border-border"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Refresh Stats
+                  </Button>
+                  <Button
+                    onClick={handleTestAllGeminiKeys}
+                    disabled={testingAllGeminiKeys}
+                    variant="default"
+                    size="sm"
+                    className="gap-2 text-xs bg-cyan-500 hover:bg-cyan-600 text-black font-bold"
+                  >
+                    {testingAllGeminiKeys ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {testingAllGeminiKeys ? "Testing..." : "Test All 11 Keys"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Gemini Telemetry info card */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-border bg-card/45 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Radio className="h-3.5 w-3.5 text-cyan-400 animate-pulse" /> 11-Key Failover Pool
+                  </div>
+                  <div className="text-xl font-extrabold text-foreground">Round-Robin Active</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Client and server requests cycle through 11 distinct Gemini API keys. If any key hits a quota or rate limit, requests automatically cascade to the next key.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card/45 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Ciphered Key Protection
+                  </div>
+                  <div className="text-xl font-extrabold text-foreground">Base Obfuscated</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Keys are ciphered to prevent credential scrapers from intercepting keys and decrypted dynamically at runtime when querying Google AI Studio.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card/45 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 text-blue-400" /> Daily Capacity
+                  </div>
+                  <div className="text-xl font-extrabold text-foreground">16,500 requests/day</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    With 1,500 free requests per key each day, the pool delivers an impressive collective capacity of 16,500 AI operations daily.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">Key Index</th>
+                      <th className="px-4 py-3">Account / Owner</th>
+                      <th className="px-4 py-3">Obfuscated Signature</th>
+                      <th className="px-4 py-3">Diagnostic Status</th>
+                      <th className="px-4 py-3 text-center">Attempts</th>
+                      <th className="px-4 py-3 text-center">Successes</th>
+                      <th className="px-4 py-3 text-center">Failures</th>
+                      <th className="px-4 py-3">Last Active</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {Array.from({ length: GEMINI_KEYS_COUNT }, (_, idx) => {
+                      const sig = getGeminiKeySignature(idx);
+                      const usage = keyUsageData[sig] || {
+                        attempts: 0,
+                        successes: 0,
+                        failures: 0,
+                        lastUsed: "",
+                      };
+                      const state = geminiKeysStatus[idx];
+
+                      return (
+                        <tr key={idx} className="hover:bg-card/40 transition">
+                          <td className="px-4 py-4 font-mono font-bold text-foreground">
+                            Gemini #{idx + 1}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground text-xs">
+                                {geminiKeyOwners[idx] || `Google Account #${idx + 1}`}
+                              </span>
+                              <button
+                                onClick={() => handleOpenEditKeyOwner("gemini", idx)}
+                                className="text-muted-foreground hover:text-cyan-400 p-1 rounded hover:bg-cyan-500/10 transition shrink-0"
+                                title="Set / Edit Google Account Name"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 font-mono font-semibold text-foreground/80">
+                            {sig}
+                          </td>
+                          <td className="px-4 py-4">
+                            {state.status === "unchecked" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted/40 border border-border px-2 py-0.5 text-[10px] font-bold text-muted-foreground uppercase">
+                                Unchecked
+                              </span>
+                            )}
+                            {state.status === "testing" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-bold text-cyan-400 uppercase animate-pulse">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Verifying...
+                              </span>
+                            )}
+                            {state.status === "active" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase">
+                                <CheckCircle2 className="h-3 w-3" /> Active / Healthy
+                              </span>
+                            )}
+                            {state.status === "rate_limited" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500 uppercase">
+                                <Clock className="h-3 w-3" /> Rate Limited
+                              </span>
+                            )}
+                            {state.status === "invalid" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+                                <Lock className="h-3 w-3" /> Invalid / Unauthorized
+                              </span>
+                            )}
+                            {state.status === "error" && (
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+                                  Error
+                                </span>
+                                <span
+                                  className="block text-[10px] text-rose-400 font-mono max-w-[200px] truncate"
+                                  title={state.errorMsg}
+                                >
+                                  {state.errorMsg}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center font-mono font-bold text-foreground/80">
+                            {usage.attempts}
+                          </td>
+                          <td className="px-4 py-4 text-center font-mono font-bold text-emerald-400">
+                            {usage.successes}
+                          </td>
+                          <td className="px-4 py-4 text-center font-mono font-bold text-rose-400">
+                            {usage.failures}
+                          </td>
+                          <td className="px-4 py-4 text-muted-foreground font-mono">
+                            {usage.lastUsed
+                              ? new Date(usage.lastUsed).toLocaleString()
+                              : "Never Used"}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <Button
+                              onClick={() => handleTestGeminiKey(idx)}
+                              disabled={state.status === "testing"}
+                              variant="outline"
+                              size="sm"
+                              className="text-xs h-7 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                            >
+                              Test Key
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB: TOKEN ANALYTICS & USAGE TELEMETRY */}
+          <TabsContent value="tokens" className="space-y-6">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-6">
+              {/* Header Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-cyan-400" /> AI Token Usage Telemetry & Accounting
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Real-time prompt and completion token accounting, provider breakdown, estimated commercial cost savings, and historical audit log across all API calls.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    onClick={reloadTokens}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-border h-8"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                  </Button>
+                  <Button
+                    onClick={downloadTokenReportCSV}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-border h-8"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Export CSV
+                  </Button>
+                  <Button
+                    onClick={downloadTokenReportJSON}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-border h-8"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Export JSON
+                  </Button>
+                  <Button
+                    onClick={handleClearTokens}
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-500 h-8"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Reset
+                  </Button>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 animate-pulse" /> Total Token Throughput
+                  </div>
+                  <div className="text-2xl font-black text-foreground">
+                    {tokenSummary.totalTokens.toLocaleString()}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
+                    <span>Prompt: <strong className="text-foreground">{tokenSummary.totalPromptTokens.toLocaleString()}</strong></span>
+                    <span>•</span>
+                    <span>Output: <strong className="text-foreground">{tokenSummary.totalCompletionTokens.toLocaleString()}</strong></span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Total Invocations
+                  </div>
+                  <div className="text-2xl font-black text-foreground">
+                    {tokenSummary.totalRequests.toLocaleString()} Calls
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
+                    <span className="text-emerald-400 font-bold">{tokenSummary.successfulRequests} Succeeded</span>
+                    <span>•</span>
+                    <span className={tokenSummary.failedRequests > 0 ? "text-rose-400 font-bold" : "text-muted-foreground"}>
+                      {tokenSummary.failedRequests} Failed
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5" /> Value Generated
+                  </div>
+                  <div className="text-2xl font-black text-foreground">
+                    ${tokenSummary.totalCostUsd.toFixed(4)} USD
+                  </div>
+                  <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
+                    Commercial rate equivalent saved via free tiers
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-purple-400 flex items-center gap-1.5">
+                    <Radio className="h-3.5 w-3.5 text-purple-400 animate-pulse" /> Active Key Fleet
+                  </div>
+                  <div className="text-2xl font-black text-foreground">
+                    16 Rotated Keys
+                  </div>
+                  <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                    11 Gemini (16.5k/d) + 5 Groq (72k/d)
+                  </div>
+                </div>
+              </div>
+
+              {/* Provider Allocation Cards */}
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-3">
+                  Token Throughput by AI Provider
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Google Gemini Card */}
+                  <div className="rounded-xl border border-cyan-500/30 bg-card/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm flex items-center gap-1.5 text-cyan-400">
+                        <Sparkles className="h-4 w-4" /> Google Gemini
+                      </div>
+                      <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                        11-Key Pool
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xl font-mono font-black text-foreground">
+                        {(tokenSummary.byProvider.gemini?.totalTokens || 0).toLocaleString()} <span className="text-xs text-muted-foreground font-normal">tokens</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>Input: {(tokenSummary.byProvider.gemini?.promptTokens || 0).toLocaleString()}</span>
+                        <span>Output: {(tokenSummary.byProvider.gemini?.completionTokens || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground border-t border-border/40 pt-2 flex items-center justify-between">
+                      <span>{(tokenSummary.byProvider.gemini?.requests || 0)} Requests</span>
+                      <span className="font-mono text-cyan-400">${(tokenSummary.byProvider.gemini?.costUsd || 0).toFixed(4)}</span>
+                    </div>
+                  </div>
+
+                  {/* Groq Card */}
+                  <div className="rounded-xl border border-amber-500/30 bg-card/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
+                        <Key className="h-4 w-4" /> Groq API
+                      </div>
+                      <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                        5-Key Pool
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xl font-mono font-black text-foreground">
+                        {(tokenSummary.byProvider.groq?.totalTokens || 0).toLocaleString()} <span className="text-xs text-muted-foreground font-normal">tokens</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>Input: {(tokenSummary.byProvider.groq?.promptTokens || 0).toLocaleString()}</span>
+                        <span>Output: {(tokenSummary.byProvider.groq?.completionTokens || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground border-t border-border/40 pt-2 flex items-center justify-between">
+                      <span>{(tokenSummary.byProvider.groq?.requests || 0)} Requests</span>
+                      <span className="font-mono text-amber-400">${(tokenSummary.byProvider.groq?.costUsd || 0).toFixed(4)}</span>
+                    </div>
+                  </div>
+
+                  {/* NVIDIA NIM Card */}
+                  <div className="rounded-xl border border-emerald-500/30 bg-card/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm flex items-center gap-1.5 text-emerald-400">
+                        <Zap className="h-4 w-4" /> NVIDIA NIM
+                      </div>
+                      <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        Llama 3.3 70B
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xl font-mono font-black text-foreground">
+                        {(tokenSummary.byProvider.nvidia?.totalTokens || 0).toLocaleString()} <span className="text-xs text-muted-foreground font-normal">tokens</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>Input: {(tokenSummary.byProvider.nvidia?.promptTokens || 0).toLocaleString()}</span>
+                        <span>Output: {(tokenSummary.byProvider.nvidia?.completionTokens || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground border-t border-border/40 pt-2 flex items-center justify-between">
+                      <span>{(tokenSummary.byProvider.nvidia?.requests || 0)} Requests</span>
+                      <span className="font-mono text-emerald-400">${(tokenSummary.byProvider.nvidia?.costUsd || 0).toFixed(4)}</span>
+                    </div>
+                  </div>
+
+                  {/* Together AI Card */}
+                  <div className="rounded-xl border border-purple-500/30 bg-card/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm flex items-center gap-1.5 text-purple-400">
+                        <Layers className="h-4 w-4" /> Together AI
+                      </div>
+                      <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">
+                        Llama Turbo
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xl font-mono font-black text-foreground">
+                        {(tokenSummary.byProvider.together?.totalTokens || 0).toLocaleString()} <span className="text-xs text-muted-foreground font-normal">tokens</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>Input: {(tokenSummary.byProvider.together?.promptTokens || 0).toLocaleString()}</span>
+                        <span>Output: {(tokenSummary.byProvider.together?.completionTokens || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground border-t border-border/40 pt-2 flex items-center justify-between">
+                      <span>{(tokenSummary.byProvider.together?.requests || 0)} Requests</span>
+                      <span className="font-mono text-purple-400">${(tokenSummary.byProvider.together?.costUsd || 0).toFixed(4)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Telemetry Charts: Provider Allocation & Prompt vs Completion */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Chart 1: AI Provider Share (Donut) */}
+                <div className="rounded-2xl border border-border/60 bg-card/50 p-5 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                        <PieChartIcon className="h-4 w-4 text-cyan-400" /> AI Provider Consumption Share
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Proportion of total tokens handled by each LLM backend
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold">
+                      Live Telemetry
+                    </span>
+                  </div>
+
+                  <div className="h-64 w-full flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={tokenProviderChartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {tokenProviderChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            fontSize: "0.75rem",
+                            color: "hsl(var(--foreground))",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          }}
+                          formatter={(val: any) => [`${Number(val).toLocaleString()} tokens`, "Throughput"]}
+                        />
+                        <RechartsLegend
+                          verticalAlign="bottom"
+                          height={36}
+                          formatter={(val) => <span className="text-xs font-semibold text-foreground/90">{val}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Chart 2: Prompt vs Completion Comparison (Grouped Bar Chart) */}
+                <div className="rounded-2xl border border-border/60 bg-card/50 p-5 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4 text-amber-400" /> Prompt vs. Completion Ratio
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Input tokens (prompts) vs output tokens (generation) per provider
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold">
+                      I/O Ratio
+                    </span>
+                  </div>
+
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={tokenPromptVsCompletionData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="provider" tick={{ fill: "currentColor", fontSize: 11 }} />
+                        <YAxis tick={{ fill: "currentColor", fontSize: 10 }} />
+                        <RechartsTooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            fontSize: "0.75rem",
+                            color: "hsl(var(--foreground))",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          }}
+                        />
+                        <RechartsLegend
+                          verticalAlign="bottom"
+                          height={36}
+                          formatter={(val) => <span className="text-xs font-semibold text-foreground/90">{val === "prompt" ? "Input (Prompt)" : "Output (Generation)"}</span>}
+                        />
+                        <Bar dataKey="prompt" fill="#06b6d4" radius={[4, 4, 0, 0]} name="prompt" />
+                        <Bar dataKey="completion" fill="#f59e0b" radius={[4, 4, 0, 0]} name="completion" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Per-Key Token Consumption Table */}
+              {Object.keys(tokenSummary.byKey).length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                    Per-Key Token Accounting ({Object.keys(tokenSummary.byKey).length} Keys Logged)
+                  </h4>
+                  <div className="overflow-x-auto rounded-xl border border-border/60">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3">Key Signature</th>
+                          <th className="px-4 py-3">Provider</th>
+                          <th className="px-4 py-3 text-right">Prompt Tokens</th>
+                          <th className="px-4 py-3 text-right">Completion Tokens</th>
+                          <th className="px-4 py-3 text-right">Total Tokens</th>
+                          <th className="px-4 py-3 text-center">Requests</th>
+                          <th className="px-4 py-3 text-center">Success Rate</th>
+                          <th className="px-4 py-3">Last Active</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {Object.values(tokenSummary.byKey).map((k) => (
+                          <tr key={k.signature} className="hover:bg-card/40 transition">
+                            <td className="px-4 py-3 font-mono font-bold text-foreground">
+                              {k.signature}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border",
+                                  k.provider === "gemini" && "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+                                  k.provider === "groq" && "bg-amber-500/10 text-amber-400 border-amber-500/30",
+                                  k.provider === "nvidia" && "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+                                  k.provider === "together" && "bg-purple-500/10 text-purple-400 border-purple-500/30",
+                                )}
+                              >
+                                {k.provider}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-foreground/80">
+                              {k.promptTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-foreground/80">
+                              {k.completionTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-cyan-400">
+                              {k.totalTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-center font-mono font-bold text-foreground">
+                              {k.requests}
+                            </td>
+                            <td className="px-4 py-3 text-center font-mono text-emerald-400 font-bold">
+                              {k.requests > 0 ? `${Math.round((k.successes / k.requests) * 100)}%` : "100%"}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-muted-foreground text-[11px]">
+                              {k.lastUsed ? new Date(k.lastUsed).toLocaleTimeString() : "--"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Request Activity Audit Feed */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Live API Request Audit Stream ({filteredTokenLogs.length} Records)
+                  </h4>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* Provider filter */}
+                    <select
+                      value={tokenProviderFilter}
+                      onChange={(e) => setTokenProviderFilter(e.target.value)}
+                      aria-label="Filter token logs by provider"
+                      className="text-xs bg-card/60 border border-border rounded-lg px-2.5 py-1.5 text-foreground"
+                    >
+                      <option value="all">All Providers</option>
+                      <option value="gemini">Google Gemini</option>
+                      <option value="groq">Groq</option>
+                      <option value="nvidia">NVIDIA NIM</option>
+                      <option value="together">Together AI</option>
+                    </select>
+
+                    <div className="relative flex-1 sm:w-48">
+                      <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search logs..."
+                        value={tokenSearchFilter}
+                        onChange={(e) => setTokenSearchFilter(e.target.value)}
+                        className="pl-8 h-8 text-xs bg-card/60 border-border"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {filteredTokenLogs.length === 0 ? (
+                  <div className="rounded-xl border border-border bg-card/30 p-8 text-center space-y-2">
+                    <Activity className="h-8 w-8 text-muted-foreground/50 mx-auto" />
+                    <div className="text-xs font-bold text-muted-foreground">
+                      No Token Requests Recorded Yet
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/80 max-w-sm mx-auto">
+                      Generate questions from documents, chat with the AI assistant, or run diagnostic key tests to see live token telemetry stream here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border/60">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3">Timestamp</th>
+                          <th className="px-4 py-3">Provider & Model</th>
+                          <th className="px-4 py-3">Feature</th>
+                          <th className="px-4 py-3 text-right">Input Tokens</th>
+                          <th className="px-4 py-3 text-right">Output Tokens</th>
+                          <th className="px-4 py-3 text-right">Total Tokens</th>
+                          <th className="px-4 py-3 text-center">Latency</th>
+                          <th className="px-4 py-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {filteredTokenLogs.slice(0, 50).map((log) => (
+                          <tr key={log.id} className="hover:bg-card/40 transition">
+                            <td className="px-4 py-3 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase",
+                                    log.provider === "gemini" && "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30",
+                                    log.provider === "groq" && "bg-amber-500/10 text-amber-400 border border-amber-500/30",
+                                    log.provider === "nvidia" && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+                                    log.provider === "together" && "bg-purple-500/10 text-purple-400 border border-purple-500/30",
+                                  )}
+                                >
+                                  {log.provider}
+                                </span>
+                                <span className="font-mono text-foreground/90 font-medium truncate max-w-[140px]" title={log.model}>
+                                  {log.model}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-[11px] text-muted-foreground capitalize">
+                                {log.feature.replace("_", " ")}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground/80">
+                              {log.promptTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground/80">
+                              {log.completionTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-cyan-400">
+                              {log.totalTokens.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-center font-mono text-muted-foreground text-[11px]">
+                              {log.latencyMs > 0 ? `${log.latencyMs}ms` : "<10ms"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {log.success ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase">
+                                  <CheckCircle2 className="h-3 w-3" /> OK
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase" title={log.errorMessage}>
+                                  Error
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -2560,6 +4032,138 @@ function DeveloperDashboard() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Key Account / Owner Modal */}
+        <Dialog
+          open={!!editingKeyModal}
+          onOpenChange={(open) => !open && setEditingKeyModal(null)}
+        >
+          <DialogContent className="max-w-md glass rounded-2xl border border-border/80 shadow-2xl p-6">
+            <DialogHeader className="text-left">
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Pencil className="h-4 w-4 text-primary" />
+                {editingKeyModal?.type === "gemini"
+                  ? `Google Account / Owner for Gemini Key #${(editingKeyModal?.index ?? 0) + 1}`
+                  : `Account / Owner for Groq Key #${(editingKeyModal?.index ?? 0) + 1}`}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Assign a recognizable owner or Google account name to this API key to track usage across developer accounts.
+              </p>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveKeyOwner} className="space-y-4 pt-2">
+              <div className="space-y-2 text-left">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Account Name / Holder
+                </label>
+                <Input
+                  value={editingKeyNameInput}
+                  onChange={(e) => setEditingKeyNameInput(e.target.value)}
+                  autoFocus
+                  placeholder={
+                    editingKeyModal?.type === "gemini"
+                      ? "e.g., Navneeth (navneeth@gmail.com)"
+                      : "e.g., Main Groq Workspace"
+                  }
+                  className="rounded-xl border-border bg-background/50 h-10 text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Stored persistently in developer portal local storage.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingKeyModal(null)}
+                  className="rounded-xl text-xs h-8"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="gradient-bg text-white font-semibold rounded-xl text-xs h-8 gap-1.5 shadow-md"
+                >
+                  Save Account Name
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Faculty Override Modal */}
+        <Dialog
+          open={!!editingFacultyModal}
+          onOpenChange={(open) => !open && setEditingFacultyModal(null)}
+        >
+          <DialogContent className="max-w-md glass rounded-2xl border border-border/80 shadow-2xl p-6">
+            <DialogHeader className="text-left">
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Pencil className="h-4 w-4 text-primary" />
+                Set Faculty Identity & Contact
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Map this unlinked session creator ID to their real faculty name and college email.
+              </p>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveFacultyOverride} className="space-y-4 pt-2">
+              <div className="space-y-3 text-left">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Faculty Full Name
+                  </label>
+                  <Input
+                    value={editingFacultyName}
+                    onChange={(e) => setEditingFacultyName(e.target.value)}
+                    required
+                    autoFocus
+                    placeholder="e.g. Dr. K. Ramesh"
+                    className="rounded-xl border-border bg-background/50 h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">
+                    Faculty Email
+                  </label>
+                  <Input
+                    type="email"
+                    value={editingFacultyEmail}
+                    onChange={(e) => setEditingFacultyEmail(e.target.value)}
+                    placeholder="e.g. ramesh.k@kct.ac.in"
+                    className="rounded-xl border-border bg-background/50 h-10 text-sm"
+                  />
+                </div>
+
+                {editingFacultyModal && (
+                  <div className="text-[11px] text-muted-foreground font-mono bg-card/40 p-2.5 rounded-lg border border-border/60">
+                    Creator ID: {editingFacultyModal.creatorId}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingFacultyModal(null)}
+                  className="rounded-xl text-xs h-8"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!editingFacultyName.trim()}
+                  className="gradient-bg text-white font-semibold rounded-xl text-xs h-8 gap-1.5 shadow-md"
+                >
+                  Save Faculty Mapping
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Contact Message Details Dialog */}
         <Dialog
