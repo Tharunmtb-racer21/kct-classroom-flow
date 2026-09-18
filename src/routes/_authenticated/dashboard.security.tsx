@@ -34,20 +34,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import type { Tables } from "@/integrations/supabase/types";
+
 export const Route = createFileRoute("/_authenticated/dashboard/security")({
   component: FacultySecurityDashboard,
 });
 
-interface SecurityLogItem {
-  id: string;
-  timestamp: string;
-  event_type: string;
-  risk_score: number;
-  action: "ALLOW" | "MONITOR" | "BLOCK" | "RATE_LIMIT";
-  path: string;
-  reason?: string;
-  ip_hash?: string;
-}
+type SecurityLogItem = Tables<"waf_security_logs">;
 
 export default function FacultySecurityDashboard() {
   const [isLoading, setIsLoading] = useState(true);

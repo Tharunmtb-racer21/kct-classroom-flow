@@ -14,18 +14,24 @@ export type Database = {
           joined_at: string;
           name: string;
           session_id: string;
+          risk_score: number | null;
+          risk_level: string | null;
         };
         Insert: {
           id?: string;
           joined_at?: string;
           name: string;
           session_id: string;
+          risk_score?: number | null;
+          risk_level?: string | null;
         };
         Update: {
           id?: string;
           joined_at?: string;
           name?: string;
           session_id?: string;
+          risk_score?: number | null;
+          risk_level?: string | null;
         };
         Relationships: [
           {
@@ -169,6 +175,10 @@ export type Database = {
           active_question_ids: string[] | null;
           expires_at: string | null;
           image_url: string | null;
+          is_exam: boolean | null;
+          max_fullscreen_exits: number | null;
+          block_clipboard: boolean | null;
+          block_right_click: boolean | null;
         };
         Insert: {
           code: string;
@@ -182,6 +192,10 @@ export type Database = {
           active_question_ids?: string[] | null;
           expires_at?: string | null;
           image_url?: string | null;
+          is_exam?: boolean | null;
+          max_fullscreen_exits?: number | null;
+          block_clipboard?: boolean | null;
+          block_right_click?: boolean | null;
         };
         Update: {
           code?: string;
@@ -195,6 +209,10 @@ export type Database = {
           active_question_ids?: string[] | null;
           expires_at?: string | null;
           image_url?: string | null;
+          is_exam?: boolean | null;
+          max_fullscreen_exits?: number | null;
+          block_clipboard?: boolean | null;
+          block_right_click?: boolean | null;
         };
         Relationships: [
           {
@@ -430,6 +448,102 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      exam_integrity_events: {
+        Row: {
+          id: string;
+          session_id: string;
+          participant_id: string;
+          event_type: string;
+          question_id: string | null;
+          timestamp: string;
+          duration_seconds: number | null;
+          client_metadata: Json;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          participant_id: string;
+          event_type: string;
+          question_id?: string | null;
+          timestamp?: string;
+          duration_seconds?: number | null;
+          client_metadata?: Json;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          participant_id?: string;
+          event_type?: string;
+          question_id?: string | null;
+          timestamp?: string;
+          duration_seconds?: number | null;
+          client_metadata?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exam_integrity_events_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exam_integrity_events_participant_id_fkey";
+            columns: ["participant_id"];
+            isOneToOne: false;
+            referencedRelation: "participants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      exam_heartbeats: {
+        Row: {
+          id: string;
+          session_id: string;
+          participant_id: string;
+          timestamp: string;
+          latency_ms: number | null;
+          downlink_mbps: number | null;
+          connection_type: string | null;
+          status: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          participant_id: string;
+          timestamp?: string;
+          latency_ms?: number | null;
+          downlink_mbps?: number | null;
+          connection_type?: string | null;
+          status: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          participant_id?: string;
+          timestamp?: string;
+          latency_ms?: number | null;
+          downlink_mbps?: number | null;
+          connection_type?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exam_heartbeats_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exam_heartbeats_participant_id_fkey";
+            columns: ["participant_id"];
+            isOneToOne: false;
+            referencedRelation: "participants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: {

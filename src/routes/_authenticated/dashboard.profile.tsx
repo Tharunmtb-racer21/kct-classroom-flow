@@ -30,6 +30,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { formatDisplayName } from "@/lib/utils";
+import { FacultyCommandCenter } from "@/components/faculty/command-center";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
   component: ProfilePage,
@@ -209,18 +210,20 @@ function ProfilePage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Faculty Profile</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Your institutional profile details and account metadata.
-      </p>
+    <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Faculty Profile</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your institutional profile details and account metadata.
+        </p>
 
-      <Link to="/dashboard/guide" className="mt-5 inline-flex">
-        <Button className="gradient-bg font-semibold gap-2">
-          <BookOpen className="h-4 w-4" />
-          Open Faculty Guide
-        </Button>
-      </Link>
+        <Link to="/dashboard/guide" className="mt-4 inline-flex">
+          <Button className="gradient-bg font-semibold gap-2">
+            <BookOpen className="h-4 w-4" />
+            Open Faculty Guide
+          </Button>
+        </Link>
+      </div>
 
       {/* Chrome Profile Settings style Header Card */}
       <div className="mt-8 glass rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-border/40 bg-[#1c2230]/40">
@@ -304,6 +307,9 @@ function ProfilePage() {
           </Button>
         </div>
       </div>
+
+      {/* ⚡ Faculty Command Center & 🔔 Action Center */}
+      <FacultyCommandCenter />
 
       {/* Inline edit container or full account details */}
       {isEditing ? (
