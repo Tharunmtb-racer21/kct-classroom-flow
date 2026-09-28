@@ -75,6 +75,7 @@ import {
   generateIntegritySummary,
 } from "@/lib/ai-service";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VoiceInputButton } from "@/components/voice-input-button";
 
 type QType = "wordcloud" | "poll" | "quiz";
 type Question = {
@@ -2214,7 +2215,16 @@ function QuestionsPanel({
                 {type !== "quiz" ? (
                   <form onSubmit={handleCreate} className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Question</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>Question</Label>
+                        <VoiceInputButton
+                          onTranscriptFinal={(txt) => setTitle(txt)}
+                          currentValue={title}
+                          appendMode={false}
+                          buttonText="Voice"
+                          size="sm"
+                        />
+                      </div>
                       <Input
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
@@ -2304,7 +2314,16 @@ function QuestionsPanel({
                     <TabsContent value="manual" className="space-y-4 mt-4">
                       <form onSubmit={handleCreate} className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Question</Label>
+                          <div className="flex items-center justify-between">
+                            <Label>Question</Label>
+                            <VoiceInputButton
+                              onTranscriptFinal={(txt) => setTitle(txt)}
+                              currentValue={title}
+                              appendMode={false}
+                              buttonText="Voice"
+                              size="sm"
+                            />
+                          </div>
                           <Input
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
@@ -2614,7 +2633,16 @@ function QuestionsPanel({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Question</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Question</Label>
+                    <VoiceInputButton
+                      onTranscriptFinal={(txt) => setEditTitle(txt)}
+                      currentValue={editTitle}
+                      appendMode={false}
+                      buttonText="Voice"
+                      size="sm"
+                    />
+                  </div>
                   <Input
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}

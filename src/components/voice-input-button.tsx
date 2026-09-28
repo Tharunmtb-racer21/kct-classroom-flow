@@ -11,6 +11,13 @@ import { Mic, MicOff, Check, Sparkles, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  getSpeechRecognition,
+  isSpeechRecognitionSupported,
+  SpeechRecognitionWrapper,
+  SpeechRecognitionEvent,
+  SpeechRecognitionErrorEvent,
+} from "@/services/voice/speechRecognition";
 
 interface VoiceInputButtonProps {
   onTranscriptFinal: (text: string) => void;
@@ -22,21 +29,6 @@ interface VoiceInputButtonProps {
   variant?: "default" | "outline" | "ghost" | "secondary";
   appendMode?: boolean; // If true, appends transcribed text to currentValue
   language?: string; // Language code (default 'en-US')
-}
-
-interface SpeechRecognitionEvent {
-  resultIndex: number;
-  results: {
-    length: number;
-    [index: number]: {
-      isFinal: boolean;
-      0: { transcript: string };
-    };
-  };
-}
-
-interface SpeechRecognitionErrorEvent {
-  error: string;
 }
 
 export function VoiceInputButton({
@@ -54,35 +46,21 @@ export function VoiceInputButton({
   const [interimTranscript, setInterimTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
 
-  const recognitionRef = useRef<{
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    start: () => void;
-    stop: () => void;
-    onresult: (event: SpeechRecognitionEvent) => void;
-    onerror: (event: SpeechRecognitionErrorEvent) => void;
-    onend: () => void;
-  } | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionWrapper | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const win = window as unknown as Record<string, unknown>;
-    const SpeechRecognition = (win.SpeechRecognition ||
-      win.webkitSpeechRecognition) as new () => typeof recognitionRef.current;
-
-    if (!SpeechRecognition) {
-      setIsSupported(false);
-      return;
-    }
+    // Support already checked above
+    // Proceed to create recognition instance
 
     try {
-      const recognition = new SpeechRecognition();
+      const recognition = getSpeechRecognition(language);
       if (!recognition) {
         setIsSupported(false);
         return;
       }
+      // Configuration handled by wrapper; ensure properties are set for safety
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = language;
