@@ -610,6 +610,9 @@ function ReportsPage() {
                                   <th className="px-4 py-3 font-semibold text-center">
                                     Quiz Score
                                   </th>
+                                  <th className="px-4 py-3 font-semibold text-center">
+                                    Marks
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/5">
@@ -631,6 +634,13 @@ function ReportsPage() {
                                       response && response.answer === q.correct_answer;
                                     return sum + (isCorrect ? 1 : 0);
                                   }, 0);
+                                    const totalMarks = quizQuestions.reduce((sum, q) => {
+                                      const response = q.responses?.find((r) => r.participant_id === p.id);
+                                      if (response && response.answer === q.correct_answer) {
+                                        return sum + (questionOverrides[q.id]?.marks ?? 1);
+                                      }
+                                      return sum;
+                                    }, 0);
 
                                   return (
                                     <tr key={p.id} className="hover:bg-white/[0.02] transition">
@@ -654,6 +664,7 @@ function ReportsPage() {
                                           </span>
                                         )}
                                       </td>
+                                      <td className=\"px-4 py-3.5 text-center font-medium\">{totalMarks}</td>
                                     </tr>
                                   );
                                 })}
