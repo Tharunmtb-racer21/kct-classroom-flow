@@ -155,6 +155,10 @@ function ReportsPage() {
     Record<string, { marks: number; feedback: string }>
   >({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [customizeMarksModalOpen, setCustomizeMarksModalOpen] = useState(false);
+  const [sessionForMarksCustomization, setSessionForMarksCustomization] = useState<Row | null>(null);
+  const [customMarksMap, setCustomMarksMap] = useState<Record<string, number>>({});
+  const [isSavingCustomMarks, setIsSavingCustomMarks] = useState(false);
 
   // Use user from the route context (loaded securely in _authenticated beforeLoad)
   const { user } = Route.useRouteContext() as { user: any };
@@ -298,6 +302,45 @@ function ReportsPage() {
       }
     });
     return { obtained, total };
+  };
+
+  const openCustomizeMarks = (session: Row) => {
+    setSessionForMarksCustomization(session);
+    const initialMap: Record<string, number> = {};
+    session.questions.forEach((q) => {
+      initialMap[q.id] = q.marks ?? q.points ?? 1;
+    });
+    setCustomMarksMap(initialMap);
+    setCustomizeMarksModalOpen(true);
+  };
+
+  const handleSaveCustomMarks = async () => {
+    if (!sessionForMarksCustomization) return;
+    setIsSavingCustomMarks(true);
+    try {
+      const updatePromises = sessionForMarksCustomization.questions.map((q) => {
+        const newMarks = customMarksMap[q.id] ?? 1;
+        return supabase
+          .from("questions")
+          .update({ marks: newMarks, points: newMarks })
+          .eq("id", q.id);
+      });
+
+      const results = await Promise.all(updatePromises);
+      const firstError = results.find((r) => r.error)?.error;
+      if (firstError) throw firstError;
+
+      const { toast } = await import("sonner");
+      toast.success("Marks customized and saved to database! All scores updated.");
+      setCustomizeMarksModalOpen(false);
+      await loadReports();
+    } catch (err: any) {
+      console.error("Failed to save custom marks:", err);
+      const { toast } = await import("sonner");
+      toast.error(err.message || "Failed to update marks");
+    } finally {
+      setIsSavingCustomMarks(false);
+    }
   };
 
   const handleGeneratePDF = async () => {
@@ -518,6 +561,14 @@ function ReportsPage() {
                         </TabsList>
 
                         <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                          <Button
+                            onClick={() => openCustomizeMarks(r)}
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs font-semibold rounded-xl"
+                          >
+                            <Award className="h-4 w-4" /> Customize Marks
+                          </Button>
                           <Button
                             onClick={() => exportSessionToCSV(r)}
                             size="sm"
@@ -965,6 +1016,152 @@ function ReportsPage() {
                   <Download className="h-4 w-4" /> Download PDF Report
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Customize Marks Modal */}
+      <Dialog open={customizeMarksModalOpen} onOpenChange={setCustomizeMarksModalOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border text-card-foreground p-6 rounded-2xl scrollbar-thin">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-400">
+              <Award className="h-5 w-5" /> Customize Question Marks
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Adjust how many marks each question is worth in &ldquo;{sessionForMarksCustomization?.title}&rdquo;.
+              Changes are saved directly to the database and will immediately recalculate all student scores and rankings.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sessionForMarksCustomization && (
+            <div className="space-y-4 py-2">
+              {/* Summary and Presets Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground">Calculated Total Marks</div>
+                  <div className="text-2xl font-black text-amber-400">
+                    {Object.values(customMarksMap).reduce((sum, v) => sum + (Number(v) || 0), 0)} Marks
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    onClick={() => {
+                      const updated: Record<string, number> = {};
+                      sessionForMarksCustomization.questions.forEach((q) => {
+                        updated[q.id] = 1;
+                      });
+                      setCustomMarksMap(updated);
+                    }}
+                  >
+                    All 1 Mark
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    onClick={() => {
+                      const updated: Record<string, number> = {};
+                      sessionForMarksCustomization.questions.forEach((q) => {
+                        updated[q.id] = 2;
+                      });
+                      setCustomMarksMap(updated);
+                    }}
+                  >
+                    All 2 Marks
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    onClick={() => {
+                      const updated: Record<string, number> = {};
+                      sessionForMarksCustomization.questions.forEach((q) => {
+                        updated[q.id] = 5;
+                      });
+                      setCustomMarksMap(updated);
+                    }}
+                  >
+                    All 5 Marks
+                  </Button>
+                </div>
+              </div>
+
+              {/* Questions List with Marks Inputs */}
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                {sessionForMarksCustomization.questions.map((q, idx) => {
+                  const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
+                  const typeColor =
+                    q.type === "quiz"
+                      ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/10"
+                      : q.type === "poll"
+                        ? "text-blue-400 border-blue-500/20 bg-blue-500/10"
+                        : "text-purple-400 border-purple-500/20 bg-purple-500/10";
+
+                  return (
+                    <div
+                      key={q.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-muted-foreground">Q{idx + 1}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${typeColor}`}>
+                            {typeLabel}
+                          </span>
+                        </div>
+                        <p className="text-xs text-foreground font-medium truncate mt-1">{q.title}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Label htmlFor={`marks-input-${q.id}`} className="text-xs text-muted-foreground">
+                          Marks:
+                        </Label>
+                        <Input
+                          id={`marks-input-${q.id}`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={customMarksMap[q.id] ?? 1}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            setCustomMarksMap((prev) => ({
+                              ...prev,
+                              [q.id]: isNaN(val) ? 1 : Math.max(1, val),
+                            }));
+                          }}
+                          className="w-20 text-center font-mono font-bold bg-card/60 border-border text-sm"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="border-t border-border/50 pt-4">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setCustomizeMarksModalOpen(false)}
+              className="text-xs border-border"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveCustomMarks}
+              disabled={isSavingCustomMarks}
+              className="text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold gap-1.5"
+            >
+              {isSavingCustomMarks ? "Saving Marks..." : "Save & Update Scores"}
             </Button>
           </DialogFooter>
         </DialogContent>

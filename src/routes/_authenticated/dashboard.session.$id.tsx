@@ -18,6 +18,7 @@ import {
   Upload,
   Image as ImageIcon,
   Pencil,
+  Award,
   X,
   Zap,
   Presentation,
@@ -2065,14 +2066,65 @@ function QuestionsPanel({
     return questions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
   }, [questions]);
 
+  const [batchMarksOpen, setBatchMarksOpen] = useState(false);
+  const [batchMarksMap, setBatchMarksMap] = useState<Record<string, number>>({});
+  const [isSavingBatchMarks, setIsSavingBatchMarks] = useState(false);
+
+  const openBatchMarksModal = () => {
+    const initialMap: Record<string, number> = {};
+    questions.forEach((q) => {
+      initialMap[q.id] = q.marks ?? q.points ?? 1;
+    });
+    setBatchMarksMap(initialMap);
+    setBatchMarksOpen(true);
+  };
+
+  const handleSaveBatchMarks = async () => {
+    setIsSavingBatchMarks(true);
+    try {
+      const updatePromises = questions.map((q) => {
+        const newMarks = batchMarksMap[q.id] ?? 1;
+        return supabase
+          .from("questions")
+          .update({ marks: newMarks, points: newMarks })
+          .eq("id", q.id);
+      });
+
+      const results = await Promise.all(updatePromises);
+      const firstError = results.find((r) => r.error)?.error;
+      if (firstError) throw firstError;
+
+      toast.success("Question marks updated successfully!");
+      setBatchMarksOpen(false);
+      onReload();
+    } catch (err: any) {
+      console.error("Failed to update marks:", err);
+      toast.error(err.message || "Failed to update marks");
+    } finally {
+      setIsSavingBatchMarks(false);
+    }
+  };
+
   return (
     <div className="glass rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-semibold">Questions</h2>
           <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-semibold text-primary">
             Total Marks: {totalSessionMarks}
           </span>
+          {questions.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={openBatchMarksModal}
+              className="gap-1 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 text-xs font-semibold rounded-lg h-7 px-2.5"
+              title="Customize marks for all questions whenever you need"
+            >
+              <Award className="h-3.5 w-3.5" /> Customize Marks
+            </Button>
+          )}
           <span className="text-xs text-muted-foreground hidden sm:inline">
             ({questions.length} {questions.length === 1 ? "question" : "questions"})
           </span>
@@ -2708,6 +2760,148 @@ function QuestionsPanel({
                   {editSaving ? "Saving..." : "Save changes"}
                 </Button>
               </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={batchMarksOpen} onOpenChange={setBatchMarksOpen}>
+            <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border text-card-foreground p-6 rounded-2xl scrollbar-thin">
+              <DialogHeader className="space-y-1">
+                <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-500">
+                  <Award className="h-5 w-5" /> Customize Question Marks
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Quickly customize how many marks each question carries in this quiz. Changes persist immediately.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Total & Presets */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground">Total Exam Marks</div>
+                    <div className="text-2xl font-black text-amber-500">
+                      {Object.values(batchMarksMap).reduce((sum, v) => sum + (Number(v) || 0), 0)} Marks
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 px-2 py-0.5"
+                      onClick={() => {
+                        const updated: Record<string, number> = {};
+                        questions.forEach((q) => {
+                          updated[q.id] = 1;
+                        });
+                        setBatchMarksMap(updated);
+                      }}
+                    >
+                      All 1 Mark
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 px-2 py-0.5"
+                      onClick={() => {
+                        const updated: Record<string, number> = {};
+                        questions.forEach((q) => {
+                          updated[q.id] = 2;
+                        });
+                        setBatchMarksMap(updated);
+                      }}
+                    >
+                      All 2 Marks
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 px-2 py-0.5"
+                      onClick={() => {
+                        const updated: Record<string, number> = {};
+                        questions.forEach((q) => {
+                          updated[q.id] = 5;
+                        });
+                        setBatchMarksMap(updated);
+                      }}
+                    >
+                      All 5 Marks
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Questions List with Marks Inputs */}
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                  {questions.map((q, idx) => {
+                    const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
+                    const typeColor =
+                      q.type === "quiz"
+                        ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10"
+                        : q.type === "poll"
+                          ? "text-blue-500 border-blue-500/20 bg-blue-500/10"
+                          : "text-purple-500 border-purple-500/20 bg-purple-500/10";
+
+                    return (
+                      <div
+                        key={q.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/60 bg-card/50 hover:bg-card/80 transition"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-muted-foreground">Q{idx + 1}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${typeColor}`}>
+                              {typeLabel}
+                            </span>
+                          </div>
+                          <p className="text-xs text-foreground font-medium truncate mt-1">{q.title}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Label htmlFor={`batch-marks-input-${q.id}`} className="text-xs text-muted-foreground">
+                            Marks:
+                          </Label>
+                          <Input
+                            id={`batch-marks-input-${q.id}`}
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={batchMarksMap[q.id] ?? 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              setBatchMarksMap((prev) => ({
+                                ...prev,
+                                [q.id]: isNaN(val) ? 1 : Math.max(1, val),
+                              }));
+                            }}
+                            className="w-20 text-center font-mono font-bold bg-background border-border text-sm"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <DialogFooter className="border-t border-border/50 pt-4">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => setBatchMarksOpen(false)}
+                  className="text-xs border-border"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveBatchMarks}
+                  disabled={isSavingBatchMarks}
+                  className="text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold gap-1.5"
+                >
+                  {isSavingBatchMarks ? "Saving Marks..." : "Save Marks"}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
