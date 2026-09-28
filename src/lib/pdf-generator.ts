@@ -33,6 +33,8 @@ export interface StudentPerformanceRow {
   accuracy: number; // percentage
   timeTaken?: string;
   status: "Excellent" | "Good" | "Average" | "Needs Improvement" | "Absent";
+  marksObtained?: number;
+  marksTotal?: number;
 }
 
 export interface QuestionAnalysisItem {
@@ -398,6 +400,7 @@ export async function generateSessionPDF(
     "Wrong",
     "Unanswered",
     "Accuracy",
+    "Marks",
     "Status",
   ];
 
@@ -410,6 +413,9 @@ export async function generateSessionPDF(
     String(s.wrong),
     String(s.unanswered),
     `${s.accuracy.toFixed(0)}%`,
+    s.marksTotal != null && s.marksTotal > 0
+      ? `${s.marksObtained ?? 0}/${s.marksTotal}`
+      : "N/A",
     s.status,
   ]);
 
@@ -422,11 +428,11 @@ export async function generateSessionPDF(
       fillColor: [30, 58, 138], // academic blue
       textColor: [255, 255, 255],
       fontStyle: "bold",
-      fontSize: 8,
+      fontSize: 7.5,
       halign: "center",
     },
     styles: {
-      fontSize: 8,
+      fontSize: 7.5,
       cellPadding: 2,
       textColor: [51, 65, 85],
       lineColor: [226, 232, 240],
@@ -434,15 +440,16 @@ export async function generateSessionPDF(
       halign: "center",
     },
     columnStyles: {
-      0: { halign: "left", cellWidth: 36 }, // Student name
-      1: { cellWidth: 20 },
-      2: { cellWidth: 16 },
-      3: { cellWidth: 18 },
-      4: { cellWidth: 14 },
-      5: { cellWidth: 14 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 18, fontStyle: "bold" },
-      8: { cellWidth: 24, fontStyle: "bold" },
+      0: { halign: "left", cellWidth: 30 }, // Student name
+      1: { cellWidth: 17 },
+      2: { cellWidth: 14 },
+      3: { cellWidth: 16 },
+      4: { cellWidth: 13 },
+      5: { cellWidth: 13 },
+      6: { cellWidth: 17 },
+      7: { cellWidth: 16, fontStyle: "bold" },
+      8: { cellWidth: 16, fontStyle: "bold" }, // Marks
+      9: { cellWidth: 22, fontStyle: "bold" }, // Status
     },
     didParseCell: (data) => {
       // Highlight accuracy & status colors
@@ -453,6 +460,13 @@ export async function generateSessionPDF(
           data.cell.styles.textColor = val === "Present" ? [16, 185, 129] : [239, 68, 68];
         }
         if (data.column.index === 8) {
+          // Marks column — amber color
+          const val = data.cell.raw as string;
+          if (val !== "N/A") {
+            data.cell.styles.textColor = [180, 120, 10];
+          }
+        }
+        if (data.column.index === 9) {
           // Status column
           const val = data.cell.raw as string;
           if (val === "Excellent" || val === "Good") {

@@ -257,7 +257,38 @@ function ReportsPage() {
     setSubject(session.title);
     setFacultyName(formatDisplayName(user?.displayName, user?.email));
 
+    // Initialize marks allocation for each question (default 1 mark per question)
+    const overrides: Record<string, { marks: number; feedback: string }> = {};
+    session.questions.forEach((q) => {
+      overrides[q.id] = { marks: 1, feedback: "" };
+    });
+    setQuestionOverrides(overrides);
+
     setModalOpen(true);
+  };
+
+  // Helper: compute total marks for a participant using questionOverrides
+  const computeMarks = (participant: Participant, session: Row) => {
+    let obtained = 0;
+    let total = 0;
+    session.questions.forEach((q) => {
+      const qMarks = questionOverrides[q.id]?.marks ?? 1;
+      if (q.type === "quiz") {
+        total += qMarks;
+        const response = q.responses?.find((r) => r.participant_id === participant.id);
+        if (response && response.answer === q.correct_answer) {
+          obtained += qMarks;
+        }
+      } else if (q.type === "wordcloud") {
+        // Word cloud: participation marks — if they responded, full marks
+        total += qMarks;
+        const response = q.responses?.find((r) => r.participant_id === participant.id);
+        if (response) {
+          obtained += qMarks;
+        }
+      }
+    });
+    return { obtained, total };
   };
 
   const handleGeneratePDF = async () => {
@@ -299,6 +330,9 @@ function ReportsPage() {
         else if (accuracy >= 50) status = "Average";
         else status = "Needs Improvement";
 
+        // Compute marks using custom allocation
+        const { obtained: marksObtained, total: marksTotal } = computeMarks(p, selectedSession);
+
         return {
           studentName: p.name,
           attendance: "Present" as const,
@@ -309,6 +343,8 @@ function ReportsPage() {
           unanswered,
           accuracy,
           status,
+          marksObtained,
+          marksTotal,
         };
       });
 
@@ -634,6 +670,8 @@ function ReportsPage() {
                                       response && response.answer === q.correct_answer;
                                     return sum + (isCorrect ? 1 : 0);
                                   }, 0);
+                                  const { obtained: marksObt, total: marksTot } = computeMarks(p, r);
+
                                   return (
                                     <tr key={p.id} className="hover:bg-white/[0.02] transition">
                                       <td className="px-4 py-3.5 font-medium text-foreground">
@@ -657,9 +695,9 @@ function ReportsPage() {
                                         )}
                                       </td>
                                       <td className="px-4 py-3.5 text-center font-semibold">
-                                        {quizQuestions.length > 0 ? (
+                                        {marksTot > 0 ? (
                                           <span className="text-amber-400">
-                                            {correctAnswers} / {quizQuestions.length}
+                                            {marksObt} / {marksTot}
                                           </span>
                                         ) : (
                                           <span className="text-muted-foreground text-xs italic">
@@ -839,6 +877,61 @@ function ReportsPage() {
               </div>
             </div>
           </div>
+
+            {/* Section 2: Marks Allocation per Question */}
+            {selectedSession && selectedSession.questions.length > 0 && (
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-primary border-b border-border/50 pb-1 flex items-center gap-2">
+                  <Award className="h-4 w-4" /> Marks Allocation per Question
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Set custom marks for each question. These marks will be used to calculate student scores in the report and PDF.
+                </p>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                  {selectedSession.questions.map((q, idx) => {
+                    const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
+                    const typeColor = q.type === "quiz" ? "text-emerald-400" : q.type === "poll" ? "text-blue-400" : "text-purple-400";
+                    return (
+                      <div
+                        key={q.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-muted-foreground">Q{idx + 1}</span>
+                            <span className={`text-[10px] font-semibold uppercase ${typeColor}`}>{typeLabel}</span>
+                          </div>
+                          <p className="text-xs text-foreground truncate mt-0.5">{q.title}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Label className="text-xs text-muted-foreground">Marks:</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={questionOverrides[q.id]?.marks ?? 1}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                              setQuestionOverrides((prev) => ({
+                                ...prev,
+                                [q.id]: { ...prev[q.id], marks: val, feedback: prev[q.id]?.feedback ?? "" },
+                              }));
+                            }}
+                            className="w-16 bg-card/40 border-border text-sm text-center"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                  <span className="text-xs font-semibold text-amber-400">Total Marks</span>
+                  <span className="text-sm font-bold text-amber-400">
+                    {Object.values(questionOverrides).reduce((sum, o) => sum + (o.marks ?? 0), 0)}
+                  </span>
+                </div>
+              </div>
+            )}
 
           <DialogFooter className="border-t border-border/50 pt-4">
             <Button
