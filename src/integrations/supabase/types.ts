@@ -79,6 +79,7 @@ export type Database = {
           title: string;
           type: Database["public"]["Enums"]["question_type"];
           points: number;
+          marks: number;
           explanation: string | null;
           question_type: string;
         };
@@ -93,6 +94,7 @@ export type Database = {
           title: string;
           type: Database["public"]["Enums"]["question_type"];
           points?: number;
+          marks?: number;
           explanation?: string | null;
           question_type?: string;
         };
@@ -107,6 +109,7 @@ export type Database = {
           title?: string;
           type?: Database["public"]["Enums"]["question_type"];
           points?: number;
+          marks?: number;
           explanation?: string | null;
           question_type?: string;
         };

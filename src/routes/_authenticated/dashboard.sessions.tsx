@@ -244,6 +244,8 @@ function SessionsPage() {
         title: qTitle,
         options: ["Option A", "Option B", "Option C", "Option D"],
         order_index: idx,
+        points: 1,
+        marks: 1,
       }));
 
       await supabase.from("questions").insert(qRows);

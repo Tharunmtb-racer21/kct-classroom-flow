@@ -24,6 +24,8 @@ type Question = {
   options: string[];
   correct_answer: string | null;
   image_url?: string | null;
+  points?: number;
+  marks?: number;
 };
 
 type Response = {

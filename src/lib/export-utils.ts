@@ -18,6 +18,8 @@ type Question = {
   options: string[];
   correct_answer: string | null;
   order_index: number;
+  points?: number;
+  marks?: number;
   responses: Response[];
 };
 
@@ -76,11 +78,18 @@ export function exportSessionToCSV(session: ReportSession) {
       return sum + (resp && resp.answer === q.correct_answer ? 1 : 0);
     }, 0);
 
+    const marksObtained = quizQuestions.reduce((sum, q) => {
+      const resp = q.responses?.find((r) => r.participant_id === p.id);
+      const isCorrect = resp && resp.answer === q.correct_answer;
+      return sum + (isCorrect ? (q.marks ?? q.points ?? 1) : 0);
+    }, 0);
+    const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+
     const quizScoreStr =
       quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
 
     const marksStr =
-      quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
+      quizQuestions.length > 0 ? `${marksObtained} / ${totalQuizMarks}` : "N/A";
 
     const questionAnswers = session.questions.map((q) => {
       const resp = q.responses?.find((r) => r.participant_id === p.id);
@@ -152,6 +161,13 @@ export function exportSessionToExcel(session: ReportSession) {
       return sum + (resp && resp.answer === q.correct_answer ? 1 : 0);
     }, 0);
 
+    const marksObtained = quizQuestions.reduce((sum, q) => {
+      const resp = q.responses?.find((r) => r.participant_id === p.id);
+      const isCorrect = resp && resp.answer === q.correct_answer;
+      return sum + (isCorrect ? (q.marks ?? q.points ?? 1) : 0);
+    }, 0);
+    const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+
     const questionAnswers = session.questions.map((q) => {
       const resp = q.responses?.find((r) => r.participant_id === p.id);
       return resp ? resp.answer : "No Response";
@@ -164,7 +180,7 @@ export function exportSessionToExcel(session: ReportSession) {
       session.questions.length,
       correctCount,
       quizQuestions.length,
-      quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A",
+      quizQuestions.length > 0 ? `${marksObtained} / ${totalQuizMarks}` : "N/A",
       ...questionAnswers,
     ]);
   });

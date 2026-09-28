@@ -35,6 +35,8 @@ type Question = {
   options: string[];
   image_url?: string | null;
   question_type?: string;
+  points?: number;
+  marks?: number;
 };
 
 const microsoftSubmitButton =
@@ -180,14 +182,14 @@ function JoinPage() {
       (async () => {
         const { data, error } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type")
+          .select("id,type,title,options,image_url,question_type,marks,points")
           .eq("session_id", session.id)
           .order("order_index");
         if (error) {
           console.error("Error fetching all questions:", error);
           const { data: fbData } = await supabase
             .from("questions")
-            .select("id,type,title,options,image_url,question_type")
+            .select("id,type,title,options,image_url,question_type,marks,points")
             .eq("session_id", session.id)
             .order("order_index");
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
@@ -204,13 +206,13 @@ function JoinPage() {
       (async () => {
         const { data, error } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type")
+          .select("id,type,title,options,image_url,question_type,marks,points")
           .in("id", activeIds);
         if (error) {
           console.error("Error fetching active questions:", error);
           const { data: fbData } = await supabase
             .from("questions")
-            .select("id,type,title,options,image_url,question_type")
+            .select("id,type,title,options,image_url,question_type,marks,points")
             .in("id", activeIds);
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
@@ -232,14 +234,14 @@ function JoinPage() {
     (async () => {
       const { data, error } = await supabase
         .from("questions")
-        .select("id,type,title,options,image_url,question_type")
+        .select("id,type,title,options,image_url,question_type,marks,points")
         .eq("id", singleActiveId)
         .maybeSingle();
       if (error) {
         console.error("Error fetching single question:", error);
         const { data: fbData } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type")
+          .select("id,type,title,options,image_url,question_type,marks,points")
           .eq("id", singleActiveId)
           .maybeSingle();
         if (fbData) {
@@ -809,6 +811,9 @@ function JoinPage() {
                     <span className="text-xs uppercase tracking-wider text-muted-foreground">
                       {q.type}
                     </span>
+                    <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
+                      {q.marks ?? q.points ?? 1} {(q.marks ?? q.points ?? 1) === 1 ? "Mark" : "Marks"}
+                    </span>
                   </div>
                   {q.type === "quiz" && (
                     <span
@@ -1001,8 +1006,13 @@ function JoinPage() {
         </div>
       )}
       <div className="flex items-center justify-between">
-        <div className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
-          {question.type}
+        <div className="flex items-center gap-2">
+          <span className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
+            {question.type}
+          </span>
+          <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
+            {question.marks ?? question.points ?? 1} {(question.marks ?? question.points ?? 1) === 1 ? "Mark" : "Marks"}
+          </span>
         </div>
         {question.type === "quiz" && (
           <span

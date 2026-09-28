@@ -86,6 +86,7 @@ type Question = {
   order_index: number;
   image_url?: string | null;
   points?: number;
+  marks?: number;
   explanation?: string | null;
   question_type?: string;
 };
@@ -1428,6 +1429,7 @@ function QuestionsPanel({
   }, [optionsText]);
   const [correct, setCorrect] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [marks, setMarks] = useState<number>(1);
   const [saving, setSaving] = useState(false);
 
   // Excel upload/parsing states for Quiz import
@@ -1635,7 +1637,7 @@ function QuestionsPanel({
           const optE = r["Option E"] ? String(r["Option E"]).trim() : "";
           const correctAnsRaw = r["Correct Answer"] ? String(r["Correct Answer"]).trim() : "";
           const qTypeRaw = r["Question Type"] ? String(r["Question Type"]).trim() : "";
-          const pointsRaw = r["Points"];
+          const pointsRaw = r["Points"] ?? r["Marks"];
           const explanation = r["Explanation"] ? String(r["Explanation"]).trim() : "";
 
           if (!qText) {
@@ -1668,7 +1670,7 @@ function QuestionsPanel({
             const parsedPoints = Number(pointsRaw);
             if (isNaN(parsedPoints) || parsedPoints < 0 || !Number.isInteger(parsedPoints)) {
               errorsList.push(
-                `Row ${rowNum}: Points must be a non-negative whole number. Got '${pointsRaw}'.`,
+                `Row ${rowNum}: Points/Marks must be a non-negative whole number. Got '${pointsRaw}'.`,
               );
             } else {
               points = parsedPoints;
@@ -1718,6 +1720,7 @@ function QuestionsPanel({
                 correct_answer: correct_answer_str,
                 question_type: qTypeRaw,
                 points,
+                marks: points,
                 explanation,
               });
             }
@@ -1759,6 +1762,7 @@ function QuestionsPanel({
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
         points: q.points,
+        marks: q.marks ?? q.points ?? 1,
         explanation: q.explanation,
         question_type: q.question_type,
       }));
@@ -1862,6 +1866,13 @@ function QuestionsPanel({
     e.preventDefault();
     setSaving(true);
     try {
+      const numMarks = Number(marks);
+      if (isNaN(numMarks) || numMarks < 1 || !Number.isInteger(numMarks)) {
+        toast.error("Marks must be a positive integer (at least 1)");
+        setSaving(false);
+        return;
+      }
+
       let image_url = null;
       if (imageFile) {
         image_url = await uploadImage(imageFile);
@@ -1884,6 +1895,8 @@ function QuestionsPanel({
         question_type: type === "quiz" ? questionType : "Single Correct",
         order_index: questions.length,
         image_url,
+        marks: numMarks,
+        points: numMarks,
       });
 
       if (error) throw error;
@@ -1895,6 +1908,7 @@ function QuestionsPanel({
       setCorrect("");
       setQuestionType("Single Correct");
       setImageFile(null);
+      setMarks(1);
     } catch (error: any) {
       console.error("Create question error:", error);
       toast.error(error.message || "Failed to create question");
@@ -1916,6 +1930,7 @@ function QuestionsPanel({
       .filter(Boolean);
   }, [editOptionsText]);
   const [editCorrect, setEditCorrect] = useState("");
+  const [editMarks, setEditMarks] = useState<number>(1);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
@@ -1928,6 +1943,7 @@ function QuestionsPanel({
     setEditOptionsText(q.options?.join("\n") ?? "");
     setEditCorrect(q.correct_answer ?? "");
     setEditQuestionType(q.question_type ?? "Single Correct");
+    setEditMarks(q.marks ?? q.points ?? 1);
     setEditImageUrl(q.image_url ?? null);
     setEditImageFile(null);
     setRemoveExistingImage(false);
@@ -1939,6 +1955,13 @@ function QuestionsPanel({
     if (!editingQuestion) return;
     setEditSaving(true);
     try {
+      const numEditMarks = Number(editMarks);
+      if (isNaN(numEditMarks) || numEditMarks < 1 || !Number.isInteger(numEditMarks)) {
+        toast.error("Marks must be a positive integer (at least 1)");
+        setEditSaving(false);
+        return;
+      }
+
       let finalImageUrl = editImageUrl;
       if (removeExistingImage) {
         finalImageUrl = null;
@@ -1964,6 +1987,8 @@ function QuestionsPanel({
           correct_answer: editType === "quiz" ? editCorrect : null,
           question_type: editType === "quiz" ? editQuestionType : "Single Correct",
           image_url: finalImageUrl,
+          marks: numEditMarks,
+          points: numEditMarks,
         })
         .eq("id", editingQuestion.id);
 
@@ -2036,10 +2061,22 @@ function QuestionsPanel({
     }
   };
 
+  const totalSessionMarks = useMemo(() => {
+    return questions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+  }, [questions]);
+
   return (
     <div className="glass rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Questions</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-semibold">Questions</h2>
+          <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-semibold text-primary">
+            Total Marks: {totalSessionMarks}
+          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            ({questions.length} {questions.length === 1 ? "question" : "questions"})
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {/* Session Banner Image Upload Button */}
           <div className="relative">
@@ -2149,6 +2186,25 @@ function QuestionsPanel({
                         />
                       </div>
                     )}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="nonquiz-marks">Marks</Label>
+                      <Input
+                        id="nonquiz-marks"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={marks}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setMarks(isNaN(val) ? 1 : Math.max(1, val));
+                        }}
+                        required
+                        placeholder="e.g. 1, 2"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        How many marks is this question worth?
+                      </p>
+                    </div>
                     <div className="space-y-2">
                       <Label>Question Image (Optional)</Label>
                       <div className="flex items-center gap-3">
@@ -2275,6 +2331,25 @@ function QuestionsPanel({
                               ))}
                             </select>
                           )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="create-quiz-marks">Marks</Label>
+                          <Input
+                            id="create-quiz-marks"
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={marks}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              setMarks(isNaN(val) ? 1 : Math.max(1, val));
+                            }}
+                            required
+                            placeholder="e.g. 1, 2, 5"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            How many marks is this question worth?
+                          </p>
                         </div>
                         <div className="space-y-2">
                           <Label>Question Image (Optional)</Label>
@@ -2563,6 +2638,26 @@ function QuestionsPanel({
                   </>
                 )}
 
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-question-marks">Marks</Label>
+                  <Input
+                    id="edit-question-marks"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={editMarks}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setEditMarks(isNaN(val) ? 1 : Math.max(1, val));
+                    }}
+                    required
+                    placeholder="e.g. 1, 2, 5"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    How many marks is this question worth?
+                  </p>
+                </div>
+
                 {editImageUrl && !removeExistingImage && (
                   <div className="space-y-2">
                     <Label>Current Image</Label>
@@ -2773,16 +2868,19 @@ function QuestionsPanel({
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{q.title}</div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  {q.type}
-                  {q.image_url && (
-                    <span className="flex items-center gap-0.5 text-primary text-[10px] lowercase font-normal">
-                      <ImageIcon className="h-3 w-3" /> with image
-                    </span>
-                  )}
+                <div className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+                  <span>{q.type}</span>
                   {isLive && (
                     <span className="flex items-center gap-1 rounded-full bg-primary/20 border border-primary/40 px-2 py-0.5 text-[10px] text-primary font-semibold uppercase tracking-wide">
                       ● Live
+                    </span>
+                  )}
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground border border-border/50">
+                    {q.marks ?? q.points ?? 1} {(q.marks ?? q.points ?? 1) === 1 ? "Mark" : "Marks"}
+                  </span>
+                  {q.image_url && (
+                    <span className="flex items-center gap-0.5 text-primary text-[10px] lowercase font-normal">
+                      <ImageIcon className="h-3 w-3" /> with image
                     </span>
                   )}
                 </div>
@@ -2957,6 +3055,8 @@ function AIGenerateDialog({
         options: q.options as any,
         correct_answer: q.correct_answer,
         order_index: questionsCount + i,
+        marks: 1,
+        points: 1,
       }));
       const { error } = await supabase.from("questions").insert(rows);
       if (error) throw error;
@@ -3322,6 +3422,7 @@ function LivePanel({
             correct={current.correct_answer}
             responses={responses}
             participants={participants}
+            marks={current.marks ?? current.points ?? 1}
           />
         )}
         {current.type === "wordcloud" && (
@@ -3430,16 +3531,18 @@ function QuizResults({
   correct,
   responses,
   participants,
+  marks = 1,
 }: {
   options: string[];
   correct: string | null;
   responses: Response[];
   participants: Participant[];
+  marks?: number;
 }) {
   const nameById = new Map(participants.map((p) => [p.id, p.name]));
   const scores = new Map<string, number>();
   responses.forEach((r) => {
-    if (r.answer === correct) scores.set(r.participant_id, (scores.get(r.participant_id) ?? 0) + 1);
+    if (r.answer === correct) scores.set(r.participant_id, (scores.get(r.participant_id) ?? 0) + marks);
   });
   const leaderboard = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   return (

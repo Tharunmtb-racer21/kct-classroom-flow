@@ -66,6 +66,8 @@ type Question = {
   options: string[];
   correct_answer: string | null;
   order_index: number;
+  points?: number;
+  marks?: number;
   responses: Response[];
 };
 
@@ -184,6 +186,8 @@ function ReportsPage() {
             options,
             correct_answer,
             order_index,
+            points,
+            marks,
             responses (
               id,
               answer,
@@ -257,22 +261,27 @@ function ReportsPage() {
     setSubject(session.title);
     setFacultyName(formatDisplayName(user?.displayName, user?.email));
 
-    // Initialize marks allocation for each question (default 1 mark per question)
+    // Initialize marks allocation for each question from persisted marks
     const overrides: Record<string, { marks: number; feedback: string }> = {};
     session.questions.forEach((q) => {
-      overrides[q.id] = { marks: 1, feedback: "" };
+      overrides[q.id] = { marks: q.marks ?? q.points ?? 1, feedback: "" };
     });
     setQuestionOverrides(overrides);
 
     setModalOpen(true);
   };
 
-  // Helper: compute total marks for a participant using questionOverrides
+  // Helper: compute total marks for a participant using question's persisted marks
   const computeMarks = (participant: Participant, session: Row) => {
     let obtained = 0;
     let total = 0;
     session.questions.forEach((q) => {
-      const qMarks = questionOverrides[q.id]?.marks ?? 1;
+      const persistedMarks = q.marks ?? q.points ?? 1;
+      // If modal is actively open and has an override for this session, use it; otherwise persisted
+      const qMarks = (modalOpen && selectedSession?.id === session.id && questionOverrides[q.id]?.marks != null)
+        ? questionOverrides[q.id].marks
+        : persistedMarks;
+
       if (q.type === "quiz") {
         total += qMarks;
         const response = q.responses?.find((r) => r.participant_id === participant.id);
@@ -1000,6 +1009,9 @@ function QuestionAnalyticsCard({
             >
               {typeLabels[question.type]}
             </span>
+            <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+              {question.marks ?? question.points ?? 1} {(question.marks ?? question.points ?? 1) === 1 ? "Mark" : "Marks"}
+            </span>
           </div>
           <h5 className="font-medium text-foreground">{question.title}</h5>
         </div>
@@ -1020,6 +1032,7 @@ function QuestionAnalyticsCard({
             correct={question.correct_answer}
             responses={responses}
             participants={participants}
+            marks={question.marks ?? question.points ?? 1}
           />
         )}
         {question.type === "wordcloud" && <WordCloudAnalytics responses={responses} />}
@@ -1150,11 +1163,13 @@ function QuizAnalytics({
   correct,
   responses,
   participants,
+  marks = 1,
 }: {
   options: string[];
   correct: string | null;
   responses: Response[];
   participants: Participant[];
+  marks?: number;
 }) {
   const counts = useMemo(() => {
     const m = new Map<string, number>();
@@ -1171,11 +1186,11 @@ function QuizAnalytics({
     const m = new Map<string, number>();
     responses.forEach((r) => {
       if (r.answer === correct) {
-        m.set(r.participant_id, (m.get(r.participant_id) ?? 0) + 1);
+        m.set(r.participant_id, (m.get(r.participant_id) ?? 0) + marks);
       }
     });
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [responses, correct]);
+  }, [responses, correct, marks]);
 
   const chartData = useMemo(() => {
     return options.map((o, idx) => {
