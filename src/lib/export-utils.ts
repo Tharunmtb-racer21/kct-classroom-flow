@@ -2,6 +2,8 @@
  * Export Utilities for KCT PULSE — Exporting Session Reports to CSV & Excel (.xlsx)
  */
 
+import * as XLSX from "xlsx";
+
 type Response = {
   id: string;
   answer: string;
@@ -56,6 +58,7 @@ export function exportSessionToCSV(session: ReportSession) {
     "Joined At",
     "Questions Attempted",
     "Quiz Score",
+    "Marks Obtained",
     ...session.questions.map((q, idx) => `Q${idx + 1}: ${q.title} (${q.type})`),
   ];
 
@@ -76,6 +79,9 @@ export function exportSessionToCSV(session: ReportSession) {
     const quizScoreStr =
       quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
 
+    const marksStr =
+      quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
+
     const questionAnswers = session.questions.map((q) => {
       const resp = q.responses?.find((r) => r.participant_id === p.id);
       return resp ? resp.answer : "No Response";
@@ -86,6 +92,7 @@ export function exportSessionToCSV(session: ReportSession) {
       new Date(p.joined_at).toLocaleString(),
       `${responsesCount} / ${session.questions.length}`,
       quizScoreStr,
+      marksStr,
       ...questionAnswers,
     ]);
   });
@@ -107,11 +114,20 @@ export function exportSessionToCSV(session: ReportSession) {
 }
 
 /**
- * Exports a session's full report formatted for MS Excel (.xlsx)
+ * Exports a session's full report formatted for MS Excel (.xlsx) using SheetJS
  */
 export function exportSessionToExcel(session: ReportSession) {
   const quizQuestions = session.questions.filter((q) => q.type === "quiz");
 
+  // Title rows
+  const titleRows: (string | number)[][] = [
+    [`KCT PULSE Report: ${session.title} (${session.code})`],
+    [`Created: ${new Date(session.created_at).toLocaleString()}`],
+    [`Total Participants: ${session.participants.length}  |  Total Questions: ${session.questions.length}`],
+    [], // empty spacer row
+  ];
+
+  // Data header
   const headers = [
     "Student Name",
     "Joined At",
@@ -119,11 +135,12 @@ export function exportSessionToExcel(session: ReportSession) {
     "Total Questions",
     "Quiz Score",
     "Total Quiz Questions",
+    "Marks Obtained",
     ...session.questions.map((q, idx) => `Q${idx + 1}: ${q.title} (${q.type})`),
   ];
 
-  const rows: string[][] = [headers];
-
+  // Data rows
+  const dataRows: (string | number)[][] = [];
   session.participants.forEach((p) => {
     const responsesCount = session.questions.reduce((sum, q) => {
       const hasResp = q.responses?.some((r) => r.participant_id === p.id);
@@ -140,70 +157,35 @@ export function exportSessionToExcel(session: ReportSession) {
       return resp ? resp.answer : "No Response";
     });
 
-    rows.push([
+    dataRows.push([
       p.name,
       new Date(p.joined_at).toLocaleString(),
-      String(responsesCount),
-      String(session.questions.length),
-      String(correctCount),
-      String(quizQuestions.length),
+      responsesCount,
+      session.questions.length,
+      correctCount,
+      quizQuestions.length,
+      quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A",
       ...questionAnswers,
     ]);
   });
 
-  // Generate Excel XML Worksheet Structure
-  const xmlHeader = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>
- <Style ss:ID="Header">
-  <Font ss:Bold="1" ss:Color="#FFFFFF"/>
-  <Interior ss:Color="#1E293B" ss:Pattern="Solid"/>
-  <Alignment ss:Horizontal="Center"/>
- </Style>
- <Style ss:ID="Title">
-  <Font ss:Size="14" ss:Bold="1"/>
- </Style>
-</Styles>
-<Worksheet ss:Name="Session Assessment Report">
-<Table>`;
+  // Combine all rows
+  const allRows = [...titleRows, headers, ...dataRows];
 
-  const xmlTitle = `
- <Row>
-  <Cell ss:StyleID="Title"><Data ss:Type="String">KCT PULSE Report: ${session.title} (${session.code})</Data></Cell>
- </Row>
- <Row><Cell><Data ss:Type="String">Created: ${new Date(session.created_at).toLocaleString()}</Data></Cell></Row>
- <Row></Row>`;
+  // Create worksheet from array of arrays
+  const ws = XLSX.utils.aoa_to_sheet(allRows);
 
-  const xmlRows = rows
-    .map((row, idx) => {
-      const styleAttr = idx === 0 ? ' ss:StyleID="Header"' : "";
-      const cells = row
-        .map(
-          (val) =>
-            `<Cell${styleAttr}><Data ss:Type="String">${String(val).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>`,
-        )
-        .join("");
-      return `<Row>${cells}</Row>`;
-    })
-    .join("");
+  // Set column widths for better readability
+  const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 2, 16) }));
+  ws["!cols"] = colWidths;
 
-  const xmlFooter = `</Table>
-</Worksheet>
-</Workbook>`;
+  // Create workbook and append the worksheet
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Session Assessment Report");
 
-  const blob = new Blob([xmlHeader + xmlTitle + xmlRows + xmlFooter], {
-    type: "application/vnd.ms-excel;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `KCT_PULSE_Assessment_${session.code}_${session.title.replace(/\s+/g, "_")}.xlsx`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Write the file — this produces a real .xlsx (OpenXML ZIP) file
+  XLSX.writeFile(
+    wb,
+    `KCT_PULSE_Assessment_${session.code}_${session.title.replace(/\s+/g, "_")}.xlsx`,
+  );
 }

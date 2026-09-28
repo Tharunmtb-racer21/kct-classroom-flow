@@ -634,14 +634,6 @@ function ReportsPage() {
                                       response && response.answer === q.correct_answer;
                                     return sum + (isCorrect ? 1 : 0);
                                   }, 0);
-                                    const totalMarks = quizQuestions.reduce((sum, q) => {
-                                      const response = q.responses?.find((r) => r.participant_id === p.id);
-                                      if (response && response.answer === q.correct_answer) {
-                                        return sum + (questionOverrides[q.id]?.marks ?? 1);
-                                      }
-                                      return sum;
-                                    }, 0);
-
                                   return (
                                     <tr key={p.id} className="hover:bg-white/[0.02] transition">
                                       <td className="px-4 py-3.5 font-medium text-foreground">
@@ -664,7 +656,17 @@ function ReportsPage() {
                                           </span>
                                         )}
                                       </td>
-                                                                            <td className="px-4 py-3.5 text-center font-medium">{totalMarks}</td>
+                                      <td className="px-4 py-3.5 text-center font-semibold">
+                                        {quizQuestions.length > 0 ? (
+                                          <span className="text-amber-400">
+                                            {correctAnswers} / {quizQuestions.length}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground text-xs italic">
+                                            N/A
+                                          </span>
+                                        )}
+                                      </td>
                                     </tr>
                                   );
                                 })}
