@@ -82,6 +82,31 @@ function JoinPage() {
   const [allQuestionsComplete, setAllQuestionsComplete] = useState(false);
   const [showSavedResponses, setShowSavedResponses] = useState(false);
 
+  const isTestCompleted =
+    session?.status === "ended" ||
+    allQuestionsComplete ||
+    (allQuestions.length > 0 && allQuestions.every((q) => submittedFor.has(q.id)));
+
+  // Auto exit fullscreen when test/exam is completed or session has ended
+  useEffect(() => {
+    if (isTestCompleted) {
+      if (
+        typeof document !== "undefined" &&
+        (document.fullscreenElement || (document as any).webkitFullscreenElement)
+      ) {
+        try {
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if ((document as any).webkitExitFullscreen) {
+            (document as any).webkitExitFullscreen();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+  }, [isTestCompleted]);
+
   const {
     isFullscreenActive,
     fullscreenExits,
@@ -95,7 +120,7 @@ function JoinPage() {
   } = useExamIntegrity({
     sessionId: session?.id ?? "",
     participantId,
-    isExam: !!session?.is_exam,
+    isExam: !isTestCompleted && !!session?.is_exam,
     currentQuestionId: question?.id ?? null,
     settings: {
       maxFullscreenExits: session?.max_fullscreen_exits ?? 3,
@@ -633,8 +658,8 @@ function JoinPage() {
     );
   }
 
-  // If this is a secure exam, enforce fullscreen kiosk mode
-  if (session?.is_exam && participantId && (!isFullscreenActive || isWarningOpen)) {
+  // If this is a secure exam, enforce fullscreen kiosk mode (unless test is completed)
+  if (session?.is_exam && participantId && !isTestCompleted && (!isFullscreenActive || isWarningOpen)) {
     const maxExits = session.max_fullscreen_exits ?? 3;
     const isLockdown = fullscreenExits >= maxExits;
 
