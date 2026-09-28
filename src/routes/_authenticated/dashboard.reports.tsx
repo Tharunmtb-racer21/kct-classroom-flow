@@ -319,7 +319,7 @@ function ReportsPage() {
     setIsSavingCustomMarks(true);
     try {
       const updatePromises = sessionForMarksCustomization.questions.map((q) => {
-        const newMarks = customMarksMap[q.id] ?? 1;
+        const newMarks = customMarksMap[q.id] !== undefined ? Math.max(0, Number(customMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 1);
         return supabase
           .from("questions")
           .update({ marks: newMarks, points: newMarks })
@@ -1023,13 +1023,13 @@ function ReportsPage() {
 
       {/* Quick Customize Marks Modal */}
       <Dialog open={customizeMarksModalOpen} onOpenChange={setCustomizeMarksModalOpen}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border text-card-foreground p-6 rounded-2xl scrollbar-thin">
+        <DialogContent className="w-[95vw] sm:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-background border border-border text-foreground p-6 sm:p-7 rounded-2xl shadow-2xl scrollbar-thin">
           <DialogHeader className="space-y-1">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-400">
               <Award className="h-5 w-5" /> Customize Question Marks
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Adjust how many marks each question is worth in &ldquo;{sessionForMarksCustomization?.title}&rdquo;.
+              Adjust how many marks each question is worth in &ldquo;{sessionForMarksCustomization?.title}&rdquo;, or set 0 for No Marks / Ungraded questions.
               Changes are saved directly to the database and will immediately recalculate all student scores and rankings.
             </DialogDescription>
           </DialogHeader>
@@ -1037,20 +1037,40 @@ function ReportsPage() {
           {sessionForMarksCustomization && (
             <div className="space-y-4 py-2">
               {/* Summary and Presets Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
                 <div>
                   <div className="text-xs font-semibold text-muted-foreground">Calculated Total Marks</div>
-                  <div className="text-2xl font-black text-amber-400">
-                    {Object.values(customMarksMap).reduce((sum, v) => sum + (Number(v) || 0), 0)} Marks
+                  <div className="text-2xl sm:text-3xl font-black text-amber-400 flex items-center gap-2 flex-wrap">
+                    <span>{Object.values(customMarksMap).reduce((sum, v) => sum + (Number(v) || 0), 0)} Marks</span>
+                    {Object.values(customMarksMap).reduce((sum, v) => sum + (Number(v) || 0), 0) === 0 && (
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                        No Marks (Ungraded)
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
+                  <span className="text-xs font-medium text-muted-foreground mr-1">Presets:</span>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    className="h-8 text-xs font-semibold border-muted-foreground/30 text-muted-foreground hover:bg-muted/40 px-2.5"
+                    onClick={() => {
+                      const updated: Record<string, number> = {};
+                      sessionForMarksCustomization.questions.forEach((q) => {
+                        updated[q.id] = 0;
+                      });
+                      setCustomMarksMap(updated);
+                    }}
+                  >
+                    No Marks (0)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2.5"
                     onClick={() => {
                       const updated: Record<string, number> = {};
                       sessionForMarksCustomization.questions.forEach((q) => {
@@ -1065,7 +1085,7 @@ function ReportsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    className="h-8 text-xs font-semibold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2.5"
                     onClick={() => {
                       const updated: Record<string, number> = {};
                       sessionForMarksCustomization.questions.forEach((q) => {
@@ -1080,7 +1100,7 @@ function ReportsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2 py-0.5"
+                    className="h-8 text-xs font-semibold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 px-2.5"
                     onClick={() => {
                       const updated: Record<string, number> = {};
                       sessionForMarksCustomization.questions.forEach((q) => {
@@ -1095,8 +1115,9 @@ function ReportsPage() {
               </div>
 
               {/* Questions List with Marks Inputs */}
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
                 {sessionForMarksCustomization.questions.map((q, idx) => {
+                  const currentVal = customMarksMap[q.id] ?? (q.marks ?? q.points ?? 1);
                   const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
                   const typeColor =
                     q.type === "quiz"
@@ -1108,36 +1129,61 @@ function ReportsPage() {
                   return (
                     <div
                       key={q.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-border/70 bg-card/60 hover:bg-card/90 transition"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-mono font-bold text-muted-foreground">Q{idx + 1}</span>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${typeColor}`}>
                             {typeLabel}
                           </span>
+                          {currentVal === 0 && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border">
+                              No Marks
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-foreground font-medium truncate mt-1">{q.title}</p>
+                        <p className="text-sm text-foreground font-medium leading-snug break-words">{q.title}</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Label htmlFor={`marks-input-${q.id}`} className="text-xs text-muted-foreground">
-                          Marks:
-                        </Label>
-                        <Input
-                          id={`marks-input-${q.id}`}
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={customMarksMap[q.id] ?? 1}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value);
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
                             setCustomMarksMap((prev) => ({
                               ...prev,
-                              [q.id]: isNaN(val) ? 1 : Math.max(1, val),
+                              [q.id]: currentVal === 0 ? 1 : 0,
                             }));
                           }}
-                          className="w-20 text-center font-mono font-bold bg-card/60 border-border text-sm"
-                        />
+                          className={`h-8 text-xs px-2.5 font-medium border ${
+                            currentVal === 0
+                              ? "border-muted-foreground/30 text-muted-foreground bg-muted/40 hover:bg-muted/60"
+                              : "border-border text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {currentVal === 0 ? "Set 1 Mark" : "No Marks (0)"}
+                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Label htmlFor={`marks-input-${q.id}`} className="text-xs text-muted-foreground font-medium">
+                            Marks:
+                          </Label>
+                          <Input
+                            id={`marks-input-${q.id}`}
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={currentVal}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              setCustomMarksMap((prev) => ({
+                                ...prev,
+                                [q.id]: isNaN(val) ? 0 : Math.max(0, val),
+                              }));
+                            }}
+                            className="w-20 h-8 text-center font-mono font-bold bg-background border-border text-sm"
+                          />
+                        </div>
                       </div>
                     </div>
                   );
@@ -1206,9 +1252,18 @@ function QuestionAnalyticsCard({
             >
               {typeLabels[question.type]}
             </span>
-            <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground">
-              {question.marks ?? question.points ?? 1} {(question.marks ?? question.points ?? 1) === 1 ? "Mark" : "Marks"}
-            </span>
+            {(() => {
+              const m = question.marks ?? question.points ?? 1;
+              return m === 0 ? (
+                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  No Marks
+                </span>
+              ) : (
+                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                  {m} {m === 1 ? "Mark" : "Marks"}
+                </span>
+              );
+            })()}
           </div>
           <h5 className="font-medium text-foreground">{question.title}</h5>
         </div>

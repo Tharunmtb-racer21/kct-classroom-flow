@@ -89,7 +89,11 @@ export function exportSessionToCSV(session: ReportSession) {
       quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
 
     const marksStr =
-      quizQuestions.length > 0 ? `${marksObtained} / ${totalQuizMarks}` : "N/A";
+      quizQuestions.length > 0
+        ? totalQuizMarks === 0
+          ? "No Marks"
+          : `${marksObtained} / ${totalQuizMarks}`
+        : "N/A";
 
     const questionAnswers = session.questions.map((q) => {
       const resp = q.responses?.find((r) => r.participant_id === p.id);
@@ -180,7 +184,11 @@ export function exportSessionToExcel(session: ReportSession) {
       session.questions.length,
       correctCount,
       quizQuestions.length,
-      quizQuestions.length > 0 ? `${marksObtained} / ${totalQuizMarks}` : "N/A",
+      quizQuestions.length > 0
+        ? totalQuizMarks === 0
+          ? "No Marks"
+          : `${marksObtained} / ${totalQuizMarks}`
+        : "N/A",
       ...questionAnswers,
     ]);
   });

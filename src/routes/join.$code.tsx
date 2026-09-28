@@ -811,9 +811,18 @@ function JoinPage() {
                     <span className="text-xs uppercase tracking-wider text-muted-foreground">
                       {q.type}
                     </span>
-                    <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
-                      {q.marks ?? q.points ?? 1} {(q.marks ?? q.points ?? 1) === 1 ? "Mark" : "Marks"}
-                    </span>
+                    {(() => {
+                      const m = q.marks ?? q.points ?? 1;
+                      return m === 0 ? (
+                        <span className="rounded bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
+                          No Marks
+                        </span>
+                      ) : (
+                        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
+                          {m} {m === 1 ? "Mark" : "Marks"}
+                        </span>
+                      );
+                    })()}
                   </div>
                   {q.type === "quiz" && (
                     <span
@@ -1010,9 +1019,18 @@ function JoinPage() {
           <span className="text-xs uppercase tracking-wider text-[color:var(--accent-emerald)]">
             {question.type}
           </span>
-          <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
-            {question.marks ?? question.points ?? 1} {(question.marks ?? question.points ?? 1) === 1 ? "Mark" : "Marks"}
-          </span>
+          {(() => {
+            const m = question.marks ?? question.points ?? 1;
+            return m === 0 ? (
+              <span className="rounded bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
+                No Marks
+              </span>
+            ) : (
+              <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
+                {m} {m === 1 ? "Mark" : "Marks"}
+              </span>
+            );
+          })()}
         </div>
         {question.type === "quiz" && (
           <span
