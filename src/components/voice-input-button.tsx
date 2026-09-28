@@ -51,8 +51,21 @@ export function VoiceInputButton({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Support already checked above
-    // Proceed to create recognition instance
+    // Diagnostic log on mount / prop change
+    const isSecureContext = window.isSecureContext;
+    const isIframe = window.self !== window.top;
+    const protocol = window.location.protocol;
+    const hasMediaDevices = !!navigator.mediaDevices;
+
+    console.log("[Voice Input Diagnostics]", {
+      speechRecognitionSupported: isSpeechRecognitionSupported(),
+      language,
+      isSecureContext,
+      protocol,
+      isIframe,
+      hasMediaDevices,
+      userAgent: navigator.userAgent,
+    });
 
     try {
       const recognition = getSpeechRecognition(language);
@@ -99,11 +112,15 @@ export function VoiceInputButton({
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn("[Voice Input] Speech recognition error:", event.error);
+        console.warn("[Voice Input] Speech recognition error event:", {
+          error: event.error,
+          isSecureContext: window.isSecureContext,
+          isIframe: window.self !== window.top,
+        });
         setIsListening(false);
         if (event.error === "not-allowed") {
           toast.error(
-            "Microphone permission blocked. Please allow microphone access in your browser settings (click 🔒 in address bar).",
+            "Microphone access is blocked. Allow microphone access for KCT Pulse in your browser site settings and try again.",
           );
         } else if (event.error !== "no-speech") {
           toast.error(`Voice dictation error: ${event.error}`);
@@ -122,7 +139,7 @@ export function VoiceInputButton({
     }
   }, [language, appendMode, currentValue, onTranscriptFinal, onTranscriptChange]);
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (!isSupported) {
       toast.error(
         "Voice input is not supported in this browser. Please use Chrome, Edge, or Safari.",
@@ -137,6 +154,23 @@ export function VoiceInputButton({
       setIsListening(false);
       toast.info("Voice input stopped.");
     } else {
+      // Pre-flight permission check where supported
+      if (typeof navigator !== "undefined" && navigator.permissions && navigator.permissions.query) {
+        try {
+          const permStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
+          console.log("[Voice Input Permission Status]:", permStatus.state);
+          if (permStatus.state === "denied") {
+            toast.error(
+              "Microphone access is blocked. Allow microphone access for KCT Pulse in your browser site settings and try again.",
+            );
+            setIsListening(false);
+            return;
+          }
+        } catch (pErr) {
+          console.warn("[Voice Input] Permissions query check skipped:", pErr);
+        }
+      }
+
       try {
         setInterimTranscript("");
         recognitionRef.current.start();
