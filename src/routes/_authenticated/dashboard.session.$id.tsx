@@ -1721,7 +1721,6 @@ function QuestionsPanel({
                 correct_answer: correct_answer_str,
                 question_type: qTypeRaw,
                 points,
-                marks: points,
                 explanation,
               });
             }
@@ -1762,8 +1761,7 @@ function QuestionsPanel({
         options: q.options,
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
-        points: q.points,
-        marks: q.marks ?? q.points ?? 1,
+        points: q.marks ?? q.points ?? 1,
         explanation: q.explanation,
         question_type: q.question_type,
       }));
@@ -1896,7 +1894,6 @@ function QuestionsPanel({
         question_type: type === "quiz" ? questionType : "Single Correct",
         order_index: questions.length,
         image_url,
-        marks: numMarks,
         points: numMarks,
       });
 
@@ -1988,7 +1985,6 @@ function QuestionsPanel({
           correct_answer: editType === "quiz" ? editCorrect : null,
           question_type: editType === "quiz" ? editQuestionType : "Single Correct",
           image_url: finalImageUrl,
-          marks: numEditMarks,
           points: numEditMarks,
         })
         .eq("id", editingQuestion.id);
@@ -2086,7 +2082,7 @@ function QuestionsPanel({
         const newMarks = batchMarksMap[q.id] !== undefined ? Math.max(0, Number(batchMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 1);
         return supabase
           .from("questions")
-          .update({ marks: newMarks, points: newMarks })
+          .update({ points: newMarks })
           .eq("id", q.id);
       });
 
@@ -3337,7 +3333,6 @@ function AIGenerateDialog({
         options: q.options as any,
         correct_answer: q.correct_answer,
         order_index: questionsCount + i,
-        marks: 1,
         points: 1,
       }));
       const { error } = await supabase.from("questions").insert(rows);

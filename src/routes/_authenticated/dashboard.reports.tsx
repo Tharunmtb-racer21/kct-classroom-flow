@@ -191,7 +191,6 @@ function ReportsPage() {
             correct_answer,
             order_index,
             points,
-            marks,
             responses (
               id,
               answer,
@@ -322,7 +321,7 @@ function ReportsPage() {
         const newMarks = customMarksMap[q.id] !== undefined ? Math.max(0, Number(customMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 1);
         return supabase
           .from("questions")
-          .update({ marks: newMarks, points: newMarks })
+          .update({ points: newMarks })
           .eq("id", q.id);
       });
 

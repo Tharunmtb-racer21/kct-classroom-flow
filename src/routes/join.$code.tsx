@@ -182,14 +182,14 @@ function JoinPage() {
       (async () => {
         const { data, error } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type,marks,points")
+          .select("id,type,title,options,image_url,question_type,points")
           .eq("session_id", session.id)
           .order("order_index");
         if (error) {
           console.error("Error fetching all questions:", error);
           const { data: fbData } = await supabase
             .from("questions")
-            .select("id,type,title,options,image_url,question_type,marks,points")
+            .select("id,type,title,options,image_url,question_type,points")
             .eq("session_id", session.id)
             .order("order_index");
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
@@ -206,13 +206,13 @@ function JoinPage() {
       (async () => {
         const { data, error } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type,marks,points")
+          .select("id,type,title,options,image_url,question_type,points")
           .in("id", activeIds);
         if (error) {
           console.error("Error fetching active questions:", error);
           const { data: fbData } = await supabase
             .from("questions")
-            .select("id,type,title,options,image_url,question_type,marks,points")
+            .select("id,type,title,options,image_url,question_type,points")
             .in("id", activeIds);
           if (fbData) setAllQuestions(fbData as unknown as Question[]);
         } else if (data) {
@@ -241,7 +241,7 @@ function JoinPage() {
         console.error("Error fetching single question:", error);
         const { data: fbData } = await supabase
           .from("questions")
-          .select("id,type,title,options,image_url,question_type,marks,points")
+          .select("id,type,title,options,image_url,question_type,points")
           .eq("id", singleActiveId)
           .maybeSingle();
         if (fbData) {
