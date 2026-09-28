@@ -27,6 +27,7 @@ export interface SpeechRecognitionWrapper {
   lang: string;
   start(): void;
   stop(): void;
+  onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -60,6 +61,7 @@ export function getSpeechRecognition(
   instance.continuous = true;
   instance.interimResults = true;
   instance.lang = language;
+  instance.onstart = null;
   instance.onresult = null;
   instance.onerror = null;
   instance.onend = null;

@@ -93,14 +93,21 @@ export function VoiceInputButton({
         }
       };
 
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast.success("Listening... Speak your answer now 🎙️");
+      };
+
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.warn("[Voice Input] Speech recognition error:", event.error);
+        setIsListening(false);
         if (event.error === "not-allowed") {
-          toast.error("Microphone permission blocked. Please allow microphone access in your browser settings (click 🔒 in address bar).");
+          toast.error(
+            "Microphone permission blocked. Please allow microphone access in your browser settings (click 🔒 in address bar).",
+          );
         } else if (event.error !== "no-speech") {
           toast.error(`Voice dictation error: ${event.error}`);
         }
-        setIsListening(false);
       };
 
       recognition.onend = () => {
@@ -133,12 +140,11 @@ export function VoiceInputButton({
       try {
         setInterimTranscript("");
         recognitionRef.current.start();
-        setIsListening(true);
-        toast.success("Listening... Speak your answer now 🎙️");
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("Failed to start voice recognition:", msg);
         toast.error("Could not activate microphone. Check browser permissions.");
+        setIsListening(false);
       }
     }
   };
