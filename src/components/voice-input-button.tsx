@@ -95,7 +95,9 @@ export function VoiceInputButton({
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.warn("[Voice Input] Speech recognition error:", event.error);
-        if (event.error !== "no-speech") {
+        if (event.error === "not-allowed") {
+          toast.error("Microphone permission blocked. Please allow microphone access in your browser settings (click 🔒 in address bar).");
+        } else if (event.error !== "no-speech") {
           toast.error(`Voice dictation error: ${event.error}`);
         }
         setIsListening(false);
