@@ -37,12 +37,14 @@ export interface SpeechRecognitionWrapper {
 }
 
 export type VoicePermissionState =
+  | "idle"
+  | "requesting-permission"
+  | "listening"
+  | "denied"
+  | "error"
   | "unsupported"
   | "prompt"
-  | "granted"
-  | "denied"
-  | "listening"
-  | "error";
+  | "granted";
 
 export interface VoicePermissionMessages {
   prompt: string;
@@ -122,7 +124,7 @@ export function useVoiceRecognition({
     if (typeof window === "undefined" || !isSpeechRecognitionSupported()) {
       return "unsupported";
     }
-    return "prompt";
+    return "idle";
   });
 
   const [isListening, setIsListening] = useState(false);
@@ -155,7 +157,7 @@ export function useVoiceRecognition({
             } else if (s === "denied") {
               setPermissionState("denied");
             } else {
-              setPermissionState((prev) => (prev === "listening" ? "listening" : "prompt"));
+              setPermissionState((prev) => (prev === "listening" ? "listening" : "idle"));
             }
           };
 
@@ -166,7 +168,6 @@ export function useVoiceRecognition({
         })
         .catch((err) => {
           console.warn("[Voice Input] navigator.permissions.query unavailable:", err);
-          setPermissionState((prev) => (prev === "unsupported" ? "unsupported" : "prompt"));
         });
     }
 
@@ -200,27 +201,14 @@ export function useVoiceRecognition({
       }
     }
     setIsListening(false);
-    setPermissionState((prev) => (prev === "listening" ? "granted" : prev));
+    setPermissionState((prev) => (prev === "listening" ? "idle" : prev));
   }, []);
 
   /**
-   * Starts recognition synchronously within user gesture.
-   * If permission is 'prompt', browser presents native permission prompt.
-   * If permission is 'denied', notifies user to update settings without repeated prompts.
+   * Internal routine to instantiate and start SpeechRecognition
+   * once microphone permission is established.
    */
-  const startListening = useCallback(() => {
-    if (!isSpeechRecognitionSupported()) {
-      setPermissionState("unsupported");
-      toast.error(VOICE_MESSAGES.unsupported);
-      return;
-    }
-
-    // Do NOT repeatedly show browser permission prompt when blocked/denied
-    if (permissionState === "denied") {
-      toast.error(BLOCKED_MICROPHONE_MSG);
-      return;
-    }
-
+  const startRecognition = useCallback(() => {
     // Clean up previous instance if running
     if (recognitionRef.current) {
       try {
@@ -283,8 +271,8 @@ export function useVoiceRecognition({
           setPermissionState("denied");
           toast.error(BLOCKED_MICROPHONE_MSG);
         } else if (event.error === "no-speech") {
-          // Silence timeout, stay ready in granted/prompt state
-          setPermissionState((prev) => (prev === "listening" ? "granted" : prev));
+          // Silence timeout, stay ready
+          setPermissionState("idle");
         } else {
           setPermissionState("error");
           toast.error(`Voice dictation error: ${event.error}`);
@@ -294,13 +282,11 @@ export function useVoiceRecognition({
       recognition.onend = () => {
         setIsListening(false);
         setInterimTranscript("");
-        setPermissionState((prev) => (prev === "listening" ? "granted" : prev));
+        setPermissionState((prev) => (prev === "listening" ? "idle" : prev));
       };
 
       recognitionRef.current = recognition;
       setInterimTranscript("");
-
-      // CRITICAL: Call recognition.start() synchronously inside user gesture!
       recognition.start();
     } catch (err: unknown) {
       console.error("[Voice Input] Failed to start recognition:", err);
@@ -308,7 +294,69 @@ export function useVoiceRecognition({
       setPermissionState("error");
       toast.error("Could not activate microphone. Check browser permissions.");
     }
-  }, [language, appendMode, currentValue, onTranscriptFinal, onTranscriptChange, permissionState]);
+  }, [language, appendMode, currentValue, onTranscriptFinal, onTranscriptChange]);
+
+  /**
+   * Primary entry point invoked exclusively via user microphone click.
+   * Requests getUserMedia({ audio: true }) to trigger native browser prompt on first use,
+   * immediately stops temporary media tracks, then initiates SpeechRecognition.
+   */
+  const startListening = useCallback(async () => {
+    if (!isSpeechRecognitionSupported()) {
+      setPermissionState("unsupported");
+      toast.error(VOICE_MESSAGES.unsupported);
+      return;
+    }
+
+    // Do NOT repeatedly request permission when user already selected Block
+    if (permissionState === "denied") {
+      toast.error(BLOCKED_MICROPHONE_MSG);
+      return;
+    }
+
+    // If permission was already granted, do not unnecessarily request permission again; start immediately
+    if (permissionState === "granted") {
+      startRecognition();
+      return;
+    }
+
+    // If getUserMedia is unavailable in environment, fall back safely to SpeechRecognition directly
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      startRecognition();
+      return;
+    }
+
+    setPermissionState("requesting-permission");
+
+    try {
+      // 1. Explicitly request microphone permission via getUserMedia directly on user click
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // 2. Stop temporary MediaStream tracks immediately to release the audio hardware
+      stream.getTracks().forEach((track) => track.stop());
+
+      setPermissionState("granted");
+
+      // Then start the existing Web Speech API recognition
+      startRecognition();
+    } catch (err: any) {
+      console.warn("[Voice Input] getUserMedia error:", err);
+      setIsListening(false);
+
+      if (
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError" ||
+        err?.message?.includes?.("denied")
+      ) {
+        // User denied permission in browser prompt or origin is blocked
+        setPermissionState("denied");
+        toast.error(BLOCKED_MICROPHONE_MSG);
+      } else {
+        setPermissionState("error");
+        toast.error("Microphone access could not be acquired.");
+      }
+    }
+  }, [permissionState, startRecognition]);
 
   const toggleListening = useCallback(() => {
     if (isListening) {

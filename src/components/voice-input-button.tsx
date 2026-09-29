@@ -78,10 +78,13 @@ export function VoiceInputButton({
         return VOICE_MESSAGES.unsupported;
       case "listening":
         return VOICE_MESSAGES.listening;
+      case "requesting-permission":
+        return "Requesting microphone permission...";
       case "denied":
         return VOICE_MESSAGES.denied;
       case "error":
         return "Voice input error. Click to retry";
+      case "idle":
       case "prompt":
       case "granted":
       default:
