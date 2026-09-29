@@ -5,6 +5,7 @@ import { findRelevantContext } from "@/lib/chatbot-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VoiceInputButton } from "@/components/voice-input-button";
+import { VoiceWaveform } from "@/components/voice/voice-waveform";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -14,6 +15,7 @@ export function ChatBot() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load welcome message on mount
@@ -205,6 +207,27 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Active Voice Listening Waveform Banner for PULSE AI */}
+          {isVoiceListening && (
+            <div className="px-3.5 py-2 bg-gradient-to-r from-card/95 via-cyan-950/40 to-card/95 border-t border-cyan-500/30 backdrop-blur-md flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                </span>
+                <span className="text-xs font-semibold text-cyan-300 tracking-wide">
+                  Listening...
+                </span>
+              </div>
+              <div className="flex-1 flex justify-center max-w-[210px]">
+                <VoiceWaveform active={isVoiceListening} compact={false} />
+              </div>
+              <span className="text-[11px] text-muted-foreground/80 shrink-0 font-medium">
+                Speak now
+              </span>
+            </div>
+          )}
+
           {/* Send Input Area */}
           <form
             onSubmit={handleSend}
@@ -221,9 +244,13 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
             <VoiceInputButton
               currentValue={input}
               onTranscriptFinal={(txt) => setInput(txt)}
+              onListeningChange={setIsVoiceListening}
               size="icon"
               variant="ghost"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-primary"
+              className={cn(
+                "h-9 w-9 shrink-0 text-muted-foreground hover:text-primary transition-all",
+                isVoiceListening && "text-cyan-400 bg-cyan-500/10 shadow-[0_0_12px_rgba(6,182,212,0.3)]",
+              )}
             />
             <Button
               type="submit"

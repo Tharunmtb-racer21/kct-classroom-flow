@@ -1,27 +1,24 @@
 /**
  * voice-input-button.tsx
  * Speech-to-Text Dictation & Real-Time Transcript Preview Component for KCT PULSE.
- * Uses Web Speech API (webkitSpeechRecognition / SpeechRecognition) to transcribe
- * spoken audio in real time, rendering a live transcript preview bubble and auto-filling
- * input fields for hands-free answer submission and prompt dictation.
+ * Uses Web Speech API (webkitSpeechRecognition / SpeechRecognition) with graceful
+ * browser permission handling and animated voice waveform visualization.
  */
 
-import { useState, useEffect, useRef } from "react";
 import { Mic, MicOff, Check, Sparkles, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  getSpeechRecognition,
-  isSpeechRecognitionSupported,
-  SpeechRecognitionWrapper,
-  SpeechRecognitionEvent,
-  SpeechRecognitionErrorEvent,
+  useVoiceRecognition,
+  VOICE_MESSAGES,
 } from "@/services/voice/speechRecognition";
+import { VoiceWaveform } from "@/components/voice/voice-waveform";
 
 interface VoiceInputButtonProps {
   onTranscriptFinal: (text: string) => void;
   onTranscriptChange?: (text: string) => void;
+  onListeningChange?: (isListening: boolean) => void;
   currentValue?: string;
   className?: string;
   buttonText?: string;
@@ -34,6 +31,7 @@ interface VoiceInputButtonProps {
 export function VoiceInputButton({
   onTranscriptFinal,
   onTranscriptChange,
+  onListeningChange,
   currentValue = "",
   className,
   buttonText = "Voice Input",
@@ -42,147 +40,24 @@ export function VoiceInputButton({
   appendMode = true,
   language = "en-US",
 }: VoiceInputButtonProps) {
-  const [isListening, setIsListening] = useState(false);
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [isSupported, setIsSupported] = useState(true);
+  const {
+    permissionState,
+    isListening,
+    interimTranscript,
+    isSupported,
+    toggleListening,
+    stopListening,
+    clearInterim,
+  } = useVoiceRecognition({
+    language,
+    appendMode,
+    currentValue,
+    onTranscriptFinal,
+    onTranscriptChange,
+    onListeningChange,
+  });
 
-  const recognitionRef = useRef<SpeechRecognitionWrapper | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // Diagnostic log on mount / prop change
-    const isSecureContext = window.isSecureContext;
-    const isIframe = window.self !== window.top;
-    const protocol = window.location.protocol;
-    const hasMediaDevices = !!navigator.mediaDevices;
-
-    console.log("[Voice Input Diagnostics]", {
-      speechRecognitionSupported: isSpeechRecognitionSupported(),
-      language,
-      isSecureContext,
-      protocol,
-      isIframe,
-      hasMediaDevices,
-      userAgent: navigator.userAgent,
-    });
-
-    try {
-      const recognition = getSpeechRecognition(language);
-      if (!recognition) {
-        setIsSupported(false);
-        return;
-      }
-      // Configuration handled by wrapper; ensure properties are set for safety
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = language;
-
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let currentInterim = "";
-        let finalChunk = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcriptChunk = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalChunk += transcriptChunk;
-          } else {
-            currentInterim += transcriptChunk;
-          }
-        }
-
-        setInterimTranscript(currentInterim);
-
-        if (finalChunk.trim()) {
-          const newCombined =
-            appendMode && currentValue.trim()
-              ? `${currentValue.trim()} ${finalChunk.trim()}`
-              : finalChunk.trim();
-
-          onTranscriptFinal(newCombined);
-          if (onTranscriptChange) {
-            onTranscriptChange(newCombined);
-          }
-        }
-      };
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        toast.success("Listening... Speak your answer now 🎙️");
-      };
-
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn("[Voice Input] Speech recognition error event:", {
-          error: event.error,
-          isSecureContext: window.isSecureContext,
-          isIframe: window.self !== window.top,
-        });
-        setIsListening(false);
-        if (event.error === "not-allowed") {
-          toast.error(
-            "Microphone access is blocked. Allow microphone access for KCT Pulse in your browser site settings and try again.",
-          );
-        } else if (event.error !== "no-speech") {
-          toast.error(`Voice dictation error: ${event.error}`);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        setInterimTranscript("");
-      };
-
-      recognitionRef.current = recognition;
-    } catch (err: unknown) {
-      console.error("[Voice Input] Failed to initialize SpeechRecognition:", err);
-      setIsSupported(false);
-    }
-  }, [language, appendMode, currentValue, onTranscriptFinal, onTranscriptChange]);
-
-  const toggleListening = async () => {
-    if (!isSupported) {
-      toast.error(
-        "Voice input is not supported in this browser. Please use Chrome, Edge, or Safari.",
-      );
-      return;
-    }
-
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      toast.info("Voice input stopped.");
-    } else {
-      // Pre-flight permission check where supported
-      if (typeof navigator !== "undefined" && navigator.permissions && navigator.permissions.query) {
-        try {
-          const permStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
-          console.log("[Voice Input Permission Status]:", permStatus.state);
-          if (permStatus.state === "denied") {
-            toast.error(
-              "Microphone access is blocked. Allow microphone access for KCT Pulse in your browser site settings and try again.",
-            );
-            setIsListening(false);
-            return;
-          }
-        } catch (pErr) {
-          console.warn("[Voice Input] Permissions query check skipped:", pErr);
-        }
-      }
-
-      try {
-        setInterimTranscript("");
-        recognitionRef.current.start();
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("Failed to start voice recognition:", msg);
-        toast.error("Could not activate microphone. Check browser permissions.");
-        setIsListening(false);
-      }
-    }
-  };
-
+  // Handle manual insert of interim transcript
   const handleAcceptInterim = () => {
     if (interimTranscript.trim()) {
       const finalVal =
@@ -190,17 +65,49 @@ export function VoiceInputButton({
           ? `${currentValue.trim()} ${interimTranscript.trim()}`
           : interimTranscript.trim();
       onTranscriptFinal(finalVal);
-      setInterimTranscript("");
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
+      clearInterim();
+      stopListening();
       toast.success("Transcript added to input field!");
     }
   };
 
+  // Determine button title / tooltip matching state requirements
+  const getButtonTitle = () => {
+    switch (permissionState) {
+      case "unsupported":
+        return VOICE_MESSAGES.unsupported;
+      case "listening":
+        return VOICE_MESSAGES.listening;
+      case "denied":
+        return VOICE_MESSAGES.denied;
+      case "error":
+        return "Voice input error. Click to retry";
+      case "prompt":
+      case "granted":
+      default:
+        return isListening ? VOICE_MESSAGES.listening : VOICE_MESSAGES.prompt;
+    }
+  };
+
+  // Render disabled state when browser does not support Web Speech API
   if (!isSupported) {
-    return null;
+    return (
+      <Button
+        type="button"
+        variant={variant}
+        size={size}
+        disabled
+        aria-label="Voice input not supported"
+        className={cn(
+          "gap-2 opacity-50 cursor-not-allowed select-none",
+          className,
+        )}
+        title={VOICE_MESSAGES.unsupported}
+      >
+        <MicOff className="h-4 w-4 text-muted-foreground" />
+        {size !== "icon" && <span className="text-xs">{buttonText}</span>}
+      </Button>
+    );
   }
 
   return (
@@ -210,21 +117,33 @@ export function VoiceInputButton({
         variant={isListening ? "destructive" : variant}
         size={size}
         onClick={toggleListening}
+        aria-label={isListening ? "Stop voice input" : "Start voice input"}
         className={cn(
           "gap-2 transition-all font-semibold select-none",
           isListening && "animate-pulse shadow-lg shadow-rose-500/20",
+          permissionState === "denied" && "border-destructive/40 text-muted-foreground",
           className,
         )}
-        title={isListening ? "Stop listening" : "Click to dictate by voice"}
+        title={getButtonTitle()}
       >
         {isListening ? (
           <>
-            <MicOff className="h-4 w-4 text-white animate-bounce" />
-            <span className="text-xs">Listening...</span>
+            <MicOff className="h-4 w-4 text-white animate-bounce shrink-0" />
+            {size !== "icon" && (
+              <>
+                <VoiceWaveform active={isListening} compact={true} />
+                <span className="text-xs">Listening...</span>
+              </>
+            )}
           </>
         ) : (
           <>
-            <Mic className="h-4 w-4 text-primary" />
+            <Mic
+              className={cn(
+                "h-4 w-4",
+                permissionState === "denied" ? "text-destructive/70" : "text-primary",
+              )}
+            />
             {size !== "icon" && <span className="text-xs">{buttonText}</span>}
           </>
         )}
@@ -232,13 +151,12 @@ export function VoiceInputButton({
 
       {/* Floating Live Transcript Preview Card */}
       {isListening && (
-        <div className="absolute bottom-full left-0 mb-2 z-50 w-72 glass rounded-2xl p-3 shadow-2xl border border-primary/40 bg-card/95 backdrop-blur-xl animate-in fade-in zoom-in-95 space-y-2">
+        <div className="absolute bottom-full left-0 mb-2 z-50 w-80 glass rounded-2xl p-3 shadow-2xl border border-primary/40 bg-card/95 backdrop-blur-xl animate-in fade-in zoom-in-95 space-y-2">
           <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-              <Volume2 className="h-3.5 w-3.5 animate-pulse text-rose-500" /> Live Transcript
-              Preview
+              <Volume2 className="h-3.5 w-3.5 animate-pulse text-cyan-400" /> Live Transcript Preview
             </span>
-            <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+            <VoiceWaveform active={isListening} compact={true} />
           </div>
 
           <div className="text-xs font-medium text-foreground bg-background/60 p-2.5 rounded-xl border border-border/50 min-h-[42px] max-h-24 overflow-y-auto italic">
@@ -246,8 +164,7 @@ export function VoiceInputButton({
               <span>"{interimTranscript}"</span>
             ) : (
               <span className="text-muted-foreground not-italic flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-spin" /> Speak now... your
-                speech will appear here.
+                <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-spin" /> {VOICE_MESSAGES.listening}
               </span>
             )}
           </div>
