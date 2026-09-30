@@ -1,5 +1,4 @@
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import type { jsPDF } from "jspdf";
 import { KCT_LOGO_BASE64 } from "./kct-logo-b64";
 import { KCT_HEADER_LOGO_BASE64 } from "./kct-header-logo-b64";
 
@@ -103,7 +102,13 @@ export async function generateSessionPDF(
   students: StudentPerformanceRow[],
   questions: QuestionAnalysisItem[],
 ) {
-  const doc = new jsPDF({
+  const [{ jsPDF: JsPdfConstructor }, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const autoTable = (autoTableModule as any).default || autoTableModule;
+
+  const doc = new JsPdfConstructor({
     orientation: "portrait",
     unit: "mm",
     format: "a4",
@@ -134,8 +139,8 @@ export async function generateSessionPDF(
         let gState;
         if (typeof (docInstance as any).GState === "function") {
           gState = new (docInstance as any).GState({ opacity: 0.13 });
-        } else if (typeof (jsPDF as any).GState === "function") {
-          gState = new (jsPDF as any).GState({ opacity: 0.13 });
+        } else if (typeof (JsPdfConstructor as any).GState === "function") {
+          gState = new (JsPdfConstructor as any).GState({ opacity: 0.13 });
         }
         if (gState) {
           docInstance.setGState(gState);
@@ -294,7 +299,7 @@ export async function generateSessionPDF(
       3: { cellWidth: 58 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
-    willDrawPage: (data) => {
+    willDrawPage: (data: any) => {
       drawWatermarkIfNeeded(data.pageNumber);
     },
   });
@@ -373,7 +378,7 @@ export async function generateSessionPDF(
       5: { cellWidth: 28 },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
-    willDrawPage: (data) => {
+    willDrawPage: (data: any) => {
       drawWatermarkIfNeeded(data.pageNumber);
     },
   });
@@ -451,7 +456,7 @@ export async function generateSessionPDF(
       8: { cellWidth: 16, fontStyle: "bold" }, // Marks
       9: { cellWidth: 22, fontStyle: "bold" }, // Status
     },
-    didParseCell: (data) => {
+    didParseCell: (data: any) => {
       // Highlight accuracy & status colors
       if (data.row.section === "body") {
         if (data.column.index === 1) {
@@ -480,7 +485,7 @@ export async function generateSessionPDF(
       }
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
-    willDrawPage: (data) => {
+    willDrawPage: (data: any) => {
       drawWatermarkIfNeeded(data.pageNumber);
     },
   });
@@ -550,7 +555,7 @@ export async function generateSessionPDF(
       5: { cellWidth: 18, fontStyle: "bold" },
     },
     margin: { left: margin, right: margin, top: 36, bottom: 22 },
-    willDrawPage: (data) => {
+    willDrawPage: (data: any) => {
       drawWatermarkIfNeeded(data.pageNumber);
     },
   });

@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { throttle } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard/intelligence")({
   component: ClassroomIntelligenceDashboard,
@@ -131,9 +132,37 @@ export default function ClassroomIntelligenceDashboard() {
 
       const safeResponses = responses || [];
 
+      // Pre-index questions by ID and count total quiz questions once
+      const questionsById = new Map<string, (typeof questions)[0]>();
+      let totalQuizQuestionsInSession = 0;
+      questions.forEach((q) => {
+        questionsById.set(q.id, q);
+        if (q.type === "quiz") totalQuizQuestionsInSession++;
+      });
+
+      // Pre-index responses by participant and by question in a single O(R) pass
+      const responsesByParticipant = new Map<string, typeof safeResponses>();
+      const responsesByQuestion = new Map<string, typeof safeResponses>();
+
+      safeResponses.forEach((r) => {
+        let pList = responsesByParticipant.get(r.participant_id);
+        if (!pList) {
+          pList = [];
+          responsesByParticipant.set(r.participant_id, pList);
+        }
+        pList.push(r);
+
+        let qList = responsesByQuestion.get(r.question_id);
+        if (!qList) {
+          qList = [];
+          responsesByQuestion.set(r.question_id, qList);
+        }
+        qList.push(r);
+      });
+
       // 2. Map Student Features & Compute Student Engagement Scores
       const studentMap: StudentEngagementAnalysis[] = participants.map((p) => {
-        const studentResponses = safeResponses.filter((r) => r.participant_id === p.id);
+        const studentResponses = responsesByParticipant.get(p.id) || [];
         const attemptedQuestions = new Set(studentResponses.map((r) => r.question_id)).size;
 
         // Correct answer count
@@ -143,7 +172,7 @@ export default function ClassroomIntelligenceDashboard() {
         let wordcloudCount = 0;
 
         for (const resp of studentResponses) {
-          const matchedQ = questions.find((q) => q.id === resp.question_id);
+          const matchedQ = questionsById.get(resp.question_id);
           if (matchedQ) {
             if (matchedQ.type === "quiz") {
               quizCount += 1;
@@ -160,8 +189,6 @@ export default function ClassroomIntelligenceDashboard() {
             }
           }
         }
-
-        const totalQuizQuestionsInSession = questions.filter((q) => q.type === "quiz").length;
 
         return calculateStudentEngagement({
           participantId: p.id,
@@ -188,7 +215,7 @@ export default function ClassroomIntelligenceDashboard() {
 
       // 4. Compute Weak Topic Analysis & Pedagogical Recommendations
       const questionPerfList = questions.map((q) => {
-        const qResponses = safeResponses.filter((r) => r.question_id === q.id);
+        const qResponses = responsesByQuestion.get(q.id) || [];
         return {
           questionId: q.id,
           title: q.title,
@@ -214,10 +241,11 @@ export default function ClassroomIntelligenceDashboard() {
 
   // Realtime subscription setup
   useEffect(() => {
+    const throttledRunML = throttle(runMLAnalytics, 10000);
     const channel = supabase
       .channel("ml_intelligence_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, () => {
-        runMLAnalytics();
+        throttledRunML();
       })
       .subscribe();
 

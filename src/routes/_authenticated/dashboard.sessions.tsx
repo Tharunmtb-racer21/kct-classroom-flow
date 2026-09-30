@@ -38,15 +38,10 @@ import { generateSessionCode, autoDraftStaleSessions } from "@/lib/session-utils
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
-
-type Row = {
-  id: string;
-  title: string;
-  code: string;
-  status: "draft" | "live" | "ended";
-  created_at: string;
-  participants: { count: number }[];
-};
+import { useSessions, sessionsKeys } from "@/hooks/queries/use-sessions";
+import { queryClient } from "@/lib/query-client";
+import { type SessionListRow as Row } from "@/services/sessions/session-service";
+import { throttle } from "@/lib/utils";
 
 type SharedTemplate = {
   id: string;
@@ -118,7 +113,9 @@ export const Route = createFileRoute("/_authenticated/dashboard/sessions")({
 });
 
 function SessionsPage() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const user = auth.currentUser;
+  const { data: sessionsData, isLoading, refetch } = useSessions(user?.uid);
+  const rows = sessionsData ?? [];
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
@@ -137,27 +134,34 @@ function SessionsPage() {
 
   const navigate = Route.useNavigate();
 
-  const load = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const { data } = await supabase
-      .from("sessions")
-      .select("id,title,code,status,created_at,participants(count)")
-      .eq("creator_id", user.uid)
-      .order("created_at", { ascending: false });
-    setRows((data as unknown as Row[]) ?? []);
-  };
-
   useEffect(() => {
-    autoDraftStaleSessions().then(() => load());
+    autoDraftStaleSessions().then(() => refetch());
+    if (!user?.uid) return;
+
+    const throttledRefetch = throttle(() => {
+      refetch();
+    }, 2000);
+
     const ch = supabase
-      .channel("sessions-list")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, load)
+      .channel(`sessions-list-${user.uid}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "sessions",
+          filter: `creator_id=eq.${user.uid}`,
+        },
+        () => {
+          throttledRefetch();
+        },
+      )
       .subscribe();
+
     return () => {
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [user?.uid, refetch]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,6 +220,7 @@ function SessionsPage() {
       toast.success("Session created");
       setOpen(false);
       setTitle("");
+      queryClient.invalidateQueries({ queryKey: sessionsKeys.all });
       navigate({ to: "/dashboard/session/$id", params: { id: inserted.id } });
     } catch (err) {
       console.error("[CreateSession] Create session error caught:", err);
@@ -250,7 +255,7 @@ function SessionsPage() {
       await supabase.from("questions").insert(qRows);
 
       toast.success(`Template '${tmpl.title}' cloned to your sessions!`);
-      await load();
+      await queryClient.invalidateQueries({ queryKey: sessionsKeys.all });
       navigate({ to: "/dashboard/session/$id", params: { id: inserted.id } });
     } catch (err: any) {
       console.error("Clone template error:", err);
@@ -287,9 +292,7 @@ function SessionsPage() {
 
       if (error) throw error;
 
-      setRows((prev) =>
-        prev.map((s) => (s.id === sessionToRename.id ? { ...s, title: trimmed } : s)),
-      );
+      await queryClient.invalidateQueries({ queryKey: sessionsKeys.all });
       toast.success("Session renamed successfully! ✏️");
       setRenameModalOpen(false);
       setSessionToRename(null);
@@ -310,6 +313,7 @@ function SessionsPage() {
     try {
       const { error } = await supabase.from("sessions").delete().eq("id", deleteSessionId);
       if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: sessionsKeys.all });
       toast.success("Session deleted");
     } catch (err: any) {
       console.error("Delete session error:", err);

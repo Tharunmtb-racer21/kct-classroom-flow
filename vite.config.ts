@@ -19,13 +19,11 @@ export default defineConfig({
               if (id.includes("recharts")) {
                 return "recharts";
               }
-              if (
-                id.includes("jspdf") ||
-                id.includes("jspdf-autotable") ||
-                id.includes("html2canvas") ||
-                id.includes("xlsx")
-              ) {
-                return "reports-pdf-excel";
+              if (id.includes("xlsx")) {
+                return "xlsx-export";
+              }
+              if (id.includes("jspdf") || id.includes("jspdf-autotable")) {
+                return "jspdf-engine";
               }
               if (id.includes("mammoth") || id.includes("pdfjs-dist")) {
                 return "pdf-docx-parsers";

@@ -33,3 +33,31 @@ export function formatDisplayName(
 
   return "Faculty Member";
 }
+
+/**
+ * Creates a throttled function that only invokes `fn` at most once per every `waitMs` milliseconds.
+ * Preserves the trailing invocation if multiple calls were made within the window.
+ */
+export function throttle<T extends (...args: any[]) => any>(
+  fn: T,
+  waitMs: number,
+): (...args: Parameters<T>) => void {
+  let inThrottle = false;
+  let lastArgs: Parameters<T> | null = null;
+
+  return function (this: any, ...args: Parameters<T>) {
+    if (!inThrottle) {
+      fn.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+        if (lastArgs) {
+          fn.apply(this, lastArgs);
+          lastArgs = null;
+        }
+      }, waitMs);
+    } else {
+      lastArgs = args;
+    }
+  };
+}

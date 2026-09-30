@@ -2,8 +2,6 @@
  * Export Utilities for KCT PULSE — Exporting Session Reports to CSV & Excel (.xlsx)
  */
 
-import * as XLSX from "xlsx";
-
 type Response = {
   id: string;
   answer: string;
@@ -49,10 +47,30 @@ function escapeCSVCell(val: string | number | null | undefined): string {
 }
 
 /**
+ * Indexes responses by participant_id -> question_id -> Response for O(1) lookups
+ */
+function indexSessionResponses(session: ReportSession): Map<string, Map<string, Response>> {
+  const respMap = new Map<string, Map<string, Response>>();
+  session.questions.forEach((q) => {
+    q.responses?.forEach((r) => {
+      let pMap = respMap.get(r.participant_id);
+      if (!pMap) {
+        pMap = new Map();
+        respMap.set(r.participant_id, pMap);
+      }
+      pMap.set(q.id, r);
+    });
+  });
+  return respMap;
+}
+
+/**
  * Exports a session's full student data and raw responses to CSV format (.csv)
  */
 export function exportSessionToCSV(session: ReportSession) {
   const quizQuestions = session.questions.filter((q) => q.type === "quiz");
+  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+  const respMap = indexSessionResponses(session);
 
   // Build CSV Header
   const headers = [
@@ -66,24 +84,25 @@ export function exportSessionToCSV(session: ReportSession) {
 
   const rows: string[][] = [headers];
 
-  // Build rows per participant
+  // Build rows per participant in a single linear pass
   session.participants.forEach((p) => {
-    const responsesCount = session.questions.reduce((sum, q) => {
-      const hasResp = q.responses?.some((r) => r.participant_id === p.id);
-      return sum + (hasResp ? 1 : 0);
-    }, 0);
+    const pMap = respMap.get(p.id);
+    let responsesCount = 0;
+    let correctCount = 0;
+    let marksObtained = 0;
 
-    const correctCount = quizQuestions.reduce((sum, q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      return sum + (resp && resp.answer === q.correct_answer ? 1 : 0);
-    }, 0);
-
-    const marksObtained = quizQuestions.reduce((sum, q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      const isCorrect = resp && resp.answer === q.correct_answer;
-      return sum + (isCorrect ? (q.marks ?? q.points ?? 1) : 0);
-    }, 0);
-    const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+    const questionAnswers = session.questions.map((q) => {
+      const resp = pMap?.get(q.id);
+      if (resp) {
+        responsesCount++;
+        if (q.type === "quiz" && resp.answer === q.correct_answer) {
+          correctCount++;
+          marksObtained += q.marks ?? q.points ?? 1;
+        }
+        return resp.answer;
+      }
+      return "No Response";
+    });
 
     const quizScoreStr =
       quizQuestions.length > 0 ? `${correctCount} / ${quizQuestions.length}` : "N/A";
@@ -94,11 +113,6 @@ export function exportSessionToCSV(session: ReportSession) {
           ? "No Marks"
           : `${marksObtained} / ${totalQuizMarks}`
         : "N/A";
-
-    const questionAnswers = session.questions.map((q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      return resp ? resp.answer : "No Response";
-    });
 
     rows.push([
       p.name,
@@ -129,8 +143,11 @@ export function exportSessionToCSV(session: ReportSession) {
 /**
  * Exports a session's full report formatted for MS Excel (.xlsx) using SheetJS
  */
-export function exportSessionToExcel(session: ReportSession) {
+export async function exportSessionToExcel(session: ReportSession) {
+  const XLSX = await import("xlsx");
   const quizQuestions = session.questions.filter((q) => q.type === "quiz");
+  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+  const respMap = indexSessionResponses(session);
 
   // Title rows
   const titleRows: (string | number)[][] = [
@@ -152,29 +169,25 @@ export function exportSessionToExcel(session: ReportSession) {
     ...session.questions.map((q, idx) => `Q${idx + 1}: ${q.title} (${q.type})`),
   ];
 
-  // Data rows
+  // Data rows built in a single linear pass
   const dataRows: (string | number)[][] = [];
   session.participants.forEach((p) => {
-    const responsesCount = session.questions.reduce((sum, q) => {
-      const hasResp = q.responses?.some((r) => r.participant_id === p.id);
-      return sum + (hasResp ? 1 : 0);
-    }, 0);
-
-    const correctCount = quizQuestions.reduce((sum, q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      return sum + (resp && resp.answer === q.correct_answer ? 1 : 0);
-    }, 0);
-
-    const marksObtained = quizQuestions.reduce((sum, q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      const isCorrect = resp && resp.answer === q.correct_answer;
-      return sum + (isCorrect ? (q.marks ?? q.points ?? 1) : 0);
-    }, 0);
-    const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+    const pMap = respMap.get(p.id);
+    let responsesCount = 0;
+    let correctCount = 0;
+    let marksObtained = 0;
 
     const questionAnswers = session.questions.map((q) => {
-      const resp = q.responses?.find((r) => r.participant_id === p.id);
-      return resp ? resp.answer : "No Response";
+      const resp = pMap?.get(q.id);
+      if (resp) {
+        responsesCount++;
+        if (q.type === "quiz" && resp.answer === q.correct_answer) {
+          correctCount++;
+          marksObtained += q.marks ?? q.points ?? 1;
+        }
+        return resp.answer;
+      }
+      return "No Response";
     });
 
     dataRows.push([

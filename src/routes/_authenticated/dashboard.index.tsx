@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, throttle } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
 
 type Session = {
@@ -121,20 +121,30 @@ function DashboardHome() {
     const user = auth.currentUser;
     if (!user) return;
 
+    const throttledLoad = throttle(loadFacultyData, 5000);
+
     const channel = supabase
-      .channel("faculty-dashboard-sync")
+      .channel(`faculty-dashboard-sync-${user.uid}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` },
-        loadFacultyData,
+        () => {
+          throttledLoad();
+        },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "participants" },
-        loadFacultyData,
+        () => {
+          throttledLoad();
+        },
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, loadFacultyData)
-      .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, loadFacultyData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, () => {
+        throttledLoad();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "questions" }, () => {
+        throttledLoad();
+      })
       .subscribe();
 
     return () => {
