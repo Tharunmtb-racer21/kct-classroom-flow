@@ -311,8 +311,11 @@ function SessionControl() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "participants", filter: `session_id=eq.${id}` },
+        { event: "*", schema: "public", table: "participants" },
         (payload) => {
+          const sessId = (payload.new as any)?.session_id || (payload.old as any)?.session_id;
+          if (sessId && sessId !== id) return;
+
           if (payload.eventType === "INSERT") {
             const newP = payload.new as Participant;
             setParticipants((prev) => (prev.some((p) => p.id === newP.id) ? prev : [...prev, newP]));
@@ -323,6 +326,7 @@ function SessionControl() {
             const updated = payload.new as Participant;
             setParticipants((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           }
+          queryClient.invalidateQueries({ queryKey: participantKeys.session(id) });
           refetchParticipants();
         },
       )
@@ -341,6 +345,16 @@ function SessionControl() {
             setResponses((prev) => {
               if (prev.some((r) => r.id === newR.id)) return prev;
               return [...prev, newR];
+            });
+          }
+          // Self-heal: If this response came from a participant not yet in local state, refresh participants immediately
+          if (newR.participant_id) {
+            setParticipants((prev) => {
+              if (!prev.some((p) => p.id === newR.participant_id)) {
+                queryClient.invalidateQueries({ queryKey: participantKeys.session(id) });
+                refetchParticipants();
+              }
+              return prev;
             });
           }
         } else if (payload.eventType === "DELETE") {
@@ -661,7 +675,7 @@ function SessionControl() {
           <div className="mt-2 flex items-center gap-3">
             <StatusPill status={session.status} />
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> {participants.length}
+              <Users className="h-4 w-4" /> {Math.max(participants.length, new Set(allSessionResponses.map((r) => r.participant_id)).size)}
             </span>
           </div>
         </div>
@@ -912,7 +926,7 @@ function SessionControl() {
             Students Joined
           </span>
           <div className="text-xl font-bold text-foreground mt-0.5">
-            {participants.length} Students
+            {Math.max(participants.length, new Set(allSessionResponses.map((r) => r.participant_id)).size)} Students
           </div>
         </div>
         <div>
@@ -928,11 +942,18 @@ function SessionControl() {
             Participation %
           </span>
           <div className="text-xl font-bold text-cyan-400 mt-0.5">
-            {questions.length > 0 && participants.length > 0
+            {questions.length > 0 &&
+            Math.max(participants.length, new Set(allSessionResponses.map((r) => r.participant_id)).size) > 0
               ? Math.min(
                   100,
                   Math.round(
-                    (allSessionResponses.length / (questions.length * participants.length)) * 100,
+                    (allSessionResponses.length /
+                      (questions.length *
+                        Math.max(
+                          participants.length,
+                          new Set(allSessionResponses.map((r) => r.participant_id)).size,
+                        ))) *
+                      100,
                   ),
                 )
               : 0}

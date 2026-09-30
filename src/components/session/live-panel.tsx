@@ -40,9 +40,9 @@ export function LivePanel({
   const nameById = new Map(participants.map((p) => [p.id, p.name]));
   const responsesWithImages = responses.filter((r) => r.image_url);
 
-  const totalStudents = participants.length;
   const answeredParticipantIds = new Set(responses.map((r) => r.participant_id));
   const answeredCount = answeredParticipantIds.size;
+  const totalStudents = Math.max(participants.length, answeredCount);
   const responsePct = totalStudents > 0 ? Math.round((answeredCount / totalStudents) * 100) : 0;
   const pendingStudents = participants.filter((p) => !answeredParticipantIds.has(p.id));
 

@@ -18,7 +18,7 @@ export function useParticipants(sessionId: string | null | undefined) {
       return getParticipants(sessionId);
     },
     enabled: Boolean(sessionId),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 2 * 1000, // 2 seconds for responsive live sessions
     gcTime: 10 * 60 * 1000,
   });
 }
