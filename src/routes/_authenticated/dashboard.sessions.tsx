@@ -250,7 +250,6 @@ function SessionsPage() {
         options: ["Option A", "Option B", "Option C", "Option D"],
         order_index: idx,
         points: 0,
-        marks: 0,
       }));
 
       await supabase.from("questions").insert(qRows);

@@ -24,7 +24,7 @@ export function QuestionAnalyticsCard({
 }) {
   const responses = question.responses ?? [];
   const totalResp = responses.length;
-  const maxMarks = question.marks ?? question.points ?? 0;
+  const maxMarks = question.points ?? question.marks ?? 0;
 
   const typeLabels = {
     poll: "Poll (MCQ)",

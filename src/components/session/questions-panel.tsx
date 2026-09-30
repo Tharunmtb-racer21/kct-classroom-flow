@@ -420,7 +420,6 @@ export function QuestionsPanel({
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
         points: q.marks ?? q.points ?? 0,
-        marks: q.marks ?? q.points ?? 0,
         explanation: q.explanation,
         question_type: q.question_type,
       }));
@@ -554,7 +553,6 @@ export function QuestionsPanel({
         order_index: questions.length,
         image_url,
         points: numMarks,
-        marks: numMarks,
       });
 
       if (error) throw error;
@@ -646,7 +644,6 @@ export function QuestionsPanel({
           question_type: editType === "quiz" ? editQuestionType : "Single Correct",
           image_url: finalImageUrl,
           points: numEditMarks,
-          marks: numEditMarks,
         })
         .eq("id", editingQuestion.id);
 
@@ -743,7 +740,7 @@ export function QuestionsPanel({
         const newMarks = batchMarksMap[q.id] !== undefined ? Math.max(0, Number(batchMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 0);
         return supabase
           .from("questions")
-          .update({ points: newMarks, marks: newMarks })
+          .update({ points: newMarks })
           .eq("id", q.id);
       });
 

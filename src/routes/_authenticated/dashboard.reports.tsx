@@ -162,7 +162,6 @@ function ReportsPage() {
             correct_answer,
             order_index,
             points,
-            marks,
             responses (
               id,
               answer,
@@ -183,11 +182,16 @@ function ReportsPage() {
         return;
       }
 
-      // Ensure questions are sorted by order_index
+      // Ensure questions are sorted by order_index and normalized with marks from points
       const formattedData =
         (data as unknown as Row[])?.map((session) => ({
           ...session,
-          questions: [...(session.questions ?? [])].sort((a, b) => a.order_index - b.order_index),
+          questions: [...(session.questions ?? [])]
+            .sort((a, b) => a.order_index - b.order_index)
+            .map((q) => ({
+              ...q,
+              marks: q.points ?? 0,
+            })),
         })) ?? [];
 
       setRows(formattedData);
@@ -304,7 +308,7 @@ function ReportsPage() {
         const newMarks = customMarksMap[q.id] !== undefined ? Math.max(0, Number(customMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 0);
         return supabase
           .from("questions")
-          .update({ points: newMarks, marks: newMarks })
+          .update({ points: newMarks })
           .eq("id", q.id);
       });
 
