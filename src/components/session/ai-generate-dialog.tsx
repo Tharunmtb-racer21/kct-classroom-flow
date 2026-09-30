@@ -137,7 +137,8 @@ export function AIGenerateDialog({
         options: q.options as any,
         correct_answer: q.correct_answer,
         order_index: questionsCount + i,
-        points: 1,
+        points: 0,
+        marks: 0,
       }));
       const { error } = await supabase.from("questions").insert(rows);
       if (error) throw error;

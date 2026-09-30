@@ -88,7 +88,7 @@ export function QuestionsPanel({
   }, [optionsText]);
   const [correct, setCorrect] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [marks, setMarks] = useState<number>(1);
+  const [marks, setMarks] = useState<number>(0);
   const [saving, setSaving] = useState(false);
 
   // Excel upload/parsing states for Quiz import
@@ -159,7 +159,7 @@ export function QuestionsPanel({
         ["", "• Option E: Fifth answer choice. Optional."],
         ["", "• Correct Answer: Letter of the correct option, e.g., 'A' or 'B'."],
         ["", "• Question Type: Single Correct or Multiple Correct."],
-        ["", "• Points: Score for a correct answer. Defaults to 1 if blank."],
+        ["", "• Points: Score for a correct answer. Defaults to 0 if blank."],
         ["", "• Explanation: Optional. Shown after the question is answered."],
       ];
       const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
@@ -324,7 +324,7 @@ export function QuestionsPanel({
             );
           }
 
-          let points = 1;
+          let points = 0;
           if (pointsRaw !== undefined && pointsRaw !== null && String(pointsRaw).trim() !== "") {
             const parsedPoints = Number(pointsRaw);
             if (isNaN(parsedPoints) || parsedPoints < 0 || !Number.isInteger(parsedPoints)) {
@@ -419,7 +419,8 @@ export function QuestionsPanel({
         options: q.options,
         correct_answer: q.correct_answer,
         order_index: questions.length + idx,
-        points: q.marks ?? q.points ?? 1,
+        points: q.marks ?? q.points ?? 0,
+        marks: q.marks ?? q.points ?? 0,
         explanation: q.explanation,
         question_type: q.question_type,
       }));
@@ -553,6 +554,7 @@ export function QuestionsPanel({
         order_index: questions.length,
         image_url,
         points: numMarks,
+        marks: numMarks,
       });
 
       if (error) throw error;
@@ -564,7 +566,7 @@ export function QuestionsPanel({
       setCorrect("");
       setQuestionType("Single Correct");
       setImageFile(null);
-      setMarks(1);
+      setMarks(0);
     } catch (error: any) {
       console.error("Create question error:", error);
       toast.error(error.message || "Failed to create question");
@@ -586,7 +588,7 @@ export function QuestionsPanel({
       .filter(Boolean);
   }, [editOptionsText]);
   const [editCorrect, setEditCorrect] = useState("");
-  const [editMarks, setEditMarks] = useState<number>(1);
+  const [editMarks, setEditMarks] = useState<number>(0);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
@@ -599,7 +601,7 @@ export function QuestionsPanel({
     setEditOptionsText(q.options?.join("\n") ?? "");
     setEditCorrect(q.correct_answer ?? "");
     setEditQuestionType(q.question_type ?? "Single Correct");
-    setEditMarks(q.marks ?? q.points ?? 1);
+    setEditMarks(q.marks ?? q.points ?? 0);
     setEditImageUrl(q.image_url ?? null);
     setEditImageFile(null);
     setRemoveExistingImage(false);
@@ -644,6 +646,7 @@ export function QuestionsPanel({
           question_type: editType === "quiz" ? editQuestionType : "Single Correct",
           image_url: finalImageUrl,
           points: numEditMarks,
+          marks: numEditMarks,
         })
         .eq("id", editingQuestion.id);
 
@@ -717,7 +720,7 @@ export function QuestionsPanel({
   };
 
   const totalSessionMarks = useMemo(() => {
-    return questions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+    return questions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 0), 0);
   }, [questions]);
 
   const [batchMarksOpen, setBatchMarksOpen] = useState(false);
@@ -727,7 +730,7 @@ export function QuestionsPanel({
   const openBatchMarksModal = () => {
     const initialMap: Record<string, number> = {};
     questions.forEach((q) => {
-      initialMap[q.id] = q.marks ?? q.points ?? 1;
+      initialMap[q.id] = q.marks ?? q.points ?? 0;
     });
     setBatchMarksMap(initialMap);
     setBatchMarksOpen(true);
@@ -737,10 +740,10 @@ export function QuestionsPanel({
     setIsSavingBatchMarks(true);
     try {
       const updatePromises = questions.map((q) => {
-        const newMarks = batchMarksMap[q.id] !== undefined ? Math.max(0, Number(batchMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 1);
+        const newMarks = batchMarksMap[q.id] !== undefined ? Math.max(0, Number(batchMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 0);
         return supabase
           .from("questions")
-          .update({ points: newMarks })
+          .update({ points: newMarks, marks: newMarks })
           .eq("id", q.id);
       });
 
@@ -1570,7 +1573,7 @@ export function QuestionsPanel({
                 {/* Questions List with Marks Inputs */}
                 <div className="space-y-2.5 max-h-[50vh] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
                   {questions.map((q, idx) => {
-                    const currentVal = batchMarksMap[q.id] ?? (q.marks ?? q.points ?? 1);
+                    const currentVal = batchMarksMap[q.id] ?? (q.marks ?? q.points ?? 0);
                     const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
                     const typeColor =
                       q.type === "quiz"
@@ -1830,14 +1833,10 @@ export function QuestionsPanel({
                     </span>
                   )}
                   {(() => {
-                    const m = q.marks ?? q.points ?? 1;
-                    return m === 0 ? (
-                      <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border/40">
-                        No Marks
-                      </span>
-                    ) : (
+                    const m = q.marks ?? q.points ?? 0;
+                    return (
                       <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground border border-border/50">
-                        {m} {m === 1 ? "Mark" : "Marks"}
+                        {m} Mark
                       </span>
                     );
                   })()}

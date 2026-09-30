@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, formatStudentDisplayName } from "@/lib/utils";
 import type { Session, Participant } from "@/types/session.types";
 
 export interface ExamIntegrityProctoringProps {
@@ -69,8 +69,9 @@ export function ExamIntegrityProctoring({
   const filteredParticipants = useMemo(() => {
     return participants.filter((p) => {
       const conn = getConnectionState(p.id);
+      const studentName = formatStudentDisplayName(p.name, p.id);
 
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = studentName.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesRisk = riskFilter === "all" || p.risk_level === riskFilter;
       const matchesStatus =
         statusFilter === "all" ||
@@ -197,7 +198,7 @@ export function ExamIntegrityProctoring({
                   className="grid grid-cols-12 gap-4 px-4 py-3 text-xs items-center hover:bg-muted/15 transition-colors"
                 >
                   <div className="col-span-4 font-bold text-foreground/90 truncate text-left">
-                    {p.name}
+                    {formatStudentDisplayName(p.name, p.id)}
                   </div>
 
                   <div className="col-span-2 flex justify-center">

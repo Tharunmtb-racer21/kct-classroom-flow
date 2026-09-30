@@ -62,7 +62,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, formatStudentDisplayName } from "@/lib/utils";
 import { joinUrl, isPrivatePreviewHost } from "@/lib/session-utils";
 import { toast } from "sonner";
 import { StatusPill } from "./dashboard.index";
@@ -180,7 +180,10 @@ function SessionControl() {
     if (!selectedStudent) return;
     setGeneratingAiSummary(true);
     try {
-      const summary = await generateIntegritySummary(studentEvents, selectedStudent.name);
+      const summary = await generateIntegritySummary(
+        studentEvents,
+        formatStudentDisplayName(selectedStudent.name, selectedStudent.id),
+      );
       setAiSummary(summary);
     } catch (err) {
       console.error(err);
@@ -1265,7 +1268,7 @@ function SessionControl() {
               <div>
                 <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
                   <Users className="h-5 w-5 text-primary" />
-                  {selectedStudent.name}
+                  {formatStudentDisplayName(selectedStudent.name, selectedStudent.id)}
                 </h3>
                 <span className="text-xs text-muted-foreground font-mono">
                   ID: {selectedStudent.id}

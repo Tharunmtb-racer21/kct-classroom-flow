@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Users, CheckCircle2, Clock } from "lucide-react";
 import type { Question, Participant, Response } from "@/types/session.types";
+import { formatStudentDisplayName } from "@/lib/utils";
 
 export function LivePanel({
   current,
@@ -26,7 +27,7 @@ export function LivePanel({
           <div className="flex flex-wrap gap-2">
             {participants.map((p) => (
               <div key={p.id} className="rounded-full bg-accent px-3 py-1 text-xs">
-                {p.name}
+                {formatStudentDisplayName(p.name, p.id)}
               </div>
             ))}
             {participants.length === 0 && (
@@ -37,7 +38,7 @@ export function LivePanel({
       </div>
     );
   }
-  const nameById = new Map(participants.map((p) => [p.id, p.name]));
+  const nameById = new Map(participants.map((p) => [p.id, formatStudentDisplayName(p.name, p.id)]));
   const responsesWithImages = responses.filter((r) => r.image_url);
 
   const answeredParticipantIds = new Set(responses.map((r) => r.participant_id));
@@ -102,7 +103,7 @@ export function LivePanel({
             correct={current.correct_answer}
             responses={responses}
             participants={participants}
-            marks={current.marks ?? current.points ?? 1}
+            marks={current.marks ?? current.points ?? 0}
           />
         )}
         {current.type === "wordcloud" && (
@@ -183,7 +184,9 @@ export function LivePanel({
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {responses.map((r) => {
-                    const studentName = nameById.get(r.participant_id) || "Anonymous Student";
+                    const studentName =
+                      nameById.get(r.participant_id) ||
+                      formatStudentDisplayName(null, r.participant_id);
                     return (
                       <div
                         key={r.id}
@@ -218,7 +221,7 @@ export function LivePanel({
                       title="Student is connected and viewing this question"
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80 animate-pulse" />
-                      <span>{p.name}</span>
+                      <span>{formatStudentDisplayName(p.name, p.id)}</span>
                     </div>
                   ))}
                 </div>
@@ -267,7 +270,7 @@ function QuizResults({
   correct,
   responses,
   participants,
-  marks = 1,
+  marks = 0,
 }: {
   options: string[];
   correct: string | null;
@@ -275,7 +278,7 @@ function QuizResults({
   participants: Participant[];
   marks?: number;
 }) {
-  const nameById = new Map(participants.map((p) => [p.id, p.name]));
+  const nameById = new Map(participants.map((p) => [p.id, formatStudentDisplayName(p.name, p.id)]));
   const scores = new Map<string, number>();
   responses.forEach((r) => {
     if (r.answer === correct) scores.set(r.participant_id, (scores.get(r.participant_id) ?? 0) + marks);
@@ -299,7 +302,7 @@ function QuizResults({
             >
               <span className="flex items-center gap-3">
                 <span className="font-bold text-[color:var(--primary-glow)]">#{i + 1}</span>
-                {nameById.get(pid) ?? "Anonymous"}
+                {nameById.get(pid) ?? formatStudentDisplayName(null, pid)}
               </span>
               <span className="font-mono">
                 {s} pt{s === 1 ? "" : "s"}

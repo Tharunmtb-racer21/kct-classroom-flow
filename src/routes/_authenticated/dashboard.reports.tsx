@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { formatDisplayName, throttle } from "@/lib/utils";
+import { formatDisplayName, formatStudentDisplayName, throttle } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -245,7 +245,7 @@ function ReportsPage() {
     // Initialize marks allocation for each question from persisted marks
     const overrides: Record<string, { marks: number; feedback: string }> = {};
     session.questions.forEach((q) => {
-      overrides[q.id] = { marks: q.marks ?? q.points ?? 1, feedback: "" };
+      overrides[q.id] = { marks: q.marks ?? q.points ?? 0, feedback: "" };
     });
     setQuestionOverrides(overrides);
 
@@ -257,7 +257,7 @@ function ReportsPage() {
     let obtained = 0;
     let total = 0;
     session.questions.forEach((q) => {
-      const persistedMarks = q.marks ?? q.points ?? 1;
+      const persistedMarks = q.marks ?? q.points ?? 0;
       // If modal is actively open and has an override for this session, use it; otherwise persisted
       const qMarks = (modalOpen && selectedSession?.id === session.id && questionOverrides[q.id]?.marks != null)
         ? questionOverrides[q.id].marks
@@ -285,7 +285,7 @@ function ReportsPage() {
     setSessionForMarksCustomization(session);
     const initialMap: Record<string, number> = {};
     session.questions.forEach((q) => {
-      initialMap[q.id] = q.marks ?? q.points ?? 1;
+      initialMap[q.id] = q.marks ?? q.points ?? 0;
     });
     setCustomMarksMap(initialMap);
     setCustomizeMarksModalOpen(true);
@@ -296,10 +296,10 @@ function ReportsPage() {
     setIsSavingCustomMarks(true);
     try {
       const updatePromises = sessionForMarksCustomization.questions.map((q) => {
-        const newMarks = customMarksMap[q.id] !== undefined ? Math.max(0, Number(customMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 1);
+        const newMarks = customMarksMap[q.id] !== undefined ? Math.max(0, Number(customMarksMap[q.id]) || 0) : (q.marks ?? q.points ?? 0);
         return supabase
           .from("questions")
-          .update({ points: newMarks })
+          .update({ points: newMarks, marks: newMarks })
           .eq("id", q.id);
       });
 
@@ -344,7 +344,7 @@ function ReportsPage() {
       const quizQuestionsList: Question[] = [];
 
       selectedSession.questions.forEach((q) => {
-        const persistedMarks = q.marks ?? q.points ?? 1;
+        const persistedMarks = q.marks ?? q.points ?? 0;
         const qMarks =
           questionOverrides[q.id]?.marks != null ? questionOverrides[q.id].marks : persistedMarks;
 
@@ -367,7 +367,7 @@ function ReportsPage() {
         let marksObtained = 0;
 
         selectedSession.questions.forEach((q) => {
-          const persistedMarks = q.marks ?? q.points ?? 1;
+          const persistedMarks = q.marks ?? q.points ?? 0;
           const qMarks =
             questionOverrides[q.id]?.marks != null ? questionOverrides[q.id].marks : persistedMarks;
 
@@ -400,7 +400,7 @@ function ReportsPage() {
         else status = "Needs Improvement";
 
         return {
-          studentName: p.name,
+          studentName: formatStudentDisplayName(p.name, p.id),
           attendance: "Present" as const,
           totalQuestions: totalQuestionsCount,
           attempted,
@@ -760,7 +760,7 @@ function ReportsPage() {
                             type="number"
                             min={0}
                             max={100}
-                            value={questionOverrides[q.id]?.marks ?? 1}
+                            value={questionOverrides[q.id]?.marks ?? 0}
                             onChange={(e) => {
                               const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
                               setQuestionOverrides((prev) => ({
@@ -908,7 +908,7 @@ function ReportsPage() {
               {/* Questions List with Marks Inputs */}
               <div className="space-y-2.5 max-h-[50vh] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
                 {sessionForMarksCustomization.questions.map((q, idx) => {
-                  const currentVal = customMarksMap[q.id] ?? (q.marks ?? q.points ?? 1);
+                  const currentVal = customMarksMap[q.id] ?? (q.marks ?? q.points ?? 0);
                   const typeLabel = q.type === "quiz" ? "Quiz" : q.type === "poll" ? "Poll" : "Word Cloud";
                   const typeColor =
                     q.type === "quiz"

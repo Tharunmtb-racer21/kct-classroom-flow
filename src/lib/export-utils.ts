@@ -69,7 +69,7 @@ function indexSessionResponses(session: ReportSession): Map<string, Map<string, 
  */
 export function exportSessionToCSV(session: ReportSession) {
   const quizQuestions = session.questions.filter((q) => q.type === "quiz");
-  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 0), 0);
   const respMap = indexSessionResponses(session);
 
   // Build CSV Header
@@ -97,7 +97,7 @@ export function exportSessionToCSV(session: ReportSession) {
         responsesCount++;
         if (q.type === "quiz" && resp.answer === q.correct_answer) {
           correctCount++;
-          marksObtained += q.marks ?? q.points ?? 1;
+          marksObtained += q.marks ?? q.points ?? 0;
         }
         return resp.answer;
       }
@@ -146,7 +146,7 @@ export function exportSessionToCSV(session: ReportSession) {
 export async function exportSessionToExcel(session: ReportSession) {
   const XLSX = await import("xlsx");
   const quizQuestions = session.questions.filter((q) => q.type === "quiz");
-  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 1), 0);
+  const totalQuizMarks = quizQuestions.reduce((sum, q) => sum + (q.marks ?? q.points ?? 0), 0);
   const respMap = indexSessionResponses(session);
 
   // Title rows
@@ -183,7 +183,7 @@ export async function exportSessionToExcel(session: ReportSession) {
         responsesCount++;
         if (q.type === "quiz" && resp.answer === q.correct_answer) {
           correctCount++;
-          marksObtained += q.marks ?? q.points ?? 1;
+          marksObtained += q.marks ?? q.points ?? 0;
         }
         return resp.answer;
       }

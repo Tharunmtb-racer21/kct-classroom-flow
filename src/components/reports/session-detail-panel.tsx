@@ -73,7 +73,7 @@ export function SessionDetailPanel({
       let marksTot = 0;
 
       session.questions.forEach((q) => {
-        const persistedMarks = q.marks ?? q.points ?? 1;
+        const persistedMarks = q.marks ?? q.points ?? 0;
         const overrideMarks =
           modalOpen && selectedSessionId === session.id
             ? questionOverrides[q.id]?.marks

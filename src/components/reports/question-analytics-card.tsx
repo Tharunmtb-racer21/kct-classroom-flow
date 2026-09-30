@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts";
 import type { Question, Participant, Response } from "@/types/reports.types";
+import { formatStudentDisplayName } from "@/lib/utils";
 
 export function QuestionAnalyticsCard({
   index,
@@ -37,7 +38,7 @@ export function QuestionAnalyticsCard({
   };
 
   const participantNameMap = useMemo(() => {
-    return new Map(participants.map((p) => [p.id, p.name]));
+    return new Map(participants.map((p) => [p.id, formatStudentDisplayName(p.name, p.id)]));
   }, [participants]);
 
   return (
@@ -53,14 +54,10 @@ export function QuestionAnalyticsCard({
               {typeLabels[question.type]}
             </span>
             {(() => {
-              const m = question.marks ?? question.points ?? 1;
-              return m === 0 ? (
-                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  No Marks
-                </span>
-              ) : (
-                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground">
-                  {m} {m === 1 ? "Mark" : "Marks"}
+              const m = question.marks ?? question.points ?? 0;
+              return (
+                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground uppercase">
+                  {m} Mark
                 </span>
               );
             })()}
@@ -84,7 +81,7 @@ export function QuestionAnalyticsCard({
             correct={question.correct_answer}
             responses={responses}
             participants={participants}
-            marks={question.marks ?? question.points ?? 1}
+            marks={question.marks ?? question.points ?? 0}
           />
         )}
         {question.type === "wordcloud" && <WordCloudAnalytics responses={responses} />}
@@ -103,7 +100,8 @@ export function QuestionAnalyticsCard({
           <div className="grid gap-2 sm:grid-cols-2">
             {responses.map((r) => {
               const studentName =
-                participantNameMap.get(r.participant_id) || "Anonymous Student";
+                participantNameMap.get(r.participant_id) ||
+                formatStudentDisplayName(null, r.participant_id);
               return (
                 <div
                   key={r.id}
@@ -215,7 +213,7 @@ function QuizAnalytics({
   correct,
   responses,
   participants,
-  marks = 1,
+  marks = 0,
 }: {
   options: string[];
   correct: string | null;

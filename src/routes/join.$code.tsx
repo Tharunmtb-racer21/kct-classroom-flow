@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatDisplayName, formatStudentDisplayName } from "@/lib/utils";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ContactUsModal } from "@/components/contact-us-modal";
 import { useExamIntegrity } from "@/hooks/use-exam-integrity";
@@ -69,8 +71,52 @@ function JoinPage() {
   const upperCode = code.toUpperCase();
   const [session, setSession] = useState<Session | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => {
+    try {
+      const savedGlobal = localStorage.getItem("kctpulse_student_name");
+      if (savedGlobal && savedGlobal.trim()) return savedGlobal.trim();
+      const user = auth.currentUser;
+      if (user) {
+        const formatted = formatDisplayName(user.displayName, user.email);
+        if (formatted && formatted !== "Faculty Member") return formatted;
+      }
+    } catch {
+      // ignore
+    }
+    return "";
+  });
   const [participantId, setParticipantId] = useState<string | null>(null);
+
+  // Auto-populate identity if authenticated student or if auth finishes initializing
+  useEffect(() => {
+    if (name.trim()) return;
+
+    const savedGlobal = localStorage.getItem("kctpulse_student_name");
+    if (savedGlobal && savedGlobal.trim()) {
+      setName(savedGlobal.trim());
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (user) {
+      const formatted = formatDisplayName(user.displayName, user.email);
+      if (formatted && formatted !== "Faculty Member") {
+        setName(formatted);
+        return;
+      }
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const formatted = formatDisplayName(firebaseUser.displayName, firebaseUser.email);
+        if (formatted && formatted !== "Faculty Member") {
+          setName((prev) => (prev.trim() ? prev : formatted));
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [name]);
   const [joining, setJoining] = useState(false);
   const [question, setQuestion] = useState<Question | null>(null);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
@@ -385,13 +431,14 @@ function JoinPage() {
         try {
           const { data, error } = await supabase
             .from("participants")
-            .select("id")
+            .select("id, name")
             .eq("id", parsed.id)
             .maybeSingle();
 
           if (!error && data) {
             setParticipantId(parsed.id);
-            setName(parsed.name);
+            const resolvedName = formatStudentDisplayName(data.name || parsed.name, parsed.id);
+            setName(resolvedName);
           } else {
             console.warn("Stale participant ID found in localStorage. Clearing.");
             localStorage.removeItem(`kctpulse-${session.id}`);
@@ -443,21 +490,47 @@ function JoinPage() {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session) return;
+
+    let cleanName = name.trim();
+    const lower = cleanName.toLowerCase();
+    const isGreeting = ["hi", "hello", "hey", "hola", "test", "testing"].includes(lower);
+
+    // If the student entered a greeting or left blank, check if they are logged in with Firebase
+    if ((!cleanName || isGreeting) && auth.currentUser) {
+      const authName = formatDisplayName(auth.currentUser.displayName, auth.currentUser.email);
+      if (authName && authName !== "Faculty Member") {
+        cleanName = authName;
+      }
+    }
+
+    if (!cleanName || isGreeting) {
+      if (isGreeting) {
+        toast.error("Please enter your actual full name, not a greeting.");
+        return;
+      }
+      toast.error("Please enter your name");
+      return;
+    }
+
     setJoining(true);
     const { data, error } = await supabase
       .from("participants")
-      .insert({ session_id: session.id, name: name.trim() })
+      .insert({ session_id: session.id, name: cleanName })
       .select("id")
       .single();
     setJoining(false);
+
     if (error || !data) {
       toast.error(error?.message ?? "Failed to join");
       return;
     }
+
     setParticipantId(data.id);
+    setName(cleanName);
+    localStorage.setItem("kctpulse_student_name", cleanName);
     localStorage.setItem(
       `kctpulse-${session.id}`,
-      JSON.stringify({ id: data.id, name: name.trim() }),
+      JSON.stringify({ id: data.id, name: cleanName }),
     );
   };
 
@@ -640,7 +713,7 @@ function JoinPage() {
         <form onSubmit={handleJoin} className="mt-8 space-y-4">
           <Input
             autoFocus
-            placeholder="Your name"
+            placeholder="Your full name (e.g. Navneeth V)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -837,14 +910,10 @@ function JoinPage() {
                       {q.type}
                     </span>
                     {(() => {
-                      const m = q.marks ?? q.points ?? 1;
-                      return m === 0 ? (
-                        <span className="rounded bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
-                          No Marks
-                        </span>
-                      ) : (
-                        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
-                          {m} {m === 1 ? "Mark" : "Marks"}
+                      const m = q.marks ?? q.points ?? 0;
+                      return (
+                        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50 uppercase">
+                          {m} Mark
                         </span>
                       );
                     })()}
@@ -1045,14 +1114,10 @@ function JoinPage() {
             {question.type}
           </span>
           {(() => {
-            const m = question.marks ?? question.points ?? 1;
-            return m === 0 ? (
-              <span className="rounded bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
-                No Marks
-              </span>
-            ) : (
-              <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50">
-                {m} {m === 1 ? "Mark" : "Marks"}
+            const m = question.marks ?? question.points ?? 0;
+            return (
+              <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground border border-border/50 uppercase">
+                {m} Mark
               </span>
             );
           })()}
