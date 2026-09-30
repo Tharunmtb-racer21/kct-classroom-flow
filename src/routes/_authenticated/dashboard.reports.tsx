@@ -98,6 +98,7 @@ export const Route = createFileRoute("/_authenticated/dashboard/reports")({
 function ReportsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
   // Custom PDF states
@@ -137,6 +138,7 @@ function ReportsPage() {
       setLoading(false);
       return;
     }
+    setLoadError(null);
     try {
       const { data, error } = await supabase
         .from("sessions")
@@ -160,6 +162,7 @@ function ReportsPage() {
             correct_answer,
             order_index,
             points,
+            marks,
             responses (
               id,
               answer,
@@ -174,9 +177,10 @@ function ReportsPage() {
 
       if (error) {
         console.error("Supabase error fetching reports:", error);
+        setLoadError(error.message);
         const { toast } = await import("sonner");
         toast.error("Failed to load reports: " + error.message);
-        throw error;
+        return;
       }
 
       // Ensure questions are sorted by order_index
@@ -189,6 +193,7 @@ function ReportsPage() {
       setRows(formattedData);
     } catch (err: any) {
       console.error("Failed to load reports:", err);
+      setLoadError(err?.message || "Failed to load reports and responses");
     } finally {
       setLoading(false);
     }
@@ -484,6 +489,28 @@ function ReportsPage() {
         <div className="mt-8 flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
         </div>
+      ) : loadError ? (
+        <div className="glass mt-8 rounded-2xl p-8 text-center space-y-3 border border-destructive/20 bg-destructive/5">
+          <div className="text-sm font-semibold text-destructive">
+            Unable to load session reports & responses: {loadError}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A network or query error occurred. Useful session data is preserved where possible.
+          </p>
+          <div>
+            <Button
+              onClick={() => {
+                setLoading(true);
+                loadReports();
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs mt-1"
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
       ) : rows.length === 0 ? (
         <div className="glass mt-8 rounded-2xl p-8 text-center text-sm text-muted-foreground">
           Run a session first — analytics will appear here.
@@ -575,9 +602,8 @@ function ReportsPage() {
 
       {/* PDF customization Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        {" "}
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border text-card-foreground scrollbar-thin p-6 rounded-2xl">
-          <DialogHeader className="space-y-1">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-3xl lg:max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border border-border text-card-foreground rounded-2xl shadow-2xl">
+          <DialogHeader className="p-6 pb-4 border-b border-border/50 shrink-0 space-y-1">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-primary">
               <FileText className="h-5 w-5 text-primary" /> Customize Session Assessment Report
             </DialogTitle>
@@ -587,14 +613,14 @@ function ReportsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 scrollbar-thin min-h-0">
             {/* Section 1: College Header */}
             <div className="space-y-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-primary border-b border-border/50 pb-1">
                 College Header & Academic Info
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="departmentName" className="text-xs text-foreground">
                     Department Name
                   </Label>
@@ -605,7 +631,7 @@ function ReportsPage() {
                       setDepartmentName(value === OTHER_PROGRAM_VALUE ? "" : value);
                     }}
                   >
-                    <SelectTrigger id="departmentName" className="bg-card/40 border-border text-sm">
+                    <SelectTrigger id="departmentName" className="w-full bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Department Name" />
                     </SelectTrigger>
                     <SelectContent
@@ -628,11 +654,12 @@ function ReportsPage() {
                       value={departmentName}
                       onChange={(e) => setDepartmentName(e.target.value)}
                       placeholder="Type department name"
-                      className="bg-card/40 border-border text-sm"
+                      className="w-full bg-card/40 border-border text-sm mt-1.5"
                     />
                   )}
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="reportTitle" className="text-xs text-foreground">
                     Report Title
                   </Label>
@@ -640,15 +667,16 @@ function ReportsPage() {
                     id="reportTitle"
                     value={reportTitle}
                     onChange={(e) => setReportTitle(e.target.value)}
-                    className="bg-card/40 border-border text-sm"
+                    className="w-full bg-card/40 border-border text-sm"
                   />
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="semester" className="text-xs text-foreground">
                     Year / Semester
                   </Label>
                   <Select value={semester} onValueChange={setSemester}>
-                    <SelectTrigger id="semester" className="bg-card/40 border-border text-sm">
+                    <SelectTrigger id="semester" className="w-full bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Semester" />
                     </SelectTrigger>
                     <SelectContent
@@ -665,7 +693,8 @@ function ReportsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="courseName" className="text-xs text-foreground">
                     Course/Degree Name
                   </Label>
@@ -676,7 +705,7 @@ function ReportsPage() {
                       setCourseName(value === OTHER_PROGRAM_VALUE ? "" : value);
                     }}
                   >
-                    <SelectTrigger id="courseName" className="bg-card/40 border-border text-sm">
+                    <SelectTrigger id="courseName" className="w-full bg-card/40 border-border text-sm">
                       <SelectValue placeholder="Select Course/Degree Name" />
                     </SelectTrigger>
                     <SelectContent
@@ -699,11 +728,12 @@ function ReportsPage() {
                       value={courseName}
                       onChange={(e) => setCourseName(e.target.value)}
                       placeholder="Type course/degree name"
-                      className="bg-card/40 border-border text-sm"
+                      className="w-full bg-card/40 border-border text-sm mt-1.5"
                     />
                   )}
                 </div>
-                <div className="space-y-1.5">
+
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="facultyName" className="text-xs text-foreground">
                     Faculty/Instructor Name
                   </Label>
@@ -711,10 +741,11 @@ function ReportsPage() {
                     id="facultyName"
                     value={facultyName}
                     onChange={(e) => setFacultyName(e.target.value)}
-                    className="bg-card/40 border-border text-sm"
+                    className="w-full bg-card/40 border-border text-sm"
                   />
                 </div>
-                <div className="space-y-1.5 md:col-span-2">
+
+                <div className="space-y-1.5 min-w-0 sm:col-span-2">
                   <Label htmlFor="subject" className="text-xs text-foreground">
                     Subject / Course Topic
                   </Label>
@@ -722,12 +753,11 @@ function ReportsPage() {
                     id="subject"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="bg-card/40 border-border text-sm"
+                    className="w-full bg-card/40 border-border text-sm"
                   />
                 </div>
               </div>
             </div>
-          </div>
 
             {/* Section 2: Marks Allocation per Question */}
             {selectedSession && selectedSession.questions.length > 0 && (
@@ -745,17 +775,17 @@ function ReportsPage() {
                     return (
                       <div
                         key={q.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3.5 py-2.5 min-w-0"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-muted-foreground">Q{idx + 1}</span>
-                            <span className={`text-[10px] font-semibold uppercase ${typeColor}`}>{typeLabel}</span>
+                            <span className="text-xs font-mono text-muted-foreground shrink-0">Q{idx + 1}</span>
+                            <span className={`text-[10px] font-semibold uppercase shrink-0 ${typeColor}`}>{typeLabel}</span>
                           </div>
-                          <p className="text-xs text-foreground truncate mt-0.5">{q.title}</p>
+                          <p className="text-xs text-foreground truncate mt-0.5" title={q.title}>{q.title}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Label className="text-xs text-muted-foreground">Marks:</Label>
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">Marks:</Label>
                           <Input
                             type="number"
                             min={0}
@@ -775,7 +805,7 @@ function ReportsPage() {
                     );
                   })}
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5">
                   <span className="text-xs font-semibold text-amber-400">Total Marks</span>
                   <span className="text-sm font-bold text-amber-400">
                     {Object.values(questionOverrides).reduce((sum, o) => sum + (o.marks ?? 0), 0)}
@@ -783,8 +813,9 @@ function ReportsPage() {
                 </div>
               </div>
             )}
+          </div>
 
-          <DialogFooter className="border-t border-border/50 pt-4">
+          <DialogFooter className="p-4 px-6 border-t border-border/50 bg-card/95 backdrop-blur shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5">
             <Button
               variant="outline"
               onClick={() => setModalOpen(false)}

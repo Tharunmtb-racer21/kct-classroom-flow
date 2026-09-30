@@ -24,6 +24,7 @@ export function QuestionAnalyticsCard({
 }) {
   const responses = question.responses ?? [];
   const totalResp = responses.length;
+  const maxMarks = question.marks ?? question.points ?? 0;
 
   const typeLabels = {
     poll: "Poll (MCQ)",
@@ -37,9 +38,39 @@ export function QuestionAnalyticsCard({
     wordcloud: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   };
 
-  const participantNameMap = useMemo(() => {
-    return new Map(participants.map((p) => [p.id, formatStudentDisplayName(p.name, p.id)]));
-  }, [participants]);
+  // Map responses by participant_id
+  const responseByParticipant = useMemo(() => {
+    const map = new Map<string, Response>();
+    responses.forEach((r) => {
+      if (r.participant_id) {
+        map.set(r.participant_id, r);
+      }
+    });
+    return map;
+  }, [responses]);
+
+  // Derive complete participant roster (all session participants + any response author)
+  const allParticipantEntries = useMemo(() => {
+    const list: { id: string; name: string }[] = participants.map((p) => ({
+      id: p.id,
+      name: formatStudentDisplayName(p.name, p.id),
+    }));
+
+    const existingIds = new Set(participants.map((p) => p.id));
+    responses.forEach((r) => {
+      if (r.participant_id && !existingIds.has(r.participant_id)) {
+        list.push({
+          id: r.participant_id,
+          name: formatStudentDisplayName(null, r.participant_id),
+        });
+        existingIds.add(r.participant_id);
+      }
+    });
+
+    return list;
+  }, [participants, responses]);
+
+  const totalParticipants = Math.max(participants.length, allParticipantEntries.length);
 
   return (
     <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 space-y-4">
@@ -53,20 +84,17 @@ export function QuestionAnalyticsCard({
             >
               {typeLabels[question.type]}
             </span>
-            {(() => {
-              const m = question.marks ?? question.points ?? 0;
-              return (
-                <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground uppercase">
-                  {m} Mark
-                </span>
-              );
-            })()}
+            <span className="rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-foreground uppercase">
+              {maxMarks} {maxMarks === 1 ? "Mark" : "Marks"}
+            </span>
           </div>
           <h5 className="font-medium text-foreground">{question.title}</h5>
         </div>
         <div className="text-xs text-muted-foreground text-left sm:text-right shrink-0">
-          <span className="font-semibold text-foreground">{totalResp}</span> / {participants.length}{" "}
-          responses
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-foreground">
+            <span className="text-primary font-bold mr-1">{totalResp}</span> / {totalParticipants}{" "}
+            responses
+          </span>
         </div>
       </div>
 
@@ -81,38 +109,117 @@ export function QuestionAnalyticsCard({
             correct={question.correct_answer}
             responses={responses}
             participants={participants}
-            marks={question.marks ?? question.points ?? 0}
+            marks={maxMarks}
           />
         )}
         {question.type === "wordcloud" && <WordCloudAnalytics responses={responses} />}
       </div>
 
       {/* ── Student Responses breakdown list ── */}
-      <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" /> Student Submissions ({responses.length})
+      <div className="mt-4 pt-4 border-t border-white/5 space-y-2.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5 text-primary" /> Student Responses ({totalResp} / {totalParticipants})
+          </div>
+          <div className="text-[11px] font-mono text-muted-foreground">
+            Weight: <span className="font-semibold text-foreground">{maxMarks} Marks</span>
+          </div>
         </div>
-        {responses.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic py-1">
-            No responses captured for this question.
+
+        {allParticipantEntries.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic py-3 text-center rounded-lg border border-dashed border-white/5">
+            No participants joined this session yet.
           </div>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {responses.map((r) => {
-              const studentName =
-                participantNameMap.get(r.participant_id) ||
-                formatStudentDisplayName(null, r.participant_id);
+            {allParticipantEntries.map((p) => {
+              const resp = responseByParticipant.get(p.id);
+              const hasAnswered = !!resp;
+              const answer = resp?.answer;
+
+              let statusBadge: React.ReactNode = null;
+              let earnedMarks = 0;
+
+              if (question.type === "quiz") {
+                if (hasAnswered) {
+                  const isCorrect =
+                    question.correct_answer != null && answer === question.correct_answer;
+                  if (isCorrect) {
+                    earnedMarks = maxMarks;
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3" /> Correct
+                      </span>
+                    );
+                  } else {
+                    earnedMarks = 0;
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-400">
+                        ✕ Incorrect
+                      </span>
+                    );
+                  }
+                } else {
+                  earnedMarks = 0;
+                  statusBadge = (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                      ⏳ Not answered
+                    </span>
+                  );
+                }
+              } else {
+                // Poll or WordCloud
+                if (hasAnswered) {
+                  earnedMarks = maxMarks;
+                  statusBadge = (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">
+                      ✓ Answered
+                    </span>
+                  );
+                } else {
+                  earnedMarks = 0;
+                  statusBadge = (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                      ⏳ Not answered
+                    </span>
+                  );
+                }
+              }
+
               return (
                 <div
-                  key={r.id}
-                  className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2 text-xs hover:bg-white/[0.03] transition"
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.01] px-3 py-2 text-xs hover:bg-white/[0.03] transition min-w-0"
                 >
-                  <span className="font-semibold text-foreground/80 truncate max-w-[150px]">
-                    {studentName}
-                  </span>
-                  <span className="rounded bg-black/40 border border-white/5 px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate max-w-[180px] select-all">
-                    {r.answer}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div
+                      className={`h-2 w-2 rounded-full shrink-0 ${hasAnswered ? "bg-emerald-400" : "bg-neutral-600"}`}
+                    />
+                    <span className="font-semibold text-foreground truncate" title={p.name}>
+                      {p.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {hasAnswered ? (
+                      <span
+                        className="rounded bg-black/40 border border-white/5 px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate max-w-[110px] select-all"
+                        title={answer}
+                      >
+                        {answer}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground/60 italic">
+                        No response
+                      </span>
+                    )}
+
+                    {statusBadge}
+
+                    <span className="font-mono text-[11px] font-bold text-foreground/80 min-w-[32px] text-right">
+                      {earnedMarks}/{maxMarks}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -158,6 +265,9 @@ function PollAnalytics({ options, responses }: { options: string[]; responses: R
               <XAxis type="number" tick={{ fill: "currentColor", fontSize: 10 }} unit="%" domain={[0, 100]} />
               <YAxis dataKey="label" type="category" tick={{ fill: "currentColor", fontSize: 11 }} width={55} />
               <RechartsTooltip
+                allowEscapeViewBox={{ x: true, y: true }}
+                offset={14}
+                wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
                   borderColor: "hsl(var(--border))",
@@ -165,6 +275,9 @@ function PollAnalytics({ options, responses }: { options: string[]; responses: R
                   fontSize: "0.75rem",
                   color: "hsl(var(--foreground))",
                   boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                  maxWidth: "280px",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
                 }}
                 formatter={(val: any, name: any, item: any) => [
                   `${item.payload.votes} votes (${val}%)`,
@@ -270,6 +383,9 @@ function QuizAnalytics({
               <XAxis type="number" tick={{ fill: "currentColor", fontSize: 10 }} unit="%" domain={[0, 100]} />
               <YAxis dataKey="label" type="category" tick={{ fill: "currentColor", fontSize: 11 }} width={65} />
               <RechartsTooltip
+                allowEscapeViewBox={{ x: true, y: true }}
+                offset={14}
+                wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                 contentStyle={{
                   backgroundColor: "hsl(var(--card))",
                   borderColor: "hsl(var(--border))",
@@ -277,6 +393,9 @@ function QuizAnalytics({
                   fontSize: "0.75rem",
                   color: "hsl(var(--foreground))",
                   boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                  maxWidth: "280px",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
                 }}
                 formatter={(val: any, name: any, item: any) => [
                   `${item.payload.votes} votes (${val}%) ${item.payload.isCorrect ? "— Correct Answer" : ""}`,

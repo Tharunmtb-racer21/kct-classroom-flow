@@ -208,6 +208,9 @@ export function SessionDetailPanel({
                     <XAxis dataKey="name" tick={{ fill: "currentColor", fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fill: "currentColor", fontSize: 10 }} />
                     <RechartsTooltip
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      offset={14}
+                      wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--border))",
