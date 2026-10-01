@@ -713,7 +713,7 @@ function JoinPage() {
         <form onSubmit={handleJoin} className="mt-8 space-y-4">
           <Input
             autoFocus
-            placeholder="Your full name (e.g. Navneeth V)"
+            placeholder="Your full name (e.g. John Doe)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required

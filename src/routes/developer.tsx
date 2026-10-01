@@ -1865,8 +1865,8 @@ function DeveloperDashboard() {
                         data={questionTypeChartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
-                        outerRadius={70}
+                        innerRadius={42}
+                        outerRadius={68}
                         paddingAngle={4}
                         dataKey="value"
                       >
@@ -1875,12 +1875,17 @@ function DeveloperDashboard() {
                         ))}
                       </Pie>
                       <RechartsTooltip
+                        allowEscapeViewBox={{ x: true, y: true }}
+                        offset={14}
+                        wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           borderColor: "hsl(var(--border))",
                           borderRadius: "0.75rem",
                           fontSize: "0.75rem",
                           color: "hsl(var(--foreground))",
+                          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          padding: "8px 12px",
                         }}
                       />
                       <RechartsLegend
@@ -1913,8 +1918,8 @@ function DeveloperDashboard() {
                         data={sessionStatusChartData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
-                        outerRadius={70}
+                        innerRadius={42}
+                        outerRadius={68}
                         paddingAngle={4}
                         dataKey="value"
                       >
@@ -1923,12 +1928,17 @@ function DeveloperDashboard() {
                         ))}
                       </Pie>
                       <RechartsTooltip
+                        allowEscapeViewBox={{ x: true, y: true }}
+                        offset={14}
+                        wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           borderColor: "hsl(var(--border))",
                           borderRadius: "0.75rem",
                           fontSize: "0.75rem",
                           color: "hsl(var(--foreground))",
+                          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                          padding: "8px 12px",
                         }}
                       />
                       <RechartsLegend
@@ -3625,6 +3635,9 @@ function DeveloperDashboard() {
                           ))}
                         </Pie>
                         <RechartsTooltip
+                          allowEscapeViewBox={{ x: true, y: true }}
+                          offset={14}
+                          wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
                             borderColor: "hsl(var(--border))",
@@ -3632,6 +3645,7 @@ function DeveloperDashboard() {
                             fontSize: "0.75rem",
                             color: "hsl(var(--foreground))",
                             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                            padding: "8px 12px",
                           }}
                           formatter={(val: any) => [`${Number(val).toLocaleString()} tokens`, "Throughput"]}
                         />

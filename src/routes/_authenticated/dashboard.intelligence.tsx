@@ -391,6 +391,9 @@ export default function ClassroomIntelligenceDashboard() {
                       ))}
                     </Pie>
                     <RechartsTooltip
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      offset={14}
+                      wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--border))",
@@ -398,6 +401,7 @@ export default function ClassroomIntelligenceDashboard() {
                         fontSize: "0.75rem",
                         color: "hsl(var(--foreground))",
                         boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                        padding: "8px 12px",
                       }}
                       formatter={(val: any) => [`${val} students`, "Cohort"]}
                     />
