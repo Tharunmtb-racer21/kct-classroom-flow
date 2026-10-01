@@ -558,6 +558,7 @@ export function QuestionsPanel({
       if (error) throw error;
 
       toast.success("Question added");
+    onReload();
       setOpen(false);
       setTitle("");
       setOptionsText("");
