@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { Question, Participant, Response } from "@/types/reports.types";
 import { formatStudentDisplayName } from "@/lib/utils";
+import { processWordCloudResponses } from "@/lib/wordcloud-processor";
 
 export function QuestionAnalyticsCard({
   index,
@@ -112,7 +113,9 @@ export function QuestionAnalyticsCard({
             marks={maxMarks}
           />
         )}
-        {question.type === "wordcloud" && <WordCloudAnalytics responses={responses} />}
+        {question.type === "wordcloud" && (
+          <WordCloudAnalytics responses={responses} questionId={question.id} />
+        )}
       </div>
 
       {/* ── Student Responses breakdown list ── */}
@@ -485,23 +488,25 @@ function QuizAnalytics({
   );
 }
 
-function WordCloudAnalytics({ responses }: { responses: Response[] }) {
+function WordCloudAnalytics({
+  responses,
+  questionId,
+}: {
+  responses: Response[];
+  questionId?: string;
+}) {
   const words = useMemo(() => {
-    const counts = new Map<string, number>();
-    responses.forEach((r) => {
-      r.answer
-        .split(/[\s,]+/)
-        .map((w) => w.trim().toLowerCase())
-        .filter(Boolean)
-        .forEach((w) => {
-          counts.set(w, (counts.get(w) ?? 0) + 1);
-        });
-    });
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
-  }, [responses]);
+    return processWordCloudResponses(responses, { questionId, maxWords: 15 });
+  }, [responses, questionId]);
 
   if (words.length === 0) {
-    return <div className="text-xs text-muted-foreground py-2">No words submitted yet.</div>;
+    return (
+      <div className="text-xs text-muted-foreground py-3 text-center italic bg-white/[0.01] rounded-xl border border-white/5">
+        {responses.length === 0
+          ? "No words submitted yet."
+          : "No meaningful words found in the responses."}
+      </div>
+    );
   }
 
   const maxCount = words[0]?.[1] ?? 1;

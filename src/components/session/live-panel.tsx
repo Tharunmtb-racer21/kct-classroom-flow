@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Users, CheckCircle2, Clock } from "lucide-react";
 import type { Question, Participant, Response } from "@/types/session.types";
 import { formatStudentDisplayName } from "@/lib/utils";
+import { processWordCloudResponses } from "@/lib/wordcloud-processor";
 
 export function LivePanel({
   current,
@@ -107,7 +108,7 @@ export function LivePanel({
           />
         )}
         {current.type === "wordcloud" && (
-          <WordCloudResults responses={responses} participants={participants} />
+          <WordCloudResults responses={responses} participants={participants} questionId={current.id} />
         )}
       </div>
 
@@ -324,24 +325,15 @@ function QuizResults({
 function WordCloudResults({
   responses,
   participants,
+  questionId,
 }: {
   responses: Response[];
   participants: Participant[];
+  questionId?: string;
 }) {
   const words = useMemo(() => {
-    const counts = new Map<string, number>();
-    responses.forEach((r) => {
-      r.answer
-        .split(/[\s,]+/)
-        .map((w) => w.trim().toLowerCase())
-        .filter(Boolean)
-        .forEach((w) => {
-          counts.set(w, (counts.get(w) ?? 0) + 1);
-        });
-    });
-    // Sort by count desc; cap to 200 for performance
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
-  }, [responses]);
+    return processWordCloudResponses(responses, { questionId, maxWords: 200 });
+  }, [responses, questionId]);
 
   const max = words[0]?.[1] ?? 1;
   const palette = [
@@ -401,10 +393,14 @@ function WordCloudResults({
               />
             </div>
             <div className="mt-5 text-sm font-medium text-foreground/80">
-              Waiting for responses…
+              {responses.length === 0
+                ? "Waiting for responses…"
+                : "No meaningful words found in the responses."}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Your word cloud will appear here in real time.
+              {responses.length === 0
+                ? "Your word cloud will appear here in real time."
+                : "Responses contained only common stopwords or non-text symbols."}
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { joinUrl } from "@/lib/session-utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { processWordCloudResponses } from "@/lib/wordcloud-processor";
 
 type Session = {
   id: string;
@@ -293,7 +294,7 @@ function EmbedPage() {
               {/* Render Chart / WordCloud */}
               <div className="flex-1 my-2 flex items-center justify-center min-h-[220px]">
                 {question.type === "wordcloud" ? (
-                  <WordCloudView responses={responses} />
+                  <WordCloudView responses={responses} questionId={question.id} />
                 ) : (
                   <PollChartView question={question} responses={responses} />
                 )}
@@ -392,26 +393,23 @@ function PollChartView({ question, responses }: { question: Question; responses:
   );
 }
 
-function WordCloudView({ responses }: { responses: Response[] }) {
+function WordCloudView({
+  responses,
+  questionId,
+}: {
+  responses: Response[];
+  questionId?: string;
+}) {
   const frequencies = useMemo(() => {
-    const counts: Record<string, number> = {};
-    responses.forEach((r) => {
-      const words = r.answer.toLowerCase().trim().split(/\s+/);
-      words.forEach((w) => {
-        if (w.length > 1) {
-          counts[w] = (counts[w] || 0) + 1;
-        }
-      });
-    });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 25);
-  }, [responses]);
+    return processWordCloudResponses(responses, { questionId, maxWords: 25 });
+  }, [responses, questionId]);
 
   if (frequencies.length === 0) {
     return (
       <div className="text-sm font-medium text-muted-foreground italic">
-        Words submitted by students will appear live on this slide...
+        {responses.length === 0
+          ? "Words submitted by students will appear live on this slide..."
+          : "No meaningful words found in student responses yet."}
       </div>
     );
   }
