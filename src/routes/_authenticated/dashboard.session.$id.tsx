@@ -378,6 +378,18 @@ function SessionControl() {
           }
         }
       })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [id, refetchSession, refetchQuestions, refetchParticipants]);
+
+  // Dedicated heartbeat realtime channel: only active when on the integrity / proctoring tab
+  useEffect(() => {
+    if (activeTab !== "integrity" || !id) return;
+
+    const hbChannel = supabase
+      .channel(`heartbeat-${id}`)
       .on(
         "postgres_changes",
         {
@@ -399,10 +411,11 @@ function SessionControl() {
         },
       )
       .subscribe();
+
     return () => {
-      supabase.removeChannel(ch);
+      supabase.removeChannel(hbChannel);
     };
-  }, [id, refetchSession, refetchQuestions, refetchParticipants]);
+  }, [id, activeTab]);
 
   // When all_active is true, show every question as live
   const isAllMode = !!session?.all_active;
