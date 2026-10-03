@@ -663,7 +663,7 @@ function SessionControl() {
   const previewWarning = isPrivatePreviewHost() && !(import.meta as any).env?.VITE_PUBLIC_APP_URL;
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 max-w-full overflow-x-hidden min-w-0">
       <Link
         to="/dashboard"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -671,10 +671,10 @@ function SessionControl() {
         <ArrowLeft className="h-4 w-4" /> Back to dashboard
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 relative z-20">
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4 relative z-20">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{session.title}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{session.title}</h1>
             <Button
               variant="outline"
               size="sm"
@@ -695,7 +695,7 @@ function SessionControl() {
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card/30 border border-border/40 p-2 shadow-lg backdrop-blur-md relative z-30">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card/30 border border-border/40 p-2 shadow-lg backdrop-blur-md relative z-30 w-full sm:w-auto">
           <ThemeToggle variant="outline" className="rounded-xl h-10 w-10 border-border/80" />
           {session.status !== "live" && session.status !== "ended" && (
             <Button
@@ -930,7 +930,7 @@ function SessionControl() {
       </Dialog>
 
       {/* Dynamic Session Analytics Summary Bar */}
-      <div className="mt-6 glass rounded-2xl p-5 border border-white/10 bg-white/[0.02] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 text-xs">
+      <div className="mt-6 glass rounded-2xl p-4 sm:p-5 border border-white/10 bg-white/[0.02] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 text-xs min-w-0 max-w-full">
         <div>
           <span className="uppercase tracking-wider text-muted-foreground font-semibold text-[10px]">
             Questions
@@ -1002,8 +1002,8 @@ function SessionControl() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="glass rounded-2xl p-6 lg:col-span-1">
+      <div className="mt-6 sm:mt-8 grid gap-6 lg:grid-cols-3 min-w-0 max-w-full">
+        <div className="glass rounded-2xl p-4 sm:p-6 lg:col-span-1 min-w-0 max-w-full overflow-hidden">
           <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
             Session Code
           </div>
@@ -1096,7 +1096,7 @@ function SessionControl() {
           )}
 
           {/* Exam Integrity Settings Panel */}
-          <div className="glass rounded-2xl p-5 mt-6 border border-border/50 bg-card/40 space-y-4 text-left">
+          <div className="glass rounded-2xl p-4 sm:p-5 mt-6 border border-border/50 bg-card/40 space-y-4 text-left min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-primary" />
               <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">
@@ -1104,12 +1104,12 @@ function SessionControl() {
               </h3>
             </div>
 
-            <div className="flex items-center justify-between border-t border-border/40 pt-4">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between border-t border-border/40 pt-4 gap-2">
+              <div className="space-y-0.5 min-w-0 flex-1">
                 <Label htmlFor="exam-mode-toggle" className="text-xs font-semibold cursor-pointer">
                   Secure Exam Mode
                 </Label>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground truncate">
                   Enforce proctoring & kiosk monitoring
                 </p>
               </div>
@@ -1117,7 +1117,7 @@ function SessionControl() {
                 id="exam-mode-toggle"
                 onClick={() => updateSession({ is_exam: !session.is_exam })}
                 className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ml-2",
                   session.is_exam ? "bg-primary" : "bg-muted",
                 )}
               >
@@ -1219,7 +1219,7 @@ function SessionControl() {
           </div>
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0 max-w-full">
           {session.is_exam && (
             <div className="flex rounded-xl bg-muted p-1 w-fit border border-border/50">
               <button

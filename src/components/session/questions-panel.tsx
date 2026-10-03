@@ -761,10 +761,10 @@ export function QuestionsPanel({
   };
 
   return (
-    <div className="glass rounded-2xl p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="glass rounded-2xl p-4 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="font-semibold">Questions</h2>
+          <h2 className="font-semibold text-base sm:text-lg">Questions</h2>
           <span className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-semibold text-primary">
             Total Marks: {totalSessionMarks}
           </span>
@@ -784,7 +784,7 @@ export function QuestionsPanel({
             ({questions.length} {questions.length === 1 ? "question" : "questions"})
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
           {/* Session Banner Image Upload Button */}
           <div className="relative">
             <input
@@ -1694,20 +1694,20 @@ export function QuestionsPanel({
               <Button
                 onClick={handleActivateSelected}
                 disabled={checkedIds.length === 0}
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50 min-w-0"
               >
-                <Play className="h-3.5 w-3.5 fill-current" />
-                Activate Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
+                <Play className="h-3.5 w-3.5 fill-current shrink-0" />
+                <span className="truncate">Activate {checkedIds.length > 0 ? `(${checkedIds.length})` : "Selected"}</span>
               </Button>
               <Button
                 type="button"
                 onClick={handleRetakeSelected}
                 disabled={checkedIds.length === 0}
                 variant="outline"
-                className="flex items-center justify-center gap-1.5 rounded-xl border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 rounded-xl border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-500 font-semibold py-2.5 text-xs shadow-sm transition-all active:scale-[0.98] disabled:opacity-50 min-w-0"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Retake Selected {checkedIds.length > 0 && `(${checkedIds.length})`}
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Retake {checkedIds.length > 0 ? `(${checkedIds.length})` : "Selected"}</span>
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -1725,10 +1725,10 @@ export function QuestionsPanel({
                   }
                 }}
                 variant="outline"
-                className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-semibold py-2.5 text-xs transition-all active:scale-[0.98]"
+                className="flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-semibold py-2.5 text-xs transition-all active:scale-[0.98] min-w-0"
               >
-                <Play className="h-3.5 w-3.5" />
-                Activate All
+                <Play className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Activate All</span>
               </Button>
               <Button
                 type="button"
@@ -1745,10 +1745,10 @@ export function QuestionsPanel({
                   }
                 }}
                 variant="outline"
-                className="flex items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-semibold py-2.5 text-xs transition-all active:scale-[0.98]"
+                className="flex items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-semibold py-2.5 text-xs transition-all active:scale-[0.98] min-w-0"
               >
-                <Square className="h-3.5 w-3.5" />
-                Deactivate All
+                <Square className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Deactivate All</span>
               </Button>
             </div>
           </div>
@@ -1773,7 +1773,7 @@ export function QuestionsPanel({
                 );
               }}
               className={cn(
-                "flex items-center gap-3 rounded-xl border p-3 transition shadow-sm cursor-pointer select-none",
+                "flex items-center gap-2.5 sm:gap-3 rounded-xl border p-2.5 sm:p-3 transition shadow-sm cursor-pointer select-none min-w-0 max-w-full overflow-hidden",
                 isLive
                   ? "border-primary/80 bg-primary/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] ring-1 ring-primary/30"
                   : "border-border bg-card/40 hover:bg-card/60",
@@ -1845,26 +1845,28 @@ export function QuestionsPanel({
                   )}
                 </div>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startEdit(q);
-                }}
-                className="text-muted-foreground hover:text-foreground p-1"
-                title="Edit Question"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(q.id);
-                }}
-                className="text-muted-foreground hover:text-destructive p-1"
-                title="Delete Question"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEdit(q);
+                  }}
+                  className="text-muted-foreground hover:text-foreground p-1.5 shrink-0 transition-colors"
+                  title="Edit Question"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(q.id);
+                  }}
+                  className="text-muted-foreground hover:text-destructive p-1.5 shrink-0 transition-colors"
+                  title="Delete Question"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           );
         })}

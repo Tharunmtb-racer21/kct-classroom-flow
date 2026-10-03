@@ -15,8 +15,8 @@ export function LivePanel({
 }) {
   if (!current) {
     return (
-      <div className="glass rounded-2xl p-6">
-        <h2 className="font-semibold">Live Results</h2>
+      <div className="glass rounded-2xl p-4 sm:p-6 min-w-0 max-w-full overflow-hidden">
+        <h2 className="font-semibold text-base sm:text-lg">Live Results</h2>
         <div className="mt-4 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           Activate a question to see live responses here.
         </div>
@@ -49,7 +49,7 @@ export function LivePanel({
   const pendingStudents = participants.filter((p) => !answeredParticipantIds.has(p.id));
 
   return (
-    <div className="glass rounded-2xl p-6 space-y-6">
+    <div className="glass rounded-2xl p-4 sm:p-6 space-y-6 min-w-0 max-w-full overflow-hidden">
       {/* ── Header with Student Count & Live Progress ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
