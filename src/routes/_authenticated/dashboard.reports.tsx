@@ -483,9 +483,9 @@ function ReportsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
         Detailed analytics and responses across your sessions.
       </p>
 
@@ -536,15 +536,15 @@ function ReportsPage() {
                 {/* Session Header Card */}
                 <div
                   onClick={() => toggleExpand(r.id)}
-                  className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer select-none hover:bg-white/[0.02] transition"
+                  className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 cursor-pointer select-none hover:bg-white/[0.02] transition"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-lg truncate">{r.title}</h3>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                      <h3 className="font-semibold text-base sm:text-lg truncate max-w-full">{r.title}</h3>
                       <StatusPill status={r.status} />
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span className="font-mono tracking-widest bg-accent/50 px-2 py-0.5 rounded">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span className="font-mono tracking-widest bg-accent/50 px-2 py-0.5 rounded text-[11px] sm:text-xs">
                         {r.code}
                       </span>
                       <span className="flex items-center gap-1">
@@ -554,28 +554,28 @@ function ReportsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6 self-end md:self-auto">
-                    <div className="flex gap-4 text-center">
-                      <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <div className="flex items-center justify-between md:justify-end gap-3 sm:gap-6 w-full md:w-auto pt-3 md:pt-0 border-t border-white/5 md:border-t-0">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center flex-1 md:flex-initial">
+                      <div className="px-1 sm:px-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                           Participants
                         </div>
-                        <div className="text-lg font-bold">{r.participants?.length ?? 0}</div>
+                        <div className="text-base sm:text-lg font-bold">{r.participants?.length ?? 0}</div>
                       </div>
-                      <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <div className="px-1 sm:px-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                           Questions
                         </div>
-                        <div className="text-lg font-bold">{r.questions?.length ?? 0}</div>
+                        <div className="text-base sm:text-lg font-bold">{r.questions?.length ?? 0}</div>
                       </div>
-                      <div className="px-2">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <div className="px-1 sm:px-2">
+                        <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                           Total Resp.
                         </div>
-                        <div className="text-lg font-bold">{totalResponses}</div>
+                        <div className="text-base sm:text-lg font-bold">{totalResponses}</div>
                       </div>
                     </div>
-                    <div>
+                    <div className="shrink-0 pl-1">
                       {isExpanded ? (
                         <ChevronUp className="h-5 w-5 text-muted-foreground" />
                       ) : (

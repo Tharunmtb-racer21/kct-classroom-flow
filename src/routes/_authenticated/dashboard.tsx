@@ -50,7 +50,7 @@ function DashboardLayout() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden items-center justify-around border-t border-border/60 bg-sidebar/90 backdrop-blur-xl py-2 px-1">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden items-center justify-around border-t border-border/60 bg-sidebar/95 backdrop-blur-xl py-2 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-xl">
         {mobileNavItems.map((item) => {
           const active = item.exact ? pathname === item.url : pathname.startsWith(item.url);
           return (
@@ -69,7 +69,7 @@ function DashboardLayout() {
         })}
       </nav>
 
-      <div className="relative z-10 flex h-dvh w-full pb-14 md:pb-0 overflow-hidden">
+      <div className="relative z-10 flex h-dvh w-full pb-16 md:pb-0 overflow-hidden">
         <AppSidebar />
         <main className="flex-1 flex flex-col justify-between overflow-x-hidden overflow-y-auto">
           <Outlet />

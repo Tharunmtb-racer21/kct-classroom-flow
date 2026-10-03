@@ -324,11 +324,11 @@ function SessionsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Classroom Sessions & Workspaces</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Classroom Sessions & Workspaces</h1>
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             Create sessions, share department templates, and co-host with faculty.
           </p>
         </div>

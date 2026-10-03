@@ -134,55 +134,55 @@ export function SessionDetailPanel({
   }, [session, questionOverrides, modalOpen, selectedSessionId]);
 
   return (
-    <div className="border-t border-white/5 bg-black/10 p-6 space-y-6 animate-in fade-in slide-in-from-top-4 duration-200">
+    <div className="border-t border-white/5 bg-black/10 p-4 sm:p-6 space-y-6 animate-in fade-in slide-in-from-top-4 duration-200">
       <Tabs defaultValue="analytics" className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px] bg-white/5 border border-white/5 p-1 rounded-xl">
+          <TabsList className="grid w-full grid-cols-2 sm:max-w-[400px] bg-white/5 border border-white/5 p-1 rounded-xl">
             <TabsTrigger
               value="analytics"
-              className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
+              className="flex items-center justify-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
             >
               <BarChart3 className="h-4 w-4" /> Session Analytics
             </TabsTrigger>
             <TabsTrigger
               value="students"
-              className="flex items-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
+              className="flex items-center justify-center gap-2 rounded-lg py-1.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground text-xs font-semibold"
             >
               <Users className="h-4 w-4" /> Student Reports
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
             <Button
               onClick={() => openCustomizeMarks(session)}
               size="sm"
               variant="outline"
-              className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs font-semibold rounded-xl"
+              className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs font-semibold rounded-xl w-full sm:w-auto justify-center"
             >
-              <Award className="h-4 w-4" /> Customize Marks
+              <Award className="h-4 w-4 shrink-0" /> Customize Marks
             </Button>
             <Button
               onClick={() => exportSessionToCSV(session)}
               size="sm"
               variant="outline"
-              className="gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold rounded-xl"
+              className="gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold rounded-xl w-full sm:w-auto justify-center"
             >
-              <Download className="h-4 w-4" /> Export CSV
+              <Download className="h-4 w-4 shrink-0" /> Export CSV
             </Button>
             <Button
               onClick={() => exportSessionToExcel(session)}
               size="sm"
               variant="outline"
-              className="gap-1.5 border-purple-500/40 text-purple-400 hover:bg-purple-500/10 text-xs font-semibold rounded-xl"
+              className="gap-1.5 border-purple-500/40 text-purple-400 hover:bg-purple-500/10 text-xs font-semibold rounded-xl w-full sm:w-auto justify-center"
             >
-              <Download className="h-4 w-4" /> Export Excel (.xlsx)
+              <Download className="h-4 w-4 shrink-0" /> Export Excel
             </Button>
             <Button
               onClick={() => handleOpenModal(session)}
               size="sm"
-              className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20 transition hover:shadow-blue-500/30"
+              className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20 transition hover:shadow-blue-500/30 w-full sm:w-auto justify-center"
             >
-              <FileText className="h-4 w-4" /> PDF Report
+              <FileText className="h-4 w-4 shrink-0" /> PDF Report
             </Button>
           </div>
         </div>

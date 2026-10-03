@@ -105,7 +105,7 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 select-none">
+    <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 select-none">
       {/* Floating Action Button */}
       <button
         onClick={() => {
@@ -113,17 +113,17 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
           setHasNewMessage(false);
         }}
         className={cn(
-          "h-14 w-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer relative",
+          "h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer relative",
           isOpen
             ? "bg-rose-600 hover:bg-rose-500 rotate-90"
             : "gradient-bg hover:brightness-110 shadow-primary/30",
         )}
       >
         {isOpen ? (
-          <X className="h-6 w-6" />
+          <X className="h-5 w-5 sm:h-6 sm:w-6" />
         ) : (
           <>
-            <MessageSquare className="h-6 w-6" />
+            <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6" />
             {hasNewMessage && (
               <span className="absolute -top-1 -right-1 flex h-4 w-4">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
@@ -138,7 +138,7 @@ Keep your responses highly helpful, friendly, concise, and focused on helping us
 
       {/* Chat Window Dialog */}
       {isOpen && (
-        <div className="absolute bottom-18 right-0 w-[360px] h-[500px] rounded-3xl overflow-hidden glass border border-border/80 shadow-2xl flex flex-col animate-in fade-in slide-in-from-bottom-6 duration-300">
+        <div className="absolute bottom-16 sm:bottom-18 right-0 w-[calc(100vw-2rem)] sm:w-[360px] max-w-[360px] h-[min(500px,calc(100dvh-150px))] rounded-3xl overflow-hidden glass border border-border/80 shadow-2xl flex flex-col animate-in fade-in slide-in-from-bottom-6 duration-300">
           {/* Header */}
           <div className="gradient-bg p-4 flex items-center justify-between text-white border-b border-white/5">
             <div className="flex items-center gap-2.5">

@@ -206,18 +206,18 @@ function DashboardHome() {
   const recentSessionsList = useMemo(() => sessions.slice(0, 6), [sessions]);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10 relative space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 relative space-y-6 sm:space-y-8">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Faculty Analytics & Dashboard</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Faculty Analytics & Dashboard</h1>
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-wider flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
               DATABASE SYNC
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             Realtime metrics for your classrooms •{" "}
             {lastLoginTime ? `Last Login: ${lastLoginTime}` : "Active Session"}
           </p>

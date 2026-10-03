@@ -1445,7 +1445,12 @@ function DeveloperDashboard() {
       {/* Top Telemetry Bar */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-card/80 backdrop-blur-xl px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl overflow-hidden shadow-md">
+          <Link to="/dashboard">
+            <Button size="sm" className="gradient-bg gap-2 text-xs font-semibold shrink-0">
+              <LayoutDashboard className="h-3.5 w-3.5" /> Back to App
+            </Button>
+          </Link>
+          <div className="grid h-10 w-10 place-items-center rounded-xl overflow-hidden shadow-md shrink-0">
             <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-10 w-10 object-cover" />
           </div>
           <div>
@@ -1582,11 +1587,6 @@ function DeveloperDashboard() {
             <Lock className="h-3.5 w-3.5" /> Lock Portal
           </Button>
 
-          <Link to="/dashboard">
-            <Button size="sm" className="gradient-bg gap-2 text-xs font-semibold">
-              <LayoutDashboard className="h-3.5 w-3.5" /> Back to App
-            </Button>
-          </Link>
           <ThemeToggle variant="ghost" size="sm" />
         </div>
       </header>
