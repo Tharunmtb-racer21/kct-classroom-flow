@@ -561,6 +561,18 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      get_developer_faculty_profiles: {
+        Args: {
+          dev_passkey?: string;
+        };
+        Returns: {
+          avatar_url: string | null;
+          created_at: string;
+          email: string | null;
+          full_name: string | null;
+          id: string;
+        }[];
+      };
     };
     Enums: {
       app_role: "faculty" | "admin";

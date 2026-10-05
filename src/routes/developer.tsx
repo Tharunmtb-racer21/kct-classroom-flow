@@ -207,6 +207,8 @@ function DeveloperDashboard() {
     if (typeof window !== "undefined") {
       localStorage.removeItem("kct_dev_auth");
       localStorage.removeItem("kct_dev_auth_time");
+      localStorage.removeItem("kct_dev_auth_hash");
+      sessionStorage.removeItem("kct_dev_auth_hash");
     }
     setIsAuthenticated(false);
     setPasskey("");
@@ -218,6 +220,10 @@ function DeveloperDashboard() {
       const isAuth = localStorage.getItem("kct_dev_auth") === "true";
       const authTime = Number(localStorage.getItem("kct_dev_auth_time") || "0");
       if (isAuth && authTime > 0 && Date.now() - authTime > DEV_TIMEOUT_MS) {
+        handleLockDeveloper();
+      } else if (isAuth && !passkey) {
+        // Plaintext developer passkey is never stored in persistent browser storage.
+        // Require re-authentication on full page reload to securely authorize the RPC.
         handleLockDeveloper();
       } else {
         setIsAuthenticated(isAuth);
@@ -489,7 +495,7 @@ function DeveloperDashboard() {
         ...prev,
         [creatorId]: {
           name: trimmedName,
-          email: trimmedEmail || "faculty@kct.ac.in",
+          email: trimmedEmail || "No email synced",
         },
       };
       try {
@@ -687,6 +693,7 @@ function DeveloperDashboard() {
       setErrorMsg("");
       localStorage.setItem("kct_dev_auth", "true");
       localStorage.setItem("kct_dev_auth_time", Date.now().toString());
+      loadData(passkey);
     } else {
       const entered = passkey;
       setErrorMsg("Access Denied: Incorrect developer password.");
@@ -719,9 +726,10 @@ function DeveloperDashboard() {
   };
 
   // Load All System Analytics & Records
-  const loadData = async () => {
+  const loadData = async (activePasskey?: string | React.MouseEvent | unknown) => {
     setLoading(true);
     const startPing = performance.now();
+    const keyToUse = (typeof activePasskey === "string" ? activePasskey : passkey).trim();
     try {
       // 1. Fetch Sessions
       const { data: sData } = await supabase
@@ -747,11 +755,29 @@ function DeveloperDashboard() {
         .select("id,question_id,participant_id,answer,created_at,image_url")
         .order("created_at", { ascending: false });
 
-      // 5. Fetch Profiles
-      const { data: profData } = await supabase
-        .from("profiles")
-        .select("id,full_name,email,avatar_url,created_at")
-        .order("created_at", { ascending: false });
+      // 5. Fetch Profiles (using secure developer RPC, falling back to direct query)
+      let profRows: ProfileRow[] = [];
+      try {
+        const { data: rpcProfiles, error: rpcErr } = await supabase.rpc(
+          "get_developer_faculty_profiles",
+          { dev_passkey: keyToUse || undefined },
+        );
+
+        if (!rpcErr && rpcProfiles && Array.isArray(rpcProfiles)) {
+          profRows = rpcProfiles as ProfileRow[];
+        } else {
+          if (rpcErr) {
+            console.warn("[DeveloperTelemetry] RPC load notice, falling back:", rpcErr.message);
+          }
+          const { data: directProf } = await supabase
+            .from("profiles")
+            .select("id,full_name,email,avatar_url,created_at")
+            .order("created_at", { ascending: false });
+          profRows = (directProf as ProfileRow[]) || [];
+        }
+      } catch (err) {
+        console.warn("[DeveloperTelemetry] Error loading profiles:", err);
+      }
 
       // 6. Fetch Login Logs
       const { data: logData } = await supabase
@@ -774,7 +800,6 @@ function DeveloperDashboard() {
       const qRows = (qData as QuestionRow[]) || [];
       const pRows = (pData as ParticipantRow[]) || [];
       const rRows = (rData as ResponseRow[]) || [];
-      const profRows = (profData as ProfileRow[]) || [];
       const lRows = (logData as LoginLogRow[]) || [];
       const cmRows = (cmData as ContactMessageRow[]) || [];
 
@@ -1142,16 +1167,14 @@ function DeveloperDashboard() {
     if (facultyNameOverrides[creatorId]) {
       return {
         name: facultyNameOverrides[creatorId].name,
-        email:
-          facultyNameOverrides[creatorId].email ||
-          `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in`,
+        email: facultyNameOverrides[creatorId].email || "No email synced",
       };
     }
 
     // 1. Check Profiles table
     const prof = profiles.find((p) => p.id === creatorId);
     if (prof && (prof.full_name || prof.email)) {
-      const email = prof.email || "";
+      const email = prof.email || "No email synced";
       const name = formatDisplayName(prof.full_name, email, creatorId);
       return { name, email };
     }
@@ -1167,16 +1190,16 @@ function DeveloperDashboard() {
     // 3. Check Current Logged In Firebase User
     const currentFirebaseUser = auth.currentUser;
     if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
-      const email = currentFirebaseUser.email || "";
+      const email = currentFirebaseUser.email || "No email synced";
       const name = formatDisplayName(currentFirebaseUser.displayName, email, creatorId);
       return { name, email };
     }
 
-    // 4. Fallback for unlinked historical test sessions
-    const formattedName = formatDisplayName(null, null, creatorId);
+    // 4. Honest fallback for unlinked historical test sessions
+    const shortId = creatorId.slice(0, 6).toUpperCase();
     return {
-      name: formattedName,
-      email: `faculty_${creatorId.slice(0, 6).toLowerCase()}@kct.ac.in`,
+      name: `Unlinked Profile (${shortId})`,
+      email: "No email synced",
     };
   };
 
@@ -1522,7 +1545,7 @@ function DeveloperDashboard() {
           </Button>
 
           <Button
-            onClick={loadData}
+            onClick={() => loadData()}
             variant="outline"
             size="sm"
             className="gap-2 text-xs border-border"
