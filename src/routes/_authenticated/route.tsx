@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
+import { ensureSessionLogged, logUserLogout } from "@/lib/login-logger";
 
 const getFirebaseUser = (): Promise<any> => {
   return new Promise((resolve) => {
@@ -29,7 +30,7 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync current faculty profile to Supabase profiles table
+  // Sync current faculty profile to Supabase profiles table and ensure session is logged
   useEffect(() => {
     const user = auth.currentUser;
     if (user && user.email) {
@@ -42,8 +43,26 @@ function AuthenticatedLayout() {
           full_name: resolvedName,
           avatar_url: user.photoURL,
         })
-        .then(({ error }) => {
+        .then(async ({ error }) => {
           if (error) console.error("Auto profile sync error:", error.message);
+
+          // Resolve existing role and ensure session log exists without duplicating
+          let currentRole = "faculty";
+          try {
+            const { data: roleData } = await supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", user.uid)
+              .maybeSingle();
+
+            if (roleData?.role) {
+              currentRole = roleData.role;
+            }
+          } catch (roleErr) {
+            console.warn("Could not resolve role during session restoration:", roleErr);
+          }
+
+          await ensureSessionLogged({ uid: user.uid, email: user.email }, currentRole);
         });
     }
   }, []);
@@ -53,6 +72,11 @@ function AuthenticatedLayout() {
 
   const handleLogout = async () => {
     try {
+      try {
+        await logUserLogout();
+      } catch (logErr) {
+        console.error("Failed to log logout during inactivity timeout:", logErr);
+      }
       await signOut(auth);
       toast.info("Session expired due to inactivity. Please sign in again.");
       navigate({ to: "/auth" });

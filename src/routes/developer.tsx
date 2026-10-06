@@ -142,7 +142,7 @@ type LoginLogRow = {
   email: string | null;
   login_time: string;
   logout_time: string | null;
-  session_duration: number | null;
+  session_duration: number | string | null;
   browser: string | null;
   device: string | null;
   operating_system: string | null;
@@ -784,13 +784,22 @@ function DeveloperDashboard() {
         console.warn("[DeveloperTelemetry] Error loading profiles:", err);
       }
 
-      // 6. Fetch Login Logs
-      const { data: logData } = await supabase
-        .from("login_logs")
-        .select(
-          "id,user_id,role,email,login_time,logout_time,session_duration,browser,device,operating_system,status",
-        )
-        .order("login_time", { ascending: false });
+      // 6. Fetch Login Logs (via secure developer RPC)
+      let lRows: LoginLogRow[] = [];
+      try {
+        const { data: rpcLogs, error: rpcErr } = await (supabase.rpc as any)(
+          "get_developer_login_logs",
+          { dev_passkey: keyToUse || undefined, p_limit: 100 },
+        );
+
+        if (!rpcErr && rpcLogs && Array.isArray(rpcLogs)) {
+          lRows = rpcLogs as LoginLogRow[];
+        } else if (rpcErr) {
+          console.warn("[DeveloperTelemetry] Error loading login logs via RPC:", rpcErr.message);
+        }
+      } catch (err) {
+        console.warn("[DeveloperTelemetry] Error loading login logs:", err);
+      }
 
       // 7. Fetch Contact Messages
       const { data: cmData } = await supabase
@@ -805,7 +814,6 @@ function DeveloperDashboard() {
       const qRows = (qData as QuestionRow[]) || [];
       const pRows = (pData as ParticipantRow[]) || [];
       const rRows = (rData as ResponseRow[]) || [];
-      const lRows = (logData as LoginLogRow[]) || [];
       const cmRows = (cmData as ContactMessageRow[]) || [];
 
       setSessions(sRows);
@@ -2618,7 +2626,13 @@ function DeveloperDashboard() {
                     ) : (
                       loginLogs.map((log) => {
                         const isOnline = !log.logout_time;
-                        const durationSec = log.session_duration ?? 0;
+                        const rawDuration = log.session_duration;
+                        const durationSec =
+                          typeof rawDuration === "number"
+                            ? rawDuration
+                            : typeof rawDuration === "string"
+                              ? parseInt(rawDuration, 10) || 0
+                              : 0;
                         const durationFormatted =
                           durationSec > 0
                             ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`

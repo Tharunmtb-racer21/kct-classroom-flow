@@ -57,6 +57,7 @@ export async function logUserLogin(
     }
 
     if (typeof window !== "undefined" && data?.id) {
+      sessionStorage.setItem("current_login_log_id", data.id);
       sessionStorage.setItem("kct_active_login_log_id", data.id);
       sessionStorage.setItem("kct_active_login_time", loginTime);
     }
@@ -68,11 +69,30 @@ export async function logUserLogin(
   }
 }
 
+export async function ensureSessionLogged(
+  user: { uid: string; email: string | null },
+  role: string = "faculty",
+): Promise<string | null> {
+  if (typeof window === "undefined" || !user?.uid) return null;
+
+  const existingLogId =
+    sessionStorage.getItem("current_login_log_id") ||
+    sessionStorage.getItem("kct_active_login_log_id");
+
+  if (existingLogId) {
+    return existingLogId;
+  }
+
+  return await logUserLogin(user, role);
+}
+
 export async function logUserLogout() {
   try {
     if (typeof window === "undefined") return;
 
-    const logId = sessionStorage.getItem("kct_active_login_log_id");
+    const logId =
+      sessionStorage.getItem("current_login_log_id") ||
+      sessionStorage.getItem("kct_active_login_log_id");
     const loginTimeStr = sessionStorage.getItem("kct_active_login_time");
 
     const logoutTime = new Date();
@@ -97,6 +117,7 @@ export async function logUserLogout() {
         .eq("id", logId);
     }
 
+    sessionStorage.removeItem("current_login_log_id");
     sessionStorage.removeItem("kct_active_login_log_id");
     sessionStorage.removeItem("kct_active_login_time");
   } catch (err) {
