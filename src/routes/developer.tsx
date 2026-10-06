@@ -270,6 +270,11 @@ function DeveloperDashboard() {
     questions: number;
     sessions: number;
   }>({ participants: 0, responses: 0, questions: 0, sessions: 0 });
+  const [questionTypeCounts, setQuestionTypeCounts] = useState<{
+    poll: number;
+    wordcloud: number;
+    quiz: number;
+  }>({ poll: 0, wordcloud: 0, quiz: 0 });
   const [statusFilter, setStatusFilter] = useState<"ALL" | "live" | "draft" | "ended">("ALL");
   const [questionTypeFilter, setQuestionTypeFilter] = useState<
     "ALL" | "poll" | "wordcloud" | "quiz"
@@ -599,9 +604,9 @@ function DeveloperDashboard() {
 
   // Chart Data: Question Types Distribution
   const questionTypeChartData = useMemo(() => {
-    const polls = questions.filter((q) => q.type === "poll").length;
-    const wordclouds = questions.filter((q) => q.type === "wordcloud").length;
-    const quizzes = questions.filter((q) => q.type === "quiz").length;
+    const polls = questionTypeCounts.poll;
+    const wordclouds = questionTypeCounts.wordcloud;
+    const quizzes = questionTypeCounts.quiz;
     const total = polls + wordclouds + quizzes;
     if (total === 0) {
       return [
@@ -615,7 +620,7 @@ function DeveloperDashboard() {
       { name: "Wordclouds", value: wordclouds, color: "#a855f7" },
       { name: "Quizzes", value: quizzes, color: "#10b981" },
     ];
-  }, [questions]);
+  }, [questionTypeCounts]);
 
   // Chart Data: Session Status Breakdown
   const sessionStatusChartData = useMemo(() => {
@@ -893,12 +898,15 @@ function DeveloperDashboard() {
   const handleMakeSessionDraft = async (sessionId: string, sessionTitle: string) => {
     try {
       setDemotingSessionId(sessionId);
-      const { error } = await supabase
-        .from("sessions")
-        .update({ status: "draft", expires_at: null, current_question_id: null })
-        .eq("id", sessionId);
+      const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
+        dev_passkey: passkey.trim(),
+        target_session_ids: [sessionId],
+      });
 
       if (error) throw error;
+      if ((data ?? 0) !== 1) {
+        throw new Error("No live session was updated. It may already be draft/ended or blocked by policy.");
+      }
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -976,12 +984,15 @@ function DeveloperDashboard() {
 
     try {
       setIsDemotingAll(true);
-      const { error } = await supabase
-        .from("sessions")
-        .update({ status: "draft", expires_at: null, current_question_id: null })
-        .in("id", liveIds);
+      const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
+        dev_passkey: passkey.trim(),
+        target_session_ids: liveIds,
+      });
 
       if (error) throw error;
+      if ((data ?? 0) !== liveIds.length) {
+        throw new Error(`Only ${data ?? 0} of ${liveIds.length} live session(s) were updated.`);
+      }
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -1255,25 +1266,54 @@ function DeveloperDashboard() {
         dateIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       }
 
-      let pQuery = supabase.from("participants").select("*", { count: "exact", head: true });
-      let rQuery = supabase.from("responses").select("*", { count: "exact", head: true });
-      let qQuery = supabase.from("questions").select("*", { count: "exact", head: true });
-      let sQuery = supabase.from("sessions").select("*", { count: "exact", head: true });
+      let pQuery = supabase.from("participants").select("id", { count: "exact", head: true });
+      let rQuery = supabase.from("responses").select("id", { count: "exact", head: true });
+      let qQuery = supabase.from("questions").select("id", { count: "exact", head: true });
+      let sQuery = supabase.from("sessions").select("id", { count: "exact", head: true });
+      let pollQuery = supabase
+        .from("questions")
+        .select("id", { count: "exact", head: true })
+        .eq("type", "poll");
+      let wordcloudQuery = supabase
+        .from("questions")
+        .select("id", { count: "exact", head: true })
+        .eq("type", "wordcloud");
+      let quizQuery = supabase
+        .from("questions")
+        .select("id", { count: "exact", head: true })
+        .eq("type", "quiz");
 
       if (dateIso) {
         pQuery = pQuery.gte("joined_at", dateIso);
         rQuery = rQuery.gte("created_at", dateIso);
         qQuery = qQuery.gte("created_at", dateIso);
         sQuery = sQuery.gte("created_at", dateIso);
+        pollQuery = pollQuery.gte("created_at", dateIso);
+        wordcloudQuery = wordcloudQuery.gte("created_at", dateIso);
+        quizQuery = quizQuery.gte("created_at", dateIso);
       }
 
-      const [pRes, rRes, qRes, sRes] = await Promise.all([pQuery, rQuery, qQuery, sQuery]);
+      const [pRes, rRes, qRes, sRes, pollRes, wordcloudRes, quizRes] = await Promise.all([
+        pQuery,
+        rQuery,
+        qQuery,
+        sQuery,
+        pollQuery,
+        wordcloudQuery,
+        quizQuery,
+      ]);
 
       setTimeframeCounts({
         participants: pRes.count ?? filteredParticipantsByTime.length,
         responses: rRes.count ?? filteredResponsesByTime.length,
         questions: qRes.count ?? filteredQuestionsByTime.length,
         sessions: sRes.count ?? filteredSessionsByTime.length,
+      });
+      setQuestionTypeCounts({
+        poll: pollRes.count ?? filteredQuestionsByTime.filter((q) => q.type === "poll").length,
+        wordcloud:
+          wordcloudRes.count ?? filteredQuestionsByTime.filter((q) => q.type === "wordcloud").length,
+        quiz: quizRes.count ?? filteredQuestionsByTime.filter((q) => q.type === "quiz").length,
       });
     };
 
@@ -1302,16 +1342,16 @@ function DeveloperDashboard() {
   );
 
   const pollQuestionsCount = useMemo(
-    () => filteredQuestionsByTime.filter((q) => q.type === "poll").length,
-    [filteredQuestionsByTime],
+    () => questionTypeCounts.poll,
+    [questionTypeCounts.poll],
   );
   const wordcloudQuestionsCount = useMemo(
-    () => filteredQuestionsByTime.filter((q) => q.type === "wordcloud").length,
-    [filteredQuestionsByTime],
+    () => questionTypeCounts.wordcloud,
+    [questionTypeCounts.wordcloud],
   );
   const quizQuestionsCount = useMemo(
-    () => filteredQuestionsByTime.filter((q) => q.type === "quiz").length,
-    [filteredQuestionsByTime],
+    () => questionTypeCounts.quiz,
+    [questionTypeCounts.quiz],
   );
 
   // Unique Faculty Creators with Total Students Taught (Filtered by Timeframe)
@@ -1878,7 +1918,7 @@ function DeveloperDashboard() {
                     </span>
                   </div>
                   <span className="text-xs font-bold text-foreground">
-                    {questions.length} Total Questions
+                    {timeframeCounts.questions || filteredQuestionsByTime.length} Total Questions
                   </span>
                 </div>
                 <div className="h-44 w-full flex items-center justify-center">
