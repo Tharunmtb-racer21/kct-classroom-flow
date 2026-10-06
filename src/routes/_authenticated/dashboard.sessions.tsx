@@ -324,17 +324,17 @@ function SessionsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8 pb-16 sm:pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Classroom Sessions & Workspaces</h1>
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Classroom Sessions & Workspaces</h1>
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             Create sessions, share department templates, and co-host with faculty.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-bg font-semibold">
+            <Button className="w-full sm:w-auto gradient-bg font-semibold">
               <Plus className="mr-2 h-4 w-4" />
               New Session
             </Button>
@@ -366,20 +366,23 @@ function SessionsPage() {
       </div>
 
       <Tabs defaultValue="my-sessions" className="space-y-6">
-        <TabsList className="bg-card border border-border p-1 rounded-xl">
-          <TabsTrigger value="my-sessions" className="gap-2 text-xs font-semibold">
-            <Layers className="h-3.5 w-3.5" /> My Personal Sessions ({rows.length})
-          </TabsTrigger>
-          <TabsTrigger value="department-templates" className="gap-2 text-xs font-semibold">
-            <Building2 className="h-3.5 w-3.5 text-primary" /> Department Shared Workspaces (
-            {DEPARTMENT_TEMPLATES.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-1">
+          <TabsList className="bg-card border border-border p-1 rounded-xl h-auto flex sm:inline-flex w-full sm:w-auto min-w-max justify-start sm:justify-center">
+            <TabsTrigger value="my-sessions" className="gap-2 text-xs font-semibold py-2 px-3 shrink-0">
+              <Layers className="h-3.5 w-3.5" /> My Personal Sessions ({rows.length})
+            </TabsTrigger>
+            <TabsTrigger value="department-templates" className="gap-2 text-xs font-semibold py-2 px-3 shrink-0">
+              <Building2 className="h-3.5 w-3.5 text-primary" /> Department Shared Workspaces (
+              {DEPARTMENT_TEMPLATES.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* TAB 1: MY PERSONAL SESSIONS */}
         <TabsContent value="my-sessions" className="space-y-4">
           <div className="glass rounded-2xl overflow-hidden border border-border/60">
-            <div className="grid grid-cols-12 gap-4 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/60">
+            {/* Desktop Table Header (>= 768px) */}
+            <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground border-b border-border/60">
               <div className="col-span-4">Title</div>
               <div className="col-span-2">Code</div>
               <div className="col-span-1">Status</div>
@@ -392,65 +395,134 @@ function SessionsPage() {
               </div>
             )}
             {rows.map((r) => (
-              <div
-                key={r.id}
-                className="grid grid-cols-12 gap-4 items-center px-5 py-4 border-b border-border/40 last:border-0 hover:bg-accent/40 transition"
-              >
-                <div className="col-span-4 flex items-center gap-2 min-w-0">
-                  <Link
-                    to="/dashboard/session/$id"
-                    params={{ id: r.id }}
-                    className="font-semibold truncate hover:text-primary transition"
-                    title={r.title}
-                  >
-                    {r.title}
-                  </Link>
-                  <button
-                    onClick={() => handleOpenRename(r)}
-                    className="text-muted-foreground hover:text-primary p-1 rounded-md hover:bg-accent transition shrink-0 opacity-60 hover:opacity-100"
-                    title="Rename Session"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+              <div key={r.id} className="border-b border-border/40 last:border-0">
+                {/* Desktop Row Layout (>= 768px) */}
+                <div className="hidden md:grid grid-cols-12 gap-4 items-center px-5 py-4 hover:bg-accent/40 transition">
+                  <div className="col-span-4 flex items-center gap-2 min-w-0">
+                    <Link
+                      to="/dashboard/session/$id"
+                      params={{ id: r.id }}
+                      className="font-semibold truncate hover:text-primary transition"
+                      title={r.title}
+                    >
+                      {r.title}
+                    </Link>
+                    <button
+                      onClick={() => handleOpenRename(r)}
+                      className="text-muted-foreground hover:text-primary p-1 rounded-md hover:bg-accent transition shrink-0 opacity-60 hover:opacity-100"
+                      title="Rename Session"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="col-span-2 font-mono text-sm tracking-widest text-primary font-bold">
+                    {r.code}
+                  </div>
+                  <div className="col-span-1">
+                    <StatusPill status={r.status} />
+                  </div>
+                  <div className="col-span-2 text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5" /> {r.participants?.[0]?.count ?? 0} Students
+                  </div>
+                  <div className="col-span-3 text-right flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
+                    <Button
+                      onClick={() => handleOpenRename(r)}
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1 border-border/80 text-foreground hover:bg-accent"
+                      title="Rename Session"
+                    >
+                      <Pencil className="h-3 w-3 text-primary" /> Rename
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedShareSession(r);
+                        setShareModalOpen(true);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                      title="Share with Department Co-Host"
+                    >
+                      <Share2 className="h-3.5 w-3.5" /> Co-Host
+                    </Button>
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition"
+                      title="Delete Session"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="col-span-2 font-mono text-sm tracking-widest text-primary font-bold">
-                  {r.code}
-                </div>
-                <div className="col-span-1">
-                  <StatusPill status={r.status} />
-                </div>
-                <div className="col-span-2 text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5" /> {r.participants?.[0]?.count ?? 0} Students
-                </div>
-                <div className="col-span-3 text-right flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
-                  <Button
-                    onClick={() => handleOpenRename(r)}
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs gap-1 border-border/80 text-foreground hover:bg-accent"
-                    title="Rename Session"
-                  >
-                    <Pencil className="h-3 w-3 text-primary" /> Rename
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setSelectedShareSession(r);
-                      setShareModalOpen(true);
-                    }}
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                    title="Share with Department Co-Host"
-                  >
-                    <Share2 className="h-3.5 w-3.5" /> Co-Host
-                  </Button>
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition"
-                    title="Delete Session"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+
+                {/* Mobile Card Layout (< 768px) */}
+                <div className="flex flex-col gap-3 p-4 hover:bg-accent/20 transition md:hidden">
+                  {/* Title & Quick Rename */}
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <Link
+                      to="/dashboard/session/$id"
+                      params={{ id: r.id }}
+                      className="font-semibold text-base text-foreground hover:text-primary transition break-words min-w-0 flex-1 leading-snug"
+                      title={r.title}
+                    >
+                      {r.title}
+                    </Link>
+                    <button
+                      onClick={() => handleOpenRename(r)}
+                      className="text-muted-foreground hover:text-primary p-1.5 -mr-1 -mt-1 rounded-lg hover:bg-accent transition shrink-0 opacity-70 hover:opacity-100 touch-manipulation"
+                      title="Rename Session"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Session Code */}
+                  <div className="font-mono text-sm tracking-widest text-primary font-bold break-all select-all">
+                    {r.code}
+                  </div>
+
+                  {/* Status & Participants */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                    <StatusPill status={r.status} />
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium shrink-0">
+                      <Users className="h-3.5 w-3.5" /> {r.participants?.[0]?.count ?? 0} Students
+                    </div>
+                  </div>
+
+                  {/* Actions: Rename, Co-Host, Delete */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <Button
+                        onClick={() => handleOpenRename(r)}
+                        size="sm"
+                        variant="outline"
+                        className="h-8.5 px-3 text-xs gap-1.5 rounded-lg border-border/80 text-foreground hover:bg-accent touch-manipulation"
+                        title="Rename Session"
+                      >
+                        <Pencil className="h-3 w-3 text-primary" /> Rename
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setSelectedShareSession(r);
+                          setShareModalOpen(true);
+                        }}
+                        size="sm"
+                        variant="outline"
+                        className="h-8.5 px-3 text-xs gap-1.5 rounded-lg border-primary/30 text-primary hover:bg-primary/10 touch-manipulation"
+                        title="Share with Department Co-Host"
+                      >
+                        <Share2 className="h-3.5 w-3.5" /> Co-Host
+                      </Button>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      className="text-muted-foreground hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition shrink-0 touch-manipulation"
+                      title="Delete Session"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -459,18 +531,18 @@ function SessionsPage() {
 
         {/* TAB 2: DEPARTMENT SHARED WORKSPACES & TEMPLATES */}
         <TabsContent value="department-templates" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {DEPARTMENT_TEMPLATES.map((tmpl) => (
               <div
                 key={tmpl.id}
-                className="glass rounded-2xl p-6 border border-border/60 space-y-4 hover:border-primary/40 transition flex flex-col justify-between"
+                className="glass rounded-2xl p-5 sm:p-6 border border-border/60 space-y-4 hover:border-primary/40 transition flex flex-col justify-between"
               >
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 truncate max-w-[75%] sm:max-w-none">
                       {tmpl.department}
                     </span>
-                    <span className="font-mono text-xs font-bold text-muted-foreground">
+                    <span className="font-mono text-xs font-bold text-muted-foreground shrink-0">
                       {tmpl.code}
                     </span>
                   </div>

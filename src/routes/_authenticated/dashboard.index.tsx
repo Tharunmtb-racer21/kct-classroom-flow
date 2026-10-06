@@ -206,13 +206,15 @@ function DashboardHome() {
   const recentSessionsList = useMemo(() => sessions.slice(0, 6), [sessions]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 relative space-y-6 sm:space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 pb-24 sm:pb-10 relative space-y-6 sm:space-y-8">
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Faculty Analytics & Dashboard</h1>
-            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-wider flex items-center gap-1">
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
+              Faculty Analytics & Dashboard
+            </h1>
+            <span className="hidden sm:inline-flex rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-wider items-center gap-1 shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
               DATABASE SYNC
             </span>
@@ -221,25 +223,31 @@ function DashboardHome() {
             Realtime metrics for your classrooms •{" "}
             {lastLoginTime ? `Last Login: ${lastLoginTime}` : "Active Session"}
           </p>
+          <div className="mt-2.5 sm:hidden">
+            <span className="inline-flex rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-wider items-center gap-1 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
+              DATABASE SYNC
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="bg-white h-10 px-4 flex items-center justify-center rounded-md shadow-sm">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="bg-white h-10 px-3.5 flex items-center justify-center rounded-xl shadow-sm shrink-0">
             <img
               src="/kumaraguru-logo.jpg"
               alt="Kumaraguru Institutions"
-              className="h-6 object-contain"
+              className="h-5 sm:h-6 object-contain"
             />
           </div>
-          <Link to="/dashboard/sessions">
-            <Button className="gradient-bg font-semibold">
-              <Plus className="mr-2 h-4 w-4" /> New Session
+          <Link to="/dashboard/sessions" className="flex-1 sm:flex-initial min-w-0">
+            <Button className="w-full sm:w-auto gradient-bg font-semibold h-10 rounded-xl px-4 text-xs sm:text-sm">
+              <Plus className="mr-1.5 h-4 w-4 shrink-0" /> New Session
             </Button>
           </Link>
         </div>
       </div>
 
       {/* KPI Cards Row 1: Session Status Breakdown */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
           label="My Sessions"
           value={metrics.totalSessions}
@@ -271,7 +279,7 @@ function DashboardHome() {
       </div>
 
       {/* KPI Cards Row 2: Live Database Student Engagement */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <StatCard
           label="Students Engaged"
           value={metrics.totalStudentsEngaged}
@@ -303,16 +311,16 @@ function DashboardHome() {
       </div>
 
       {/* Active Sessions Section */}
-      <section className="space-y-4">
+      <section className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
             <Radio className="h-4 w-4 text-emerald-400 animate-pulse" /> Active Live Sessions (
             {activeSessionsList.length})
           </h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
           {activeSessionsList.length === 0 && !loading && (
-            <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground md:col-span-2">
+            <div className="glass rounded-2xl p-6 sm:p-8 text-center text-xs sm:text-sm text-muted-foreground md:col-span-2">
               No live sessions currently running. Launch a session from your session manager.
             </div>
           )}
@@ -323,23 +331,23 @@ function DashboardHome() {
       </section>
 
       {/* Recent Classroom Sessions List */}
-      <section className="space-y-4">
+      <section className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
             <Clock className="h-4 w-4 text-primary" /> Recent Sessions & Analytics (
             {recentSessionsList.length})
           </h2>
           <Link
             to="/dashboard/sessions"
-            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 shrink-0"
           >
             View All <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
           {recentSessionsList.length === 0 && !loading && (
-            <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground md:col-span-2">
+            <div className="glass rounded-2xl p-6 sm:p-8 text-center text-xs sm:text-sm text-muted-foreground md:col-span-2">
               Your classroom sessions will appear here.
             </div>
           )}
@@ -366,17 +374,19 @@ function StatCard({
   description?: string;
 }) {
   return (
-    <div className="glass rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-all duration-200">
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+    <div className="glass rounded-2xl p-4 sm:p-5 border border-white/5 hover:border-white/10 transition-all duration-200">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] sm:text-xs uppercase tracking-wider text-muted-foreground font-semibold truncate">
           {label}
         </span>
-        <div className={cn("p-2 rounded-xl bg-white/[0.03]", accent)}>
+        <div className={cn("p-1.5 sm:p-2 rounded-xl bg-white/[0.03] shrink-0", accent)}>
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <div className="mt-3 text-3xl font-black tracking-tight">{value}</div>
-      {description && <div className="mt-1 text-[11px] text-muted-foreground">{description}</div>}
+      <div className="mt-1.5 sm:mt-3 text-2xl sm:text-3xl font-black tracking-tight">{value}</div>
+      {description && (
+        <div className="mt-0.5 sm:mt-1 text-[11px] text-muted-foreground truncate">{description}</div>
+      )}
     </div>
   );
 }
@@ -393,11 +403,11 @@ function SessionCard({ s }: { s: Session }) {
     <Link
       to="/dashboard/session/$id"
       params={{ id: s.id }}
-      className="glass rounded-2xl p-5 transition hover:-translate-y-0.5 hover:border-primary/50 border border-white/5 space-y-3"
+      className="glass rounded-2xl p-4 sm:p-5 transition hover:-translate-y-0.5 hover:border-primary/50 border border-white/5 space-y-3 block"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold text-foreground text-base">{s.title}</h3>
+      <div className="flex items-start justify-between gap-3 min-w-0">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-foreground text-sm sm:text-base">{s.title}</h3>
           <div className="mt-1 font-mono text-xs tracking-[0.2em] text-primary font-bold">
             {s.code}
           </div>
@@ -405,8 +415,8 @@ function SessionCard({ s }: { s: Session }) {
         <StatusPill status={s.status} />
       </div>
 
-      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-muted-foreground">
-        <div className="flex items-center gap-3">
+      <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
           <span className="flex items-center gap-1 text-foreground/80 font-medium">
             <Users className="h-3.5 w-3.5 text-primary" /> {participantCount} Students
           </span>
@@ -417,7 +427,7 @@ function SessionCard({ s }: { s: Session }) {
             <MessageSquare className="h-3.5 w-3.5 text-emerald-400" /> {totalResponses} Resp.
           </span>
         </div>
-        <span className="text-[11px] font-mono">{new Date(s.created_at).toLocaleDateString()}</span>
+        <span className="text-[11px] font-mono shrink-0">{new Date(s.created_at).toLocaleDateString()}</span>
       </div>
     </Link>
   );
