@@ -33,38 +33,42 @@ function AuthenticatedLayout() {
   // Sync current faculty profile to Supabase profiles table and ensure session is logged
   useEffect(() => {
     const user = auth.currentUser;
-    if (user && user.email) {
-      const resolvedName = formatDisplayName(user.displayName, user.email);
-      supabase
-        .from("profiles")
-        .upsert({
+    if (!user || !user.email) return;
+
+    const syncProfileAndSession = async () => {
+      try {
+        const resolvedName = formatDisplayName(user.displayName, user.email);
+        const { error } = await supabase.from("profiles").upsert({
           id: user.uid,
           email: user.email,
           full_name: resolvedName,
           avatar_url: user.photoURL,
-        })
-        .then(async ({ error }) => {
-          if (error) console.error("Auto profile sync error:", error.message);
-
-          // Resolve existing role and ensure session log exists without duplicating
-          let currentRole = "faculty";
-          try {
-            const { data: roleData } = await supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", user.uid)
-              .maybeSingle();
-
-            if (roleData?.role) {
-              currentRole = roleData.role;
-            }
-          } catch (roleErr) {
-            console.warn("Could not resolve role during session restoration:", roleErr);
-          }
-
-          await ensureSessionLogged({ uid: user.uid, email: user.email }, currentRole);
         });
-    }
+        if (error) console.error("Auto profile sync error:", error.message);
+
+        // Resolve existing role and ensure session log exists without duplicating
+        let currentRole = "faculty";
+        try {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.uid)
+            .maybeSingle();
+
+          if (roleData?.role) {
+            currentRole = roleData.role;
+          }
+        } catch (roleErr) {
+          console.warn("Could not resolve role during session restoration:", roleErr);
+        }
+
+        await ensureSessionLogged({ uid: user.uid, email: user.email }, currentRole);
+      } catch (syncErr) {
+        console.error("Auto profile sync error:", syncErr);
+      }
+    };
+
+    syncProfileAndSession();
   }, []);
 
   // 30 minutes in milliseconds

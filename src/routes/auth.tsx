@@ -191,8 +191,16 @@ function AuthPage() {
         hd: "kct.ac.in",
         prompt: "select_account",
       });
-      await signInWithPopup(auth, provider);
-      // Global listener (onAuthStateChanged) handles post-auth validation & navigation
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        if (!isKctEmail(result.user.email, result.user)) {
+          toast.error(KCT_DOMAIN_ERROR);
+          setLoading(false);
+          return;
+        }
+        await syncUserProfile(result.user);
+        navigate({ to: "/dashboard" });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setLoading(false);
@@ -208,8 +216,16 @@ function AuthPage() {
         domain_hint: "kct.ac.in",
         prompt: "select_account",
       });
-      await signInWithPopup(auth, provider);
-      // Global listener (onAuthStateChanged) handles post-auth validation & navigation
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        if (!isKctEmail(result.user.email, result.user)) {
+          toast.error(KCT_DOMAIN_ERROR);
+          setLoading(false);
+          return;
+        }
+        await syncUserProfile(result.user);
+        navigate({ to: "/dashboard" });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Microsoft sign-in failed");
       setLoading(false);

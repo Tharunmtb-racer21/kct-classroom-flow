@@ -28,45 +28,70 @@ export function getClientMetadata() {
   return { browser, device, os };
 }
 
+let activeLoggingPromise: Promise<string | null> | null = null;
+
 export async function logUserLogin(
   user: { uid: string; email: string | null },
   role: string = "faculty",
 ) {
-  try {
-    const { browser, device, os } = getClientMetadata();
-    const loginTime = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from("login_logs")
-      .insert({
-        user_id: user.uid,
-        email: user.email,
-        role: role,
-        login_time: loginTime,
-        browser: browser,
-        device: device,
-        operating_system: os,
-        status: "active",
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      console.error("Failed to log user login:", error);
-      return null;
+  if (typeof window !== "undefined") {
+    const existingLogId =
+      sessionStorage.getItem("current_login_log_id") ||
+      sessionStorage.getItem("kct_active_login_log_id");
+    if (existingLogId) {
+      return existingLogId;
     }
-
-    if (typeof window !== "undefined" && data?.id) {
-      sessionStorage.setItem("current_login_log_id", data.id);
-      sessionStorage.setItem("kct_active_login_log_id", data.id);
-      sessionStorage.setItem("kct_active_login_time", loginTime);
-    }
-
-    return data?.id ?? null;
-  } catch (err) {
-    console.error("Error in logUserLogin:", err);
-    return null;
   }
+
+  if (activeLoggingPromise) {
+    return await activeLoggingPromise;
+  }
+
+  activeLoggingPromise = (async () => {
+    try {
+      const { browser, device, os } = getClientMetadata();
+      const loginTime = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from("login_logs")
+        .insert({
+          user_id: user.uid,
+          email: user.email,
+          role: role,
+          login_time: loginTime,
+          browser: browser,
+          device: device,
+          operating_system: os,
+          status: "active",
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("[LoginTelemetry] Failed to log user login:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        });
+        return null;
+      }
+
+      if (typeof window !== "undefined" && data?.id) {
+        sessionStorage.setItem("current_login_log_id", data.id);
+        sessionStorage.setItem("kct_active_login_log_id", data.id);
+        sessionStorage.setItem("kct_active_login_time", loginTime);
+      }
+
+      return data?.id ?? null;
+    } catch (err: any) {
+      console.error("[LoginTelemetry] Error in logUserLogin:", err?.message || err);
+      return null;
+    } finally {
+      activeLoggingPromise = null;
+    }
+  })();
+
+  return await activeLoggingPromise;
 }
 
 export async function ensureSessionLogged(
