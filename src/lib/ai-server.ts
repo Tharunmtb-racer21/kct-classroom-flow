@@ -312,3 +312,148 @@ export const generateChatServerFn = createServerFn({ method: "POST" })
 
     return "KCT PULSE Intelligent Assistant is temporarily operating in local fallback mode.";
   });
+
+export interface GroqDiagnosticResult {
+  success: boolean;
+  status: "active" | "rate_limited" | "invalid" | "error";
+  statusCode?: number;
+  latencyMs?: number;
+  errorCategory?:
+    | "network_error"
+    | "invalid_key"
+    | "forbidden"
+    | "rate_limited"
+    | "server_error"
+    | "client_error"
+    | "unknown";
+  errorMsg?: string;
+}
+
+/**
+ * Server Function: Test Individual Groq API Key
+ * Strictly server-side execution to keep raw API keys off the client and bypass browser CORS.
+ * Returns only sanitized diagnostic information (no secret keys or sensitive payloads).
+ */
+export const testGroqKeyServerFn = createServerFn({ method: "POST" })
+  .validator((data: { index: number }) => data)
+  .handler(async ({ data }): Promise<GroqDiagnosticResult> => {
+    const { index } = data;
+
+    if (typeof index !== "number" || index < 0 || index >= BACKUP_SERVER_KEYS.length) {
+      return {
+        success: false,
+        status: "invalid",
+        statusCode: 400,
+        errorCategory: "client_error",
+        errorMsg: "Key index out of range",
+      };
+    }
+
+    const key = BACKUP_SERVER_KEYS[index];
+    if (!key) {
+      return {
+        success: false,
+        status: "invalid",
+        statusCode: 400,
+        errorCategory: "client_error",
+        errorMsg: "Key not configured",
+      };
+    }
+
+    const start = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-8192",
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 3,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      const latencyMs = Date.now() - start;
+
+      if (response.ok) {
+        return {
+          success: true,
+          status: "active",
+          statusCode: response.status,
+          latencyMs,
+        };
+      }
+
+      if (response.status === 401) {
+        return {
+          success: false,
+          status: "invalid",
+          statusCode: 401,
+          latencyMs,
+          errorCategory: "invalid_key",
+          errorMsg: "Invalid API key (401)",
+        };
+      }
+
+      if (response.status === 403) {
+        return {
+          success: false,
+          status: "invalid",
+          statusCode: 403,
+          latencyMs,
+          errorCategory: "forbidden",
+          errorMsg: "Forbidden (403)",
+        };
+      }
+
+      if (response.status === 429) {
+        return {
+          success: false,
+          status: "rate_limited",
+          statusCode: 429,
+          latencyMs,
+          errorCategory: "rate_limited",
+          errorMsg: "Rate limited (429)",
+        };
+      }
+
+      if (response.status >= 500) {
+        return {
+          success: false,
+          status: "error",
+          statusCode: response.status,
+          latencyMs,
+          errorCategory: "server_error",
+          errorMsg: `Groq service error (${response.status})`,
+        };
+      }
+
+      return {
+        success: false,
+        status: "error",
+        statusCode: response.status,
+        latencyMs,
+        errorCategory: "client_error",
+        errorMsg: `Request error (${response.status})`,
+      };
+    } catch (err: unknown) {
+      const latencyMs = Date.now() - start;
+      const isAbort =
+        err instanceof Error &&
+        (err.name === "AbortError" || err.message.toLowerCase().includes("abort"));
+      return {
+        success: false,
+        status: "error",
+        latencyMs,
+        errorCategory: "network_error",
+        errorMsg: isAbort ? "Request timed out (10s)" : "Network error",
+      };
+    }
+  });

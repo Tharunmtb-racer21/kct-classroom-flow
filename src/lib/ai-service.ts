@@ -188,7 +188,11 @@ function parseAIResponse(raw: string): GeneratedQuestion[] {
     .filter((q): q is GeneratedQuestion => q !== null);
 }
 
-import { generateQuestionsServerFn, generateChatServerFn } from "./ai-server";
+import {
+  generateQuestionsServerFn,
+  generateChatServerFn,
+  testGroqKeyServerFn,
+} from "./ai-server";
 
 /**
  * Generate classroom questions from document text.
@@ -313,32 +317,66 @@ async function callProviderAPI(
   return parseAIResponse(rawContent);
 }
 
-/** Helper to track key usage in localStorage */
-function trackKeyUsage(key: string, success: boolean) {
-  if (typeof window === "undefined") return;
+/**
+ * Records the start of a key diagnostic attempt in localStorage telemetry.
+ * Increments `attempts` by 1 and updates `lastUsed` timestamp.
+ */
+export function recordKeyDiagnosticAttempt(signature: string): void {
+  if (typeof window === "undefined" || !signature) return;
   try {
     const dataStr = localStorage.getItem("kct_ai_key_usage") || "{}";
     const data = JSON.parse(dataStr);
-
-    // Obfuscate the key representation in localStorage (only show last 8 chars)
-    const signature = key.length > 8 ? `...${key.slice(-8)}` : key;
 
     if (!data[signature]) {
       data[signature] = { attempts: 0, successes: 0, failures: 0, lastUsed: "" };
     }
 
-    data[signature].attempts += 1;
+    data[signature].attempts = (data[signature].attempts || 0) + 1;
+    data[signature].lastUsed = new Date().toISOString();
+
+    localStorage.setItem("kct_ai_key_usage", JSON.stringify(data));
+  } catch (e) {
+    console.error("Failed to record key diagnostic attempt:", e);
+  }
+}
+
+/**
+ * Records the result of a key diagnostic attempt in localStorage telemetry.
+ * Increments `successes` by 1 if success is true, otherwise increments `failures` by 1.
+ * Updates `lastUsed` timestamp and guarantees attempts >= successes + failures.
+ */
+export function recordKeyDiagnosticResult(signature: string, success: boolean): void {
+  if (typeof window === "undefined" || !signature) return;
+  try {
+    const dataStr = localStorage.getItem("kct_ai_key_usage") || "{}";
+    const data = JSON.parse(dataStr);
+
+    if (!data[signature]) {
+      data[signature] = { attempts: 1, successes: 0, failures: 0, lastUsed: "" };
+    }
+
     if (success) {
-      data[signature].successes += 1;
+      data[signature].successes = (data[signature].successes || 0) + 1;
     } else {
-      data[signature].failures += 1;
+      data[signature].failures = (data[signature].failures || 0) + 1;
+    }
+
+    const totalOutcomes = (data[signature].successes || 0) + (data[signature].failures || 0);
+    if ((data[signature].attempts || 0) < totalOutcomes) {
+      data[signature].attempts = totalOutcomes;
     }
     data[signature].lastUsed = new Date().toISOString();
 
     localStorage.setItem("kct_ai_key_usage", JSON.stringify(data));
   } catch (e) {
-    console.error("Failed to track key usage:", e);
+    console.error("Failed to record key diagnostic result:", e);
   }
+}
+
+/** Helper to track key usage in localStorage */
+export function trackKeyUsage(signature: string, success: boolean): void {
+  recordKeyDiagnosticAttempt(signature);
+  recordKeyDiagnosticResult(signature, success);
 }
 
 /** Obfuscated signatures for UI rendering */
@@ -353,75 +391,59 @@ export function getGroqKeySignature(index: number): string {
   return signatures[index] || "Unknown Key";
 }
 
-/** Performs a real-time completions ping to test key validity, returns active status or rate limit info */
+/**
+ * Performs a real-time completions ping to test key validity via secure server function.
+ * Returns active status, rate limit info, or categorized error.
+ * Raw Groq API keys remain strictly server-side and never touch browser memory or network.
+ */
 export async function testGroqKey(
   index: number,
 ): Promise<{ status: "active" | "rate_limited" | "invalid" | "error"; errorMsg?: string }> {
-  const decodeReversed = (s: string) => s.split("").reverse().join("");
-  const keys = [
-    "fwtzIqtiDeR9H0pbRw8qHvVRYF3bydGWg59g9RaennILp2FaBfpG_ksg",
-    "HuBWqI0oEy879raabfiUw1W8YF3bydGWC1gcUM59tGUu5T4JUQhA_ksg",
-    "85gnWJOIMDUdQ1zu9i6SBQwWYF3bydGWlwaPKAbCJV6Nqt98elNi_ksg",
-    "MdqSRTtuNLBMMMC6hXQxN9SoYF3bydGW7Q7KU0gSxKR4XPnzfqIG_ksg",
-    "nvuH3SRKF4qL0vQdtdPp0POYYF3bydGWUA8rDZzCv5csXWefkrvN_ksg",
-  ].map(decodeReversed);
-
-  const key = keys[index];
-  if (!key) return { status: "invalid", errorMsg: "Key index out of range" };
+  const sig = getGroqKeySignature(index);
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout for tests
+    const res = await testGroqKeyServerFn({ data: { index } });
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-8192",
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 3,
-      }),
-      signal: controller.signal,
+    // Record token telemetry in token-tracker
+    recordTokenUsage({
+      provider: "groq",
+      model: "llama-3.3-70b-8192",
+      keySignature: sig,
+      feature: "diagnostic_test",
+      promptTokens: res.success ? 4 : 0,
+      completionTokens: res.success ? 2 : 0,
+      totalTokens: res.success ? 6 : 0,
+      latencyMs: res.latencyMs,
+      success: res.success,
+      errorMessage: res.errorMsg,
     });
 
-    clearTimeout(timeout);
+    return {
+      status: res.status,
+      errorMsg: res.errorMsg,
+    };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Network error";
+    const isAbort =
+      errorMsg.toLowerCase().includes("abort") || errorMsg.toLowerCase().includes("timeout");
+    const safeErrorMsg = isAbort ? "Request timed out (10s)" : "Network error";
 
-    if (response.ok) {
-      // Also record this test as a successful attempt in localStorage
-      trackKeyUsage(key, true);
-      recordTokenUsage({
-        provider: "groq",
-        model: "llama-3.3-70b-8192",
-        keySignature: getGroqKeySignature(index),
-        feature: "diagnostic_test",
-        promptTokens: 4,
-        completionTokens: 2,
-        totalTokens: 6,
-        success: true,
-      });
-      return { status: "active" };
-    }
+    recordTokenUsage({
+      provider: "groq",
+      model: "llama-3.3-70b-8192",
+      keySignature: sig,
+      feature: "diagnostic_test",
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      success: false,
+      errorMessage: safeErrorMsg,
+    });
 
-    trackKeyUsage(key, false);
-    if (response.status === 401) {
-      return { status: "invalid", errorMsg: "Unauthorized / Invalid Key" };
-    }
-
-    if (response.status === 429) {
-      return { status: "rate_limited", errorMsg: "Rate limit reached" };
-    }
-
-    const errText = await response.text().catch(() => "");
-    return { status: "error", errorMsg: `API Error ${response.status}: ${errText || "Unknown"}` };
-  } catch (err: any) {
-    trackKeyUsage(key, false);
-    if (err.name === "AbortError") {
-      return { status: "error", errorMsg: "Request timed out (10s)" };
-    }
-    return { status: "error", errorMsg: err.message || "Network connection error" };
+    return {
+      status: "error",
+      errorMsg: safeErrorMsg,
+    };
   }
 }
 
@@ -474,7 +496,6 @@ export async function testGeminiKey(
     clearTimeout(timeout);
 
     if (response.ok) {
-      trackKeyUsage(key, true);
       recordTokenUsage({
         provider: "gemini",
         model: "gemini-2.5-flash",
@@ -488,7 +509,6 @@ export async function testGeminiKey(
       return { status: "active" };
     }
 
-    trackKeyUsage(key, false);
     if (response.status === 400 || response.status === 401 || response.status === 403) {
       return { status: "invalid", errorMsg: `Unauthorized / Invalid (${response.status})` };
     }
@@ -498,7 +518,6 @@ export async function testGeminiKey(
     const errText = await response.text().catch(() => "");
     return { status: "error", errorMsg: `API Error ${response.status}: ${errText || "Unknown"}` };
   } catch (err: any) {
-    trackKeyUsage(key, false);
     if (err.name === "AbortError") {
       return { status: "error", errorMsg: "Request timed out (10s)" };
     }

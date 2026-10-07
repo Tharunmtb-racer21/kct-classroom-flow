@@ -75,6 +75,8 @@ import {
   testGeminiKey,
   getGeminiKeySignature,
   GEMINI_KEYS_COUNT,
+  recordKeyDiagnosticAttempt,
+  recordKeyDiagnosticResult,
 } from "@/lib/ai-service";
 import {
   getTokenSummary,
@@ -357,10 +359,33 @@ function DeveloperDashboard() {
   }, []);
 
   const handleTestKey = async (idx: number) => {
+    const sig = getGroqKeySignature(idx);
+    recordKeyDiagnosticAttempt(sig);
+    loadKeyUsage();
     setGroqKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
-    const result = await testGroqKey(idx);
-    setGroqKeysStatus((prev) => ({ ...prev, [idx]: result }));
-    loadKeyUsage(); // Reload usage count since testing adds a ping log
+
+    let result: {
+      status: "active" | "rate_limited" | "invalid" | "error";
+      errorMsg?: string;
+    } = {
+      status: "error",
+      errorMsg: "Network error",
+    };
+
+    try {
+      result = await testGroqKey(idx);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      result = {
+        status: "error",
+        errorMsg: msg,
+      };
+    } finally {
+      const isSuccess = result.status === "active";
+      recordKeyDiagnosticResult(sig, isSuccess);
+      setGroqKeysStatus((prev) => ({ ...prev, [idx]: result }));
+      loadKeyUsage();
+    }
   };
 
   const handleTestAllKeys = async () => {
@@ -390,10 +415,33 @@ function DeveloperDashboard() {
   const [testingAllGeminiKeys, setTestingAllGeminiKeys] = useState(false);
 
   const handleTestGeminiKey = async (idx: number) => {
-    setGeminiKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
-    const result = await testGeminiKey(idx);
-    setGeminiKeysStatus((prev) => ({ ...prev, [idx]: result }));
+    const sig = getGeminiKeySignature(idx);
+    recordKeyDiagnosticAttempt(sig);
     loadKeyUsage();
+    setGeminiKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
+
+    let result: {
+      status: "active" | "rate_limited" | "invalid" | "error";
+      errorMsg?: string;
+    } = {
+      status: "error",
+      errorMsg: "Network error",
+    };
+
+    try {
+      result = await testGeminiKey(idx);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      result = {
+        status: "error",
+        errorMsg: msg,
+      };
+    } finally {
+      const isSuccess = result.status === "active";
+      recordKeyDiagnosticResult(sig, isSuccess);
+      setGeminiKeysStatus((prev) => ({ ...prev, [idx]: result }));
+      loadKeyUsage();
+    }
   };
 
   const handleTestAllGeminiKeys = async () => {
@@ -3213,14 +3261,34 @@ function DeveloperDashboard() {
                               </span>
                             )}
                             {state.status === "rate_limited" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500 uppercase">
-                                <Clock className="h-3 w-3" /> Rate Limited
-                              </span>
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500 uppercase">
+                                  <Clock className="h-3 w-3" /> Rate Limited
+                                </span>
+                                {state.errorMsg && (
+                                  <span
+                                    className="block text-[10px] text-amber-400 font-mono max-w-[200px] truncate"
+                                    title={state.errorMsg}
+                                  >
+                                    {state.errorMsg}
+                                  </span>
+                                )}
+                              </div>
                             )}
                             {state.status === "invalid" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
-                                <Lock className="h-3 w-3" /> Invalid / Unauthorized
-                              </span>
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+                                  <Lock className="h-3 w-3" /> Invalid / Unauthorized
+                                </span>
+                                {state.errorMsg && (
+                                  <span
+                                    className="block text-[10px] text-rose-400 font-mono max-w-[200px] truncate"
+                                    title={state.errorMsg}
+                                  >
+                                    {state.errorMsg}
+                                  </span>
+                                )}
+                              </div>
                             )}
                             {state.status === "error" && (
                               <div className="space-y-1">
