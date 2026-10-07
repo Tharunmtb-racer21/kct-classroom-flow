@@ -365,17 +365,11 @@ export const testGroqKeyServerFn = createServerFn({ method: "POST" })
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
+      const response = await fetch("https://api.groq.com/openai/v1/models", {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${key}`,
         },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-8192",
-          messages: [{ role: "user", content: "ping" }],
-          max_tokens: 3,
-        }),
         signal: controller.signal,
       });
 
