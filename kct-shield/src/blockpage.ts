@@ -1,13 +1,75 @@
 /**
+ * Derives a human-friendly, accurate security reason from the triggered rule IDs.
+ * Eliminates misleading fallbacks and maps rules to official security threat categories.
+ */
+export function deriveBlockReason(rules: string[], explicitReason?: string): string {
+  // Discard misleading fallback if request was actually blocked by security rules
+  const sanitizedExplicit =
+    explicitReason && !explicitReason.includes("Normal classroom activity")
+      ? explicitReason.trim()
+      : undefined;
+
+  if (!rules || rules.length === 0) {
+    return sanitizedExplicit || "Suspicious request detected.";
+  }
+
+  // Identify distinct threat categories from the triggered rules
+  const categories = new Set<"XSS" | "SQLI" | "COMMAND" | "TRAVERSAL" | "SIZE">();
+
+  for (const r of rules) {
+    const upper = r.toUpperCase();
+    if (upper.startsWith("XSS-") || upper === "XSS") {
+      categories.add("XSS");
+    } else if (upper.startsWith("SQLI-") || upper === "SQLI") {
+      categories.add("SQLI");
+    } else if (upper.startsWith("CMD-") || upper === "COMMAND") {
+      categories.add("COMMAND");
+    } else if (upper.startsWith("DIR-") || upper === "TRAVERSAL") {
+      categories.add("TRAVERSAL");
+    } else if (upper.startsWith("SIZE-") || upper === "SIZE") {
+      categories.add("SIZE");
+    }
+  }
+
+  // If multiple distinct categories or multiple rules triggered, combine into standard combined reason
+  if (categories.size > 1 || rules.length > 1) {
+    return "Multiple security rules triggered.";
+  }
+
+  if (categories.has("XSS")) {
+    return "Cross-Site Scripting detected.";
+  }
+  if (categories.has("SQLI")) {
+    return "SQL Injection detected.";
+  }
+  if (categories.has("COMMAND")) {
+    return "Command Injection detected.";
+  }
+  if (categories.has("TRAVERSAL")) {
+    return "Directory Traversal detected.";
+  }
+  if (categories.has("SIZE")) {
+    return "Request body size exceeded.";
+  }
+
+  if (sanitizedExplicit) {
+    return sanitizedExplicit;
+  }
+
+  return "Suspicious request detected.";
+}
+
+/**
  * Renders a visually premium, modern dark-themed HTML block page for WAF security actions.
  */
 export function renderBlockPage(params: {
   ip: string;
-  reason: string;
+  reason?: string;
   score: number;
   rules: string[];
   incidentId: string;
 }): string {
+  const displayReason = deriveBlockReason(params.rules, params.reason);
   const rulesList =
     params.rules.length > 0
       ? params.rules.map((r) => `<span class="rule-badge">${r}</span>`).join(" ")
@@ -227,7 +289,7 @@ export function renderBlockPage(params: {
       </div>
       <div class="detail-row">
         <span class="detail-label">Reason</span>
-        <span class="detail-value">${params.reason}</span>
+        <span class="detail-value">${displayReason}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">Threat Score</span>

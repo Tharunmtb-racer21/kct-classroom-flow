@@ -10,6 +10,8 @@ export interface ValidationCheckResult {
   status: number;
   reason?: string;
   sanitizedPath: string;
+  ruleId?: string;
+  rules?: string[];
 }
 
 const MAX_JSON_BODY_BYTES = 1024 * 1024; // 1 MB
@@ -63,33 +65,42 @@ export function validateInputThreats(
 
   for (const pattern of SQLI_PATTERNS) {
     if (pattern.test(combinedPayload)) {
+      const ruleId = pattern.test(bodyText) && !pattern.test(queryStr) ? "SQLI-002" : "SQLI-001";
       return {
         isValid: false,
         status: 403,
-        reason: "Request blocked by SQL Injection defense rule.",
+        reason: "SQL Injection detected.",
         sanitizedPath,
+        ruleId,
+        rules: [ruleId],
       };
     }
   }
 
   for (const pattern of XSS_PATTERNS) {
     if (pattern.test(combinedPayload)) {
+      const ruleId = pattern.test(bodyText) && !pattern.test(queryStr) ? "XSS-002" : "XSS-001";
       return {
         isValid: false,
         status: 403,
-        reason: "Request blocked by Cross-Site Scripting (XSS) defense rule.",
+        reason: "Cross-Site Scripting detected.",
         sanitizedPath,
+        ruleId,
+        rules: [ruleId],
       };
     }
   }
 
   for (const pattern of PATH_TRAVERSAL_PATTERNS) {
     if (pattern.test(combinedPayload)) {
+      const ruleId = pattern.test(queryStr) ? "DIR-002" : "DIR-001";
       return {
         isValid: false,
         status: 403,
-        reason: "Request blocked by Path Traversal defense rule.",
+        reason: "Directory Traversal detected.",
         sanitizedPath,
+        ruleId,
+        rules: [ruleId],
       };
     }
   }

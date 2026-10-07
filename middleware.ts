@@ -108,11 +108,17 @@ export default async function middleware(req: Request) {
   // 3. Request Input Validation (XSS, SQLi, Path Traversal)
   const threatCheck = validateInputThreats(path, queryString, body);
   if (!threatCheck.isValid) {
+    const matchedRules =
+      threatCheck.rules && threatCheck.rules.length > 0
+        ? threatCheck.rules
+        : threatCheck.ruleId
+          ? [threatCheck.ruleId]
+          : ["SQLI-001"];
     const html = renderBlockPage({
       ip: clientIp,
-      reason: threatCheck.reason || "Request blocked by input security policy.",
+      reason: threatCheck.reason,
       score: 100,
-      rules: ["INPUT-THREAT-RULE"],
+      rules: matchedRules,
       incidentId: `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
     });
     return new Response(html, {
@@ -166,11 +172,19 @@ export default async function middleware(req: Request) {
   const finalAction = aggregateScore >= 50 ? "BLOCK" : staticInspection.action;
 
   if (finalAction === "BLOCK") {
+    const allTriggeredRules = staticInspection.triggeredRules.concat(mlAssessment.triggeredAnomalies);
+    const customReason =
+      staticInspection.triggeredRules.length > 0
+        ? undefined
+        : mlAssessment.riskScore >= 45 && !mlAssessment.primaryReason.includes("Normal classroom activity")
+          ? mlAssessment.primaryReason
+          : undefined;
+
     const html = renderBlockPage({
       ip: clientIp,
-      reason: mlAssessment.primaryReason || "Access Denied. Request triggered security policies.",
+      reason: customReason,
       score: aggregateScore,
-      rules: staticInspection.triggeredRules.concat(mlAssessment.triggeredAnomalies),
+      rules: allTriggeredRules,
       incidentId: `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
     });
     return new Response(html, {
