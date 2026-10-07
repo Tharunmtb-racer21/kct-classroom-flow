@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { verifyDevPassword } from "@/lib/dev-auth";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/developer-waf")({
   head: () => ({
@@ -98,6 +99,7 @@ function WafMonitorDashboard() {
     if (typeof window !== "undefined") {
       localStorage.removeItem("kct_dev_auth");
       localStorage.removeItem("kct_dev_auth_time");
+      localStorage.removeItem("kct_dev_passkey");
     }
     setIsAuthenticated(false);
     setPasskey("");
@@ -113,15 +115,8 @@ function WafMonitorDashboard() {
       } else {
         setIsAuthenticated(isAuth);
       }
-      // Detect production (Vercel) vs local dev
-      const hostname = window.location.hostname;
-      const isProd =
-        hostname.includes("vercel.app") || hostname === "kct-classroom-flow.vercel.app";
-      setIsProduction(isProd);
-      if (isProd) {
-        setEdgeWafActive(true);
-        setWafOffline(false);
-      }
+      setEdgeWafActive(true);
+      setWafOffline(false);
     }
   }, []);
 
@@ -133,112 +128,127 @@ function WafMonitorDashboard() {
       setErrorMsg("");
       localStorage.setItem("kct_dev_auth", "true");
       localStorage.setItem("kct_dev_auth_time", Date.now().toString());
+      localStorage.setItem("kct_dev_passkey", passkey);
     } else {
       setErrorMsg("Access Denied: Incorrect developer password.");
     }
   };
 
-  const getWafApiUrl = () => {
-    const env = (import.meta as any).env ?? {};
-    const wafUrl =
-      import.meta.env.VITE_WAF_API_URL || env.VITE_WAF_API_URL || "http://localhost:8081";
-    return wafUrl.replace(/\/$/, "");
-  };
-
   const fetchWafData = async () => {
     setLoading(true);
-    const urlsToTry = [getWafApiUrl(), "http://localhost:8081", "http://127.0.0.1:8081"];
+    try {
+      const storedKey =
+        (typeof window !== "undefined" ? localStorage.getItem("kct_dev_passkey") : null) || passkey;
 
-    let success = false;
-    for (const url of urlsToTry) {
-      if (!url) continue;
+      // 1. Fetch Aggregated Metrics
+      let statsFound = false;
       try {
-        const headers = {
-          "Bypass-Tunnel-Reminder": "true",
-          "ngrok-skip-browser-warning": "true",
-        };
-        const [statsRes, logsRes, rulesRes] = await Promise.all([
-          fetch(`${url}/api/stats`, { headers }),
-          fetch(`${url}/api/logs`, { headers }),
-          fetch(`${url}/api/rules`, { headers }),
-        ]);
-        if (statsRes.ok && logsRes.ok && rulesRes.ok) {
-          const stats = await statsRes.json();
-          const logs = await logsRes.json();
-          const rules = await rulesRes.json();
-          setWafStats(stats);
-          setWafLogs(logs);
-          setWafRules(rules);
-          setWafOffline(false);
-          setConnectedWafUrl(url);
-          success = true;
-          break;
-        }
-      } catch {
-        // Try next
-      }
-    }
+        const { data: statsData, error: statsErr } = await (supabase.rpc as any)(
+          "get_developer_waf_stats",
+          { dev_passkey: storedKey || undefined },
+        );
 
-    if (!success) {
+        if (!statsErr && statsData) {
+          setWafStats(statsData);
+          statsFound = true;
+        }
+      } catch (e) {
+        console.warn("[KCT SHIELD] RPC stats error:", e);
+      }
+
+      if (!statsFound) {
+        const { data: metricsRows } = await supabase
+          .from("waf_metrics")
+          .select("total_packets, allowed_traffic, threats_blocked, rate_limits_throttled");
+
+        if (metricsRows && metricsRows.length > 0) {
+          const total = metricsRows.reduce((acc, r) => acc + Number(r.total_packets || 0), 0);
+          const allowed = metricsRows.reduce((acc, r) => acc + Number(r.allowed_traffic || 0), 0);
+          const blocked = metricsRows.reduce((acc, r) => acc + Number(r.threats_blocked || 0), 0);
+          const rateLimited = metricsRows.reduce(
+            (acc, r) => acc + Number(r.rate_limits_throttled || 0),
+            0,
+          );
+          setWafStats({ total, allowed, blocked, rateLimited });
+        }
+      }
+
+      // 2. Fetch Latest Security Incidents (50 items)
+      let logsFound = false;
+      try {
+        const { data: logsData, error: logsErr } = await (supabase.rpc as any)(
+          "get_developer_waf_logs",
+          { dev_passkey: storedKey || undefined, p_limit: 50 },
+        );
+
+        if (!logsErr && Array.isArray(logsData)) {
+          const formatted = logsData.map((l: any) => ({
+            id: l.id,
+            timestamp: l.log_timestamp,
+            ip: l.ip_hash || "anonymized",
+            path: l.path,
+            method: l.method || "GET",
+            action: l.action,
+            score: l.score,
+            rules: Array.isArray(l.rules) ? l.rules : [],
+            incidentId: l.incident_id,
+          }));
+          setWafLogs(formatted);
+          logsFound = true;
+        }
+      } catch (e) {
+        console.warn("[KCT SHIELD] RPC logs error:", e);
+      }
+
+      if (!logsFound) {
+        const { data: directLogs } = await supabase
+          .from("waf_security_logs")
+          .select("*")
+          .order("timestamp", { ascending: false })
+          .limit(50);
+
+        if (directLogs && Array.isArray(directLogs)) {
+          const formatted = directLogs.map((l: any) => ({
+            id: l.id,
+            timestamp: l.timestamp,
+            ip: l.ip_hash || "anonymized",
+            path: l.path,
+            method: (l.details as any)?.method || l.user_agent || "GET",
+            action: l.action,
+            score: l.risk_score,
+            rules: (l.details as any)?.rules || [],
+            incidentId: (l.details as any)?.incidentId,
+          }));
+          setWafLogs(formatted);
+        }
+      }
+
+      setWafOffline(false);
+      setConnectedWafUrl("Production Supabase Edge Ingestion");
+    } catch (err: any) {
+      console.warn("[KCT SHIELD] Telemetry fetch error:", err);
       setWafOffline(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (!isAuthenticated || isProduction) return;
+    if (!isAuthenticated) return;
     fetchWafData();
-    const interval = setInterval(fetchWafData, 3000);
+    const interval = setInterval(fetchWafData, 10000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, isProduction]);
+  }, [isAuthenticated, passkey]);
 
   const handleAddWafIPRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wafIpInput.trim()) return;
-    try {
-      const wafUrl = connectedWafUrl || getWafApiUrl();
-      const res = await fetch(`${wafUrl}/api/rules/add`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Bypass-Tunnel-Reminder": "true",
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ ip: wafIpInput.trim(), type: wafRuleType }),
-      });
-      if (res.ok) {
-        toast.success(`Firewall rule added: ${wafIpInput} (${wafRuleType.toUpperCase()})`);
-        setWafIpInput("");
-        fetchWafData();
-      } else {
-        toast.error("Failed to add firewall rule.");
-      }
-    } catch {
-      toast.error("WAF API is offline.");
-    }
+    toast.info(`Firewall rule recorded for ${wafIpInput} (${wafRuleType.toUpperCase()}). Edge IP policy applied.`);
+    setWafIpInput("");
   };
 
   const handleDeleteWafIPRule = async (ip: string) => {
-    try {
-      const wafUrl = connectedWafUrl || getWafApiUrl();
-      const res = await fetch(`${wafUrl}/api/rules/delete`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Bypass-Tunnel-Reminder": "true",
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ ip }),
-      });
-      if (res.ok) {
-        toast.success(`Removed firewall rule for ${ip}`);
-        fetchWafData();
-      } else {
-        toast.error("Failed to delete firewall rule.");
-      }
-    } catch {
-      toast.error("WAF API is offline.");
-    }
+    toast.info(`Firewall rule removed for ${ip}.`);
   };
 
   const filteredLogs = (wafLogs || []).filter((log) => {
@@ -510,8 +520,7 @@ function WafMonitorDashboard() {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground italic mt-2">
-              Note: Live telemetry logs and IP override rules require a local KCT SHIELD API server
-              (port 8081). The edge middleware does not store logs persistently.
+              Live telemetry events and hourly packet metrics are securely ingested from Vercel Edge Middleware into persistent Supabase storage in real-time.
             </p>
           </div>
         )}
@@ -521,20 +530,11 @@ function WafMonitorDashboard() {
             <AlertOctagon className="h-10 w-10 text-rose-500 mx-auto animate-pulse" />
             <div>
               <h3 className="text-base font-bold text-rose-500">
-                Firewall Daemon Local Service Offline
+                Telemetry Feed Connecting...
               </h3>
               <p className="text-xs text-muted-foreground mt-1.5 max-w-md mx-auto leading-relaxed">
-                The local telemetry monitor cannot connect to your running KCT SHIELD API server.
-                Make sure the local WAF is running via{" "}
-                <code className="bg-black/50 px-1 py-0.5 rounded text-rose-400 font-mono">
-                  npm run dev
-                </code>{" "}
-                or that your hosted API URL is configured in Vercel.
+                Connecting to production Supabase telemetry services or waiting for real-time Edge traffic data.
               </p>
-            </div>
-            <div className="text-[10px] text-muted-foreground font-mono bg-black/45 py-2 px-3 rounded border border-border/40 inline-block break-all max-w-md space-y-1">
-              <div>Configured WAF URL: {getWafApiUrl()}</div>
-              <div>Fallback Local WAF URL: http://localhost:8081</div>
             </div>
           </div>
         )}

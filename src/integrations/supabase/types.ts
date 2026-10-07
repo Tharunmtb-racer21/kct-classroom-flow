@@ -368,6 +368,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      waf_metrics: {
+        Row: {
+          bucket_hour: string;
+          total_packets: number;
+          allowed_traffic: number;
+          threats_blocked: number;
+          rate_limits_throttled: number;
+          updated_at: string;
+        };
+        Insert: {
+          bucket_hour: string;
+          total_packets?: number;
+          allowed_traffic?: number;
+          threats_blocked?: number;
+          rate_limits_throttled?: number;
+          updated_at?: string;
+        };
+        Update: {
+          bucket_hour?: string;
+          total_packets?: number;
+          allowed_traffic?: number;
+          threats_blocked?: number;
+          rate_limits_throttled?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       ml_student_analytics: {
         Row: {
           id: string;

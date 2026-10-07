@@ -5,6 +5,7 @@ import { evaluateBehavioralAnomaly } from "./src/lib/ml-anomaly-detector";
 import { getSecurityHeaders } from "./src/lib/security-headers";
 import { isAllowedOrigin, getCorsHeaders, handleCorsPreflight } from "./src/lib/cors-policy";
 import { validatePayloadSize, validateInputThreats } from "./src/lib/request-validator";
+import { recordWafTelemetryEvent, type WafTelemetryEvent } from "./src/lib/waf-telemetry";
 
 export const config = {
   // Run middleware on all paths except static assets
@@ -43,7 +44,19 @@ function checkRouteRateLimit(key: string, limitPerMinute: number): boolean {
   return true;
 }
 
-export default async function middleware(req: Request) {
+function dispatchTelemetry(
+  context: { waitUntil?: (p: Promise<any>) => void } | undefined,
+  event: WafTelemetryEvent,
+) {
+  const p = recordWafTelemetryEvent(event);
+  if (context?.waitUntil) {
+    context.waitUntil(p);
+  } else {
+    p.catch(() => {});
+  }
+}
+
+export default async function middleware(req: Request, context?: any) {
   const url = new URL(req.url);
   const path = url.pathname;
   const queryString = url.search;
@@ -88,6 +101,16 @@ export default async function middleware(req: Request) {
 
   const payloadCheck = validatePayloadSize(path, bodySize);
   if (payloadCheck.isExceeded) {
+    const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    dispatchTelemetry(context, {
+      action: "BLOCK",
+      score: 100,
+      rules: ["SIZE-001"],
+      path,
+      method,
+      clientIp,
+      incidentId,
+    });
     return new Response(
       JSON.stringify({
         error: `Payload Too Large. Maximum allowed size for this route is ${
@@ -114,12 +137,22 @@ export default async function middleware(req: Request) {
         : threatCheck.ruleId
           ? [threatCheck.ruleId]
           : ["SQLI-001"];
+    const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    dispatchTelemetry(context, {
+      action: "BLOCK",
+      score: 100,
+      rules: matchedRules,
+      path,
+      method,
+      clientIp,
+      incidentId,
+    });
     const html = renderBlockPage({
       ip: clientIp,
       reason: threatCheck.reason,
       score: 100,
       rules: matchedRules,
-      incidentId: `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+      incidentId,
     });
     return new Response(html, {
       status: 403,
@@ -143,6 +176,16 @@ export default async function middleware(req: Request) {
   const isRateAllowed = checkRouteRateLimit(rateKey, rateLimitMax);
 
   if (!isRateAllowed) {
+    const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    dispatchTelemetry(context, {
+      action: "RATE_LIMIT",
+      score: 100,
+      rules: ["RATE-ABUSE"],
+      path,
+      method,
+      clientIp,
+      incidentId,
+    });
     const html = renderRateLimitPage({
       ip: clientIp,
       retryAfter: 60,
@@ -180,12 +223,22 @@ export default async function middleware(req: Request) {
           ? mlAssessment.primaryReason
           : undefined;
 
+    const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    dispatchTelemetry(context, {
+      action: "BLOCK",
+      score: aggregateScore,
+      rules: allTriggeredRules,
+      path,
+      method,
+      clientIp,
+      incidentId,
+    });
     const html = renderBlockPage({
       ip: clientIp,
       reason: customReason,
       score: aggregateScore,
       rules: allTriggeredRules,
-      incidentId: `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+      incidentId,
     });
     return new Response(html, {
       status: 403,
@@ -196,4 +249,14 @@ export default async function middleware(req: Request) {
       },
     });
   }
+
+  // 7. Legitimate Request Passed (ALLOW)
+  dispatchTelemetry(context, {
+    action: "ALLOW",
+    score: aggregateScore,
+    rules: [],
+    path,
+    method,
+    clientIp,
+  });
 }
