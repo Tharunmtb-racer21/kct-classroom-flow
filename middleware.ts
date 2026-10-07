@@ -6,6 +6,7 @@ import { getSecurityHeaders } from "./src/lib/security-headers";
 import { isAllowedOrigin, getCorsHeaders, handleCorsPreflight } from "./src/lib/cors-policy";
 import { validatePayloadSize, validateInputThreats } from "./src/lib/request-validator";
 import { recordWafTelemetryEvent, type WafTelemetryEvent } from "./src/lib/waf-telemetry";
+import { waitUntil } from "@vercel/functions";
 
 export const config = {
   // Run middleware on all paths except static assets
@@ -44,19 +45,16 @@ function checkRouteRateLimit(key: string, limitPerMinute: number): boolean {
   return true;
 }
 
-function dispatchTelemetry(
-  context: { waitUntil?: (p: Promise<any>) => void } | undefined,
-  event: WafTelemetryEvent,
-) {
-  const p = recordWafTelemetryEvent(event);
-  if (context?.waitUntil) {
-    context.waitUntil(p);
-  } else {
-    p.catch(() => {});
+function dispatchTelemetry(event: WafTelemetryEvent) {
+  try {
+    waitUntil(recordWafTelemetryEvent(event));
+  } catch {
+    // Isolated fallback: never throw or block request execution
+    recordWafTelemetryEvent(event).catch(() => {});
   }
 }
 
-export default async function middleware(req: Request, context?: any) {
+export default async function middleware(req: Request) {
   const url = new URL(req.url);
   const path = url.pathname;
   const queryString = url.search;
@@ -102,7 +100,7 @@ export default async function middleware(req: Request, context?: any) {
   const payloadCheck = validatePayloadSize(path, bodySize);
   if (payloadCheck.isExceeded) {
     const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    dispatchTelemetry(context, {
+    dispatchTelemetry({
       action: "BLOCK",
       score: 100,
       rules: ["SIZE-001"],
@@ -138,7 +136,7 @@ export default async function middleware(req: Request, context?: any) {
           ? [threatCheck.ruleId]
           : ["SQLI-001"];
     const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    dispatchTelemetry(context, {
+    dispatchTelemetry({
       action: "BLOCK",
       score: 100,
       rules: matchedRules,
@@ -177,7 +175,7 @@ export default async function middleware(req: Request, context?: any) {
 
   if (!isRateAllowed) {
     const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    dispatchTelemetry(context, {
+    dispatchTelemetry({
       action: "RATE_LIMIT",
       score: 100,
       rules: ["RATE-ABUSE"],
@@ -224,7 +222,7 @@ export default async function middleware(req: Request, context?: any) {
           : undefined;
 
     const incidentId = `INC-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    dispatchTelemetry(context, {
+    dispatchTelemetry({
       action: "BLOCK",
       score: aggregateScore,
       rules: allTriggeredRules,
@@ -251,7 +249,7 @@ export default async function middleware(req: Request, context?: any) {
   }
 
   // 7. Legitimate Request Passed (ALLOW)
-  dispatchTelemetry(context, {
+  dispatchTelemetry({
     action: "ALLOW",
     score: aggregateScore,
     rules: [],

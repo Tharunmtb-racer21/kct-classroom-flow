@@ -92,7 +92,7 @@ export async function recordWafTelemetryEvent(event: WafTelemetryEvent): Promise
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
     try {
-      await fetch(rpcEndpoint, {
+      const response = await fetch(rpcEndpoint, {
         method: "POST",
         headers: {
           apikey: supabaseKey,
@@ -112,6 +112,10 @@ export async function recordWafTelemetryEvent(event: WafTelemetryEvent): Promise
         }),
         signal: controller.signal,
       });
+
+      if (!response.ok) {
+        console.warn(`[KCT SHIELD Telemetry] Supabase RPC returned HTTP ${response.status}`);
+      }
     } finally {
       clearTimeout(timeoutId);
     }
