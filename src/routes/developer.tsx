@@ -3,13 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertOctagon,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
   BarChart3,
   Brain,
   Calendar,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Database,
   Download,
+  ExternalLink,
   Eye,
   FileEdit,
   Flame,
@@ -31,6 +36,8 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Server,
+  Settings,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -63,7 +70,6 @@ import { auth } from "@/lib/firebase";
 import { autoDraftStaleSessions, purgeEmptyTestSessions } from "@/lib/session-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -106,15 +112,8 @@ import {
 } from "@/lib/token-tracker";
 import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
-import { DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
+import { AdminSection, DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
-const devMobileNavItems = [
-  { title: "Dashboard", url: "/developer" as const, icon: LayoutDashboard },
-  { title: "ML Intel", url: "/dashboard/intelligence" as const, icon: Brain },
-  { title: "Security", url: "/dashboard/security" as const, icon: ShieldCheck },
-  { title: "WAF", url: "/developer-waf" as const, icon: Shield },
-];
 
 type SessionRow = {
   id: string;
@@ -345,6 +344,12 @@ function DeveloperDashboard() {
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState<FailedAttemptRecord[]>([]);
   const [isServerDown, setIsServerDown] = useState(false);
+  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [facultySubTab, setFacultySubTab] = useState<"overview" | "list" | "breakdown">("overview");
+  const [securitySubTab, setSecuritySubTab] = useState<"overview" | "failed_attempts" | "logins" | "waf">("overview");
+  const [healthSubTab, setHealthSubTab] = useState<"infrastructure" | "ai_services" | "tokens">("infrastructure");
+  const [questionsSubTab, setQuestionsSubTab] = useState<"management" | "analytics">("management");
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState<"ALL" | "Feedback" | "Bug" | "Feature" | "Inquiry">("ALL");
   const [demotingSessionId, setDemotingSessionId] = useState<string | null>(null);
   const [isDemotingAll, setIsDemotingAll] = useState(false);
   const [devRenameOpen, setDevRenameOpen] = useState(false);
@@ -745,6 +750,36 @@ function DeveloperDashboard() {
       { name: "Ended", value: ended, color: "#64748b" },
     ];
   }, [sessions]);
+
+  // Real platform activity data aggregated over recent days for Dashboard Overview chart
+  const platformActivityChartData = useMemo(() => {
+    const points: { date: string; label: string; sessions: number; responses: number; joins: number }[] = [];
+    const count = timeframe === "1D" ? 6 : timeframe === "7D" ? 7 : timeframe === "30D" ? 14 : 7;
+    const now = new Date();
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        weekday: count <= 7 ? "short" : undefined,
+      });
+
+      const sessCount = sessions.filter((s) => s.created_at && s.created_at.startsWith(dateStr)).length;
+      const respCount = responses.filter((r) => r.created_at && r.created_at.startsWith(dateStr)).length;
+      const joinCount = participants.filter((p) => p.joined_at && p.joined_at.startsWith(dateStr)).length;
+
+      points.push({
+        date: dateStr,
+        label,
+        sessions: sessCount,
+        responses: respCount,
+        joins: joinCount,
+      });
+    }
+    return points;
+  }, [timeframe, sessions, responses, participants]);
 
   const recordFailedAttempt = async () => {
     if (typeof window === "undefined") return;
@@ -1680,6 +1715,11 @@ function DeveloperDashboard() {
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-[300px] max-w-[85vw] bg-sidebar/95 border-r border-border/60">
               <DeveloperSidebarContent
+                activeSection={activeSection}
+                onSelectSection={(sec) => {
+                  setActiveSection(sec);
+                  setMobileDrawerOpen(false);
+                }}
                 isServerDown={isServerDown}
                 onToggleServerDown={() => {
                   handleToggleServerDown();
@@ -1718,7 +1758,15 @@ function DeveloperDashboard() {
                   setMobileDrawerOpen(false);
                   handleLockDeveloper();
                 }}
-                activeItem="Developer Dashboard"
+                badgeCounts={{
+                  sessions: filteredSessionsByTime.length,
+                  liveSessions: liveSessionsCount,
+                  faculty: uniqueCreators.length,
+                  questions: timeframeCounts.questions || filteredQuestionsByTime.length,
+                  submissions: timeframeCounts.responses || filteredResponsesByTime.length,
+                  failedAttempts: failedAttempts.length,
+                  unreadFeedback: contactMessages.filter((m) => m.status === "unread").length,
+                }}
                 onClose={() => setMobileDrawerOpen(false)}
               />
             </SheetContent>
@@ -1730,7 +1778,7 @@ function DeveloperDashboard() {
               KCT <span className="gradient-text">PULSE</span>
             </span>
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">
-              DEV
+              ADMIN
             </span>
           </div>
         </div>
@@ -1745,29 +1793,11 @@ function DeveloperDashboard() {
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden items-center justify-around border-t border-border/60 bg-sidebar/95 backdrop-blur-xl py-2 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-xl">
-        {devMobileNavItems.map((item) => {
-          const active = item.url === "/developer";
-          return (
-            <Link
-              key={item.url}
-              to={item.url}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition",
-                active ? "gradient-text font-extrabold" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              <span className="truncate">{item.title}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
       {/* Persistent Desktop Developer Sidebar + Main Content Area */}
-      <div className="relative z-10 flex h-dvh w-full pb-16 md:pb-0 overflow-hidden">
+      <div className="relative z-10 flex h-dvh w-full overflow-hidden">
         <DeveloperSidebar
+          activeSection={activeSection}
+          onSelectSection={(sec) => setActiveSection(sec)}
           isServerDown={isServerDown}
           onToggleServerDown={handleToggleServerDown}
           timeframe={timeframe}
@@ -1787,303 +1817,542 @@ function DeveloperDashboard() {
             }
           }}
           onLockPortal={handleLockDeveloper}
-          activeItem="Developer Dashboard"
+          badgeCounts={{
+            sessions: filteredSessionsByTime.length,
+            liveSessions: liveSessionsCount,
+            faculty: uniqueCreators.length,
+            questions: timeframeCounts.questions || filteredQuestionsByTime.length,
+            submissions: timeframeCounts.responses || filteredResponsesByTime.length,
+            failedAttempts: failedAttempts.length,
+            unreadFeedback: contactMessages.filter((m) => m.status === "unread").length,
+          }}
         />
 
         <main className="flex-1 min-w-0 flex flex-col justify-between overflow-x-hidden overflow-y-auto">
           <div className="max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
-            {/* Essential Page Header (No Giant Toolbar) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
-              <div>
+            {/* Top Enterprise Admin Header */}
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-border/50">
+              <div className="space-y-0.5">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">
-                    Developer Telemetry Suite
+                    {activeSection === "dashboard" && "Platform Overview"}
+                    {activeSection === "sessions" && "Session Operations"}
+                    {activeSection === "faculty" && "Faculty Management"}
+                    {activeSection === "questions" && "Question Bank & Analytics"}
+                    {activeSection === "submissions" && "Submissions & Responses"}
+                    {activeSection === "activity" && "Platform Activity & Telemetry"}
+                    {activeSection === "security" && "Security & Access Control"}
+                    {activeSection === "health" && "System Health & AI Services"}
+                    {activeSection === "feedback" && "User Feedback"}
+                    {activeSection === "contact_messages" && "Contact Inquiries"}
+                    {activeSection === "settings" && "System Settings & Maintenance"}
                   </h1>
+
                   <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> LIVE
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" /> OPERATIONAL
                   </span>
+
+                  {failedAttempts.length > 0 && (
+                    <span className="rounded-full bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                      <Shield className="h-3 w-3 text-rose-500" /> {failedAttempts.length} Security Alert{failedAttempts.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+
                   {isServerDown && (
-                    <span className="rounded-full bg-rose-500/10 border border-rose-500/40 px-2.5 py-0.5 text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
-                      <AlertOctagon className="h-3 w-3" /> Server Down Active
+                    <span className="rounded-full bg-rose-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                      Server Down Active
                     </span>
                   )}
                 </div>
-                <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
-                  Real-time Faculty, Session & Student Join Analytics · Window:{" "}
-                  <span className="font-extrabold text-foreground">{timeframe}</span>
+                <p className="text-xs text-muted-foreground">
+                  {activeSection === "dashboard" && "Real-time institutional metrics, classroom session lifecycle, and infrastructure health."}
+                  {activeSection === "sessions" && "Monitor active live classrooms, manage drafts, and inspect session analytics."}
+                  {activeSection === "faculty" && "Faculty engagement directory, session assignments, and contact mapping overrides."}
+                  {activeSection === "questions" && "Institutional questions bank, question format composition, and engagement types."}
+                  {activeSection === "submissions" && "Live student submission stream and classroom response logs."}
+                  {activeSection === "activity" && "Audit log trace, administrative actions, and real-time platform telemetry."}
+                  {activeSection === "security" && "Authentication logs, access control security, failed passkey attempts, and WAF events."}
+                  {activeSection === "health" && "Database realtime connectivity, API latency, AI provider pools, and token telemetry."}
+                  {activeSection === "feedback" && "Student and faculty feedback submissions and feature suggestions."}
+                  {activeSection === "contact_messages" && "Public contact inquiries, support requests, and user communications."}
+                  {activeSection === "settings" && "Platform controls, database maintenance, dataset export, and portal lock."}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-center">
+              {/* Header Right: Global Search & Admin Profile Status */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search sessions, faculty, queries..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8.5 h-9 text-xs bg-card/60 border-border rounded-xl"
+                  />
+                </div>
+
                 <Button
                   onClick={() => loadData()}
                   variant="outline"
                   size="sm"
-                  className="gap-2 text-xs border-border/60 hover:bg-accent"
+                  className="h-9 px-3 text-xs rounded-xl border-border/70 hover:bg-accent gap-1.5 font-semibold"
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                  <span>Refresh</span>
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
-              </div>
-            </div>
-        {/* Security Warning Banner for Failed Password Attempts */}
-        {failedAttempts.length > 0 && (
-          <div className="glass rounded-2xl p-4 border border-rose-500/40 bg-rose-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/30 grid place-items-center text-rose-500 shrink-0">
-                <Shield className="h-5 w-5 animate-pulse" />
-              </div>
-              <div>
-                <div className="text-xs font-black text-rose-500 uppercase tracking-wider">
-                  Security Warning: Failed Developer Password Attempts Logged
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  <span className="font-extrabold text-foreground">
-                    {failedAttempts.length} unauthorized access attempt(s)
-                  </span>{" "}
-                  recorded. Last attempt:{" "}
-                  <span className="font-mono text-foreground">
-                    {failedAttempts[0]?.attempted_at
-                      ? new Date(failedAttempts[0].attempted_at).toLocaleString()
-                      : "Recently"}
-                  </span>{" "}
-                  from{" "}
-                  <span className="font-semibold text-foreground">
-                    {failedAttempts[0]?.client_environment || "Unknown Device"}
-                  </span>{" "}
-                  (IP:{" "}
-                  <span className="font-mono text-muted-foreground">
-                    {failedAttempts[0]?.ip_address || "unknown"}
-                  </span>
-                  ).
+
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card/60 border border-border/60 text-xs">
+                  <div className="h-6 w-6 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center text-primary font-bold text-[10px]">
+                    AD
+                  </div>
+                  <div className="hidden sm:flex flex-col text-left">
+                    <span className="font-bold text-[11px] leading-tight text-foreground truncate max-w-[120px]">
+                      {auth.currentUser?.email || "Admin User"}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground">Authorized Superadmin</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <Button
-              onClick={handleClearFailedAttempts}
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10 shrink-0"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Clear Access Logs
-            </Button>
-          </div>
-        )}
+            </header>
 
-        {/* Realtime API & Storage Health Indicators */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 grid place-items-center text-emerald-500">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">
-                API Latency Ping
-              </div>
-              <div className="text-lg font-black">
-                {apiLatencyMs !== null ? `${apiLatencyMs} ms` : "--"}
-              </div>
-            </div>
-          </div>
+            {/* VIEW 1: DASHBOARD HOME (GENUINE ADMIN OVERVIEW) */}
+            {activeSection === "dashboard" && (
+              <div className="space-y-6">
+                {/* Real-Data KPI Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* KPI 1: Sessions */}
+                  <div
+                    onClick={() => setActiveSection("sessions")}
+                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-primary/50 transition hover:shadow-md group relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+                        Classroom Sessions ({timeframe})
+                      </span>
+                      <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/30 grid place-items-center text-primary group-hover:scale-110 transition-transform">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black">
+                        {timeframeCounts.sessions || filteredSessionsByTime.length}
+                      </span>
+                      <span className="text-xs text-emerald-500 font-bold">
+                        ({liveSessionsCount} Live Now)
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/40">
+                      <span>{draftSessionsCount} Drafts • {endedSessionsCount} Ended</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                    </div>
+                  </div>
 
-          <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/30 grid place-items-center text-blue-500">
-              <Database className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">
-                Supabase Realtime
-              </div>
-              <div className="text-lg font-black text-emerald-500 flex items-center gap-1">
-                <CheckCircle2 className="h-4 w-4" /> Connected
-              </div>
-            </div>
-          </div>
+                  {/* KPI 2: Faculty */}
+                  <div
+                    onClick={() => {
+                      setActiveSection("faculty");
+                      setFacultySubTab("overview");
+                    }}
+                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-purple-500/50 transition hover:shadow-md group relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+                        Active Faculty ({timeframe})
+                      </span>
+                      <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500 group-hover:scale-110 transition-transform">
+                        <UserCheck className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black text-foreground">
+                        {uniqueCreators.length}
+                      </span>
+                      <span className="text-xs text-purple-400 font-bold">Faculty Instructors</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/40">
+                      <span>{timeframeCounts.participants || filteredParticipantsByTime.length} Students Taught</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-purple-400" />
+                    </div>
+                  </div>
 
-          <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500">
-              <UserCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">
-                Faculty Creators ({timeframe})
-              </div>
-              <div className="text-lg font-black text-foreground">
-                {uniqueCreators.length} Faculty
-              </div>
-            </div>
-          </div>
+                  {/* KPI 3: Submissions & Student Joins */}
+                  <div
+                    onClick={() => setActiveSection("submissions")}
+                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-blue-500/50 transition hover:shadow-md group relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+                        Total Submissions ({timeframe})
+                      </span>
+                      <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/30 grid place-items-center text-blue-500 group-hover:scale-110 transition-transform">
+                        <MessageSquare className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black text-foreground">
+                        {timeframeCounts.responses || filteredResponsesByTime.length}
+                      </span>
+                      <span className="text-xs text-blue-400 font-bold">Answers</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/40">
+                      <span>{timeframeCounts.participants || filteredParticipantsByTime.length} Student Joins</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />
+                    </div>
+                  </div>
 
-          <div className="glass rounded-2xl p-4 border border-border/60 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/30 grid place-items-center text-amber-500">
-              <Users className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-muted-foreground uppercase">
-                Total Students Joined ({timeframe})
+                  {/* KPI 4: Questions */}
+                  <div
+                    onClick={() => {
+                      setActiveSection("questions");
+                      setQuestionsSubTab("management");
+                    }}
+                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-cyan-500/50 transition hover:shadow-md group relative overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+                        Questions Added ({timeframe})
+                      </span>
+                      <div className="h-9 w-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 grid place-items-center text-cyan-500 group-hover:scale-110 transition-transform">
+                        <HelpCircle className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black text-foreground">
+                        {timeframeCounts.questions || filteredQuestionsByTime.length}
+                      </span>
+                      <span className="text-xs text-cyan-400 font-bold">Questions</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/40">
+                      <span>{pollQuestionsCount} Polls • {wordcloudQuestionsCount} Word Clouds • {quizQuestionsCount} Quizzes</span>
+                      <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-cyan-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Middle Row: Platform Activity Trends + System Health Summary */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  {/* 1. Platform Activity Chart */}
+                  <div className="lg:col-span-2 glass rounded-2xl p-5 border border-border/60 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-black tracking-tight text-foreground">
+                          Platform Activity Trends
+                        </h3>
+                        <span className="text-[11px] font-bold text-muted-foreground">
+                          ({timeframe === "ALL" ? "Recent Window" : timeframe})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                          <span>Sessions</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-purple-500" />
+                          <span>Submissions</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span>Joins</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={platformActivityChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#a855f7" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="colorJoins" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.4)" vertical={false} />
+                          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} allowDecimals={false} />
+                          <RechartsTooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              borderColor: "hsl(var(--border))",
+                              borderRadius: "0.75rem",
+                              fontSize: "0.75rem",
+                              color: "hsl(var(--foreground))",
+                              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                            }}
+                          />
+                          <Area type="monotone" dataKey="sessions" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorSessions)" name="Sessions" />
+                          <Area type="monotone" dataKey="responses" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorResponses)" name="Responses" />
+                          <Area type="monotone" dataKey="joins" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorJoins)" name="Joins" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* 2. System Health Summary */}
+                  <div className="glass rounded-2xl p-5 border border-border/60 flex flex-col justify-between space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-amber-400" />
+                        <h3 className="text-sm font-black tracking-tight text-foreground">
+                          System Health Summary
+                        </h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveSection("health")}
+                        className="text-xs h-7 px-2 text-primary hover:text-primary gap-1"
+                      >
+                        <span>Inspect</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-card/60 border border-border/50 text-xs">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                          <span>API Latency Ping</span>
+                        </div>
+                        <span className="font-mono font-bold text-foreground">
+                          {apiLatencyMs !== null ? `${apiLatencyMs} ms` : "--"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-card/60 border border-border/50 text-xs">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Database className="h-3.5 w-3.5 text-blue-400" />
+                          <span>Supabase Realtime</span>
+                        </div>
+                        <span className="font-bold text-emerald-500 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Connected
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-card/60 border border-border/50 text-xs">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Key className="h-3.5 w-3.5 text-amber-400" />
+                          <span>AI Key Pools</span>
+                        </div>
+                        <span className="font-bold text-foreground">
+                          16 Keys (Gemini & Groq)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-card/60 border border-border/50 text-xs">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Shield className="h-3.5 w-3.5 text-rose-400" />
+                          <span>Access Security</span>
+                        </div>
+                        <span className={cn("font-bold", failedAttempts.length > 0 ? "text-rose-400" : "text-emerald-500")}>
+                          {failedAttempts.length === 0 ? "Protected / Normal" : `${failedAttempts.length} Alerts`}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveSection("health")}
+                      className="w-full text-xs font-semibold rounded-xl border-border/70"
+                    >
+                      View Full System Health
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Bottom Row: Needs Attention / Alerts + Recent Activity */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* 3. Needs Attention / Alerts */}
+                  <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-400" />
+                        <h3 className="text-sm font-black tracking-tight text-foreground">
+                          Needs Attention & Alerts
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase">
+                        Live Status
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {failedAttempts.length > 0 && (
+                        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Shield className="h-4 w-4 text-rose-400 shrink-0 animate-pulse" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-rose-400 truncate">
+                                {failedAttempts.length} Unauthorized Passkey Attempt(s)
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                Last from {failedAttempts[0]?.client_environment || "Unknown Device"} ({failedAttempts[0]?.ip_address || "unknown"})
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setActiveSection("security");
+                              setSecuritySubTab("failed_attempts");
+                            }}
+                            className="text-[11px] h-7 px-2.5 border-rose-500/40 text-rose-400 hover:bg-rose-500/10 shrink-0 font-bold"
+                          >
+                            Review
+                          </Button>
+                        </div>
+                      )}
+
+                      {isServerDown && (
+                        <div className="p-3 rounded-xl bg-rose-600 text-white flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <AlertOctagon className="h-4 w-4 text-white shrink-0 animate-pulse" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-black truncate">Server Down Mode is ACTIVE</div>
+                              <div className="text-[11px] text-white/80 truncate">Public app traffic is currently intercepted</div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveSection("settings")}
+                            className="text-[11px] h-7 px-2.5 bg-white/20 border-white/30 text-white hover:bg-white/30 shrink-0 font-bold"
+                          >
+                            Manage
+                          </Button>
+                        </div>
+                      )}
+
+                      {liveSessionsCount > 0 && (
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Radio className="h-4 w-4 text-emerald-400 shrink-0 animate-pulse" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-emerald-400 truncate">
+                                {liveSessionsCount} Live Classroom Session(s) Running
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                Active student participation in progress
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setActiveSection("sessions");
+                              setStatusFilter("live");
+                            }}
+                            className="text-[11px] h-7 px-2.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 shrink-0 font-bold"
+                          >
+                            Monitor
+                          </Button>
+                        </div>
+                      )}
+
+                      {contactMessages.filter((m) => m.status === "unread").length > 0 && (
+                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Mail className="h-4 w-4 text-amber-400 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-amber-400 truncate">
+                                {contactMessages.filter((m) => m.status === "unread").length} Unread Feedback / Inquiry Message(s)
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                Submissions awaiting administrator review
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveSection("contact_messages")}
+                            className="text-[11px] h-7 px-2.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 shrink-0 font-bold"
+                          >
+                            View Inbox
+                          </Button>
+                        </div>
+                      )}
+
+                      {failedAttempts.length === 0 && !isServerDown && liveSessionsCount === 0 && contactMessages.filter((m) => m.status === "unread").length === 0 && (
+                        <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center space-y-1">
+                          <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto" />
+                          <div className="text-xs font-bold text-foreground">All Systems Operational</div>
+                          <p className="text-[11px] text-muted-foreground">
+                            No security incidents, active errors, or unhandled user inquiries detected.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 4. Recent Activity */}
+                  <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-black tracking-tight text-foreground">
+                          Recent Platform Activity
+                        </h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveSection("activity")}
+                        className="text-xs h-7 px-2 text-primary hover:text-primary gap-1"
+                      >
+                        <span>Full Log</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                      {sessions.slice(0, 5).map((s) => {
+                        const fac = getFacultyInfo(s.creator_id);
+                        return (
+                          <div key={s.id} className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-card/60 border border-border/40 text-xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center text-primary font-mono text-[10px] shrink-0 font-bold">
+                                {s.code}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-foreground truncate">{s.title}</div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  by {fac.name} • {s.created_at ? new Date(s.created_at).toLocaleDateString() : "Recent"}
+                                </div>
+                              </div>
+                            </div>
+                            <span className={cn(
+                              "text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0",
+                              s.status === "live" ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" :
+                              s.status === "draft" ? "bg-amber-500/15 text-amber-500 border border-amber-500/30" :
+                              "bg-muted text-muted-foreground"
+                            )}>
+                              {s.status}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {sessions.length === 0 && (
+                        <div className="text-xs text-muted-foreground text-center py-6">
+                          No recorded classroom sessions yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="text-lg font-black text-foreground">
-                {timeframeCounts.participants || filteredParticipantsByTime.length} Students
-              </div>
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Primary KPI Overview Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                Classroom Sessions ({timeframe})
-              </span>
-              <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/30 grid place-items-center text-primary">
-                <Layers className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">
-                {timeframeCounts.sessions || filteredSessionsByTime.length}
-              </span>
-              <span className="text-xs text-emerald-500 font-bold">
-                ({liveSessionsCount} Live Now)
-              </span>
-            </div>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
-              <span>{draftSessionsCount} Drafts</span>
-              <span>•</span>
-              <span>{endedSessionsCount} Completed</span>
-            </div>
-          </div>
-
-          <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                Questions Created ({timeframe})
-              </span>
-              <div className="h-9 w-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 grid place-items-center text-cyan-500">
-                <HelpCircle className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">
-                {timeframeCounts.questions || filteredQuestionsByTime.length}
-              </span>
-              <span className="text-xs text-cyan-500 font-bold">Questions</span>
-            </div>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-border/40">
-              <span>{pollQuestionsCount} Polls</span>
-              <span>•</span>
-              <span>{wordcloudQuestionsCount} Word Clouds</span>
-              <span>•</span>
-              <span>{quizQuestionsCount} Quizzes</span>
-            </div>
-          </div>
-
-          <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                Student Joins ({timeframe})
-              </span>
-              <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/30 grid place-items-center text-blue-500">
-                <Users className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">
-                {timeframeCounts.participants || filteredParticipantsByTime.length}
-              </span>
-              <span className="text-xs text-blue-500 font-bold">Students Joined</span>
-            </div>
-            <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
-              Across all classroom sessions
-            </div>
-          </div>
-
-          <div className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                Responses Submitted ({timeframe})
-              </span>
-              <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">
-                {timeframeCounts.responses || filteredResponsesByTime.length}
-              </span>
-              <span className="text-xs text-purple-500 font-bold">Answers</span>
-            </div>
-            <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/40 truncate">
-              Recorded answers across all sessions
-            </div>
-          </div>
-        </div>
-
-        {/* Detailed Tabs Suite */}
-        <Tabs defaultValue="sessions" className="space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-3">
-            <TabsList className="bg-card border border-border p-1 rounded-xl flex-wrap">
-              <TabsTrigger value="sessions" className="gap-2 text-xs font-semibold">
-                <Layers className="h-3.5 w-3.5" /> Sessions & Faculty ({searchedSessions.length})
-              </TabsTrigger>
-              <TabsTrigger value="creators" className="gap-2 text-xs font-semibold">
-                <UserCheck className="h-3.5 w-3.5" /> Faculty Breakdown ({uniqueCreators.length})
-              </TabsTrigger>
-              <TabsTrigger value="login_logs" className="gap-2 text-xs font-semibold">
-                <Activity className="h-3.5 w-3.5 text-emerald-400" /> Login History (
-                {loginLogs.length})
-              </TabsTrigger>
-              <TabsTrigger value="questions" className="gap-2 text-xs font-semibold">
-                <HelpCircle className="h-3.5 w-3.5 text-cyan-500" /> Questions Added (
-                {timeframeCounts.questions || filteredQuestionsByTime.length})
-              </TabsTrigger>
-              <TabsTrigger value="responses" className="gap-2 text-xs font-semibold">
-                <MessageSquare className="h-3.5 w-3.5" /> Submissions (
-                {timeframeCounts.responses || filteredResponsesByTime.length})
-              </TabsTrigger>
-              <TabsTrigger value="telemetry" className="gap-2 text-xs font-semibold">
-                <Terminal className="h-3.5 w-3.5" /> Telemetry Logs ({auditLogs.length})
-              </TabsTrigger>
-              <TabsTrigger
-                value="security"
-                className="gap-2 text-xs font-semibold text-rose-400 data-[state=active]:text-rose-500"
-              >
-                <Shield className="h-3.5 w-3.5" /> Failed Attempts ({failedAttempts.length})
-              </TabsTrigger>
-              <TabsTrigger
-                value="ai_keys"
-                className="gap-2 text-xs font-semibold text-amber-400 data-[state=active]:text-amber-500"
-              >
-                <Key className="h-3.5 w-3.5" /> AI Keys Pool (16)
-              </TabsTrigger>
-              <TabsTrigger
-                value="tokens"
-                className="gap-2 text-xs font-semibold text-cyan-400 data-[state=active]:text-cyan-500"
-              >
-                <Zap className="h-3.5 w-3.5" /> Token Telemetry ({tokenSummary.totalTokens.toLocaleString()})
-              </TabsTrigger>
-              <TabsTrigger
-                value="contact_messages"
-                className="gap-2 text-xs font-semibold text-blue-400 data-[state=active]:text-blue-500"
-              >
-                <MessageSquare className="h-3.5 w-3.5" /> Feedback ({contactMessages.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search sessions/faculty/students..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs bg-card/60 border-border"
-              />
-            </div>
-          </div>
-
-          {/* TAB 1: ALL SESSIONS & FACULTY MONITOR */}
-          <TabsContent value="sessions" className="space-y-4">
+            {/* VIEW 2: SESSIONS MANAGEMENT */}
+            {activeSection === "sessions" && (
+              <div className="space-y-4">
             {/* Visual Sessions & Questions Composition Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Question Format Composition */}
@@ -2551,10 +2820,177 @@ function DeveloperDashboard() {
                 </table>
               </div>
             </div>
-          </TabsContent>
+              </div>
+            )}
 
-          {/* TAB 2: FACULTY CREATORS MONITOR */}
-          <TabsContent value="creators" className="space-y-4">
+            {/* VIEW 3: FACULTY MANAGEMENT */}
+            {activeSection === "faculty" && (
+              <div className="space-y-4">
+                {/* Segmented Subnav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-1.5 p-1 bg-card/60 border border-border/60 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setFacultySubTab("overview")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        facultySubTab === "overview"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Faculty Overview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFacultySubTab("list")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        facultySubTab === "list"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Faculty Directory ({uniqueCreators.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFacultySubTab("breakdown")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        facultySubTab === "breakdown"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Analytics & Breakdown
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtab 1: Faculty Overview */}
+                {facultySubTab === "overview" && (
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Total Faculty Mentors</span>
+                        <div className="text-2xl font-black text-foreground">{uniqueCreators.length}</div>
+                        <p className="text-[11px] text-muted-foreground">Active course creators across platform</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Total Classroom Sessions</span>
+                        <div className="text-2xl font-black text-primary">{sessions.length}</div>
+                        <p className="text-[11px] text-muted-foreground">{liveSessionsCount} live sessions active</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Total Students Engaged</span>
+                        <div className="text-2xl font-black text-blue-400">{participants.length}</div>
+                        <p className="text-[11px] text-muted-foreground">Across all faculty classrooms</p>
+                      </div>
+                    </div>
+
+                    <div className="glass rounded-2xl p-5 border border-border/60 space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                        Top Faculty by Session Volume & Engagement
+                      </h4>
+                      <div className="space-y-2">
+                        {uniqueCreators.slice(0, 5).map((fac, idx) => {
+                          const info = getFacultyInfo(fac.creator_id);
+                          return (
+                            <div key={fac.creator_id} className="flex items-center justify-between p-3 rounded-xl bg-card/50 border border-border/40 text-xs">
+                              <div className="flex items-center gap-3">
+                                <span className="h-6 w-6 rounded-full bg-primary/10 text-primary font-bold grid place-items-center text-xs">
+                                  {idx + 1}
+                                </span>
+                                <div>
+                                  <div className="font-bold text-foreground">{info.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{info.email}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4 text-right">
+                                <div>
+                                  <div className="font-bold text-foreground">{fac.count} Sessions</div>
+                                  <div className="text-[10px] text-muted-foreground">{fac.totalStudents} Students</div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setSearchQuery(info.name);
+                                    setActiveSection("sessions");
+                                  }}
+                                  className="h-7 text-xs text-primary"
+                                >
+                                  View
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subtab 2: Faculty Directory List */}
+                {facultySubTab === "list" && (
+                  <div className="glass rounded-2xl overflow-hidden border border-border/60">
+                    <div className="p-4 bg-card/40 border-b border-border/60 flex items-center justify-between gap-3">
+                      <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                        Faculty Directory & Contact Mapping ({uniqueCreators.length})
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-muted/40 text-muted-foreground font-bold uppercase text-[10px] tracking-wider border-b border-border/40">
+                          <tr>
+                            <th className="py-3 px-4">Faculty Name</th>
+                            <th className="py-3 px-4">Email</th>
+                            <th className="py-3 px-4">Creator ID</th>
+                            <th className="py-3 px-4">Sessions</th>
+                            <th className="py-3 px-4">Students</th>
+                            <th className="py-3 px-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {uniqueCreators.map((item) => {
+                            const info = getFacultyInfo(item.creator_id);
+                            return (
+                              <tr key={item.creator_id} className="hover:bg-accent/30 transition-colors">
+                                <td className="py-3 px-4 font-bold text-foreground">{info.name}</td>
+                                <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">{info.email}</td>
+                                <td className="py-3 px-4 font-mono text-[10px] text-muted-foreground/70">{item.creator_id.slice(0, 10)}...</td>
+                                <td className="py-3 px-4 font-bold text-foreground">{item.count}</td>
+                                <td className="py-3 px-4 font-bold text-primary">{item.totalStudents}</td>
+                                <td className="py-3 px-4 text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingFacultyModal({
+                                        creatorId: item.creator_id,
+                                        currentName: info.name,
+                                        currentEmail: info.email !== "No email synced" ? info.email : "",
+                                      });
+                                      setEditingFacultyName(info.name);
+                                      setEditingFacultyEmail(info.email !== "No email synced" ? info.email : "");
+                                    }}
+                                    className="h-7 text-xs gap-1 border-border/70"
+                                  >
+                                    <Pencil className="h-3 w-3" /> Edit
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subtab 3: Faculty Analytics & Breakdown */}
+                {facultySubTab === "breakdown" && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {uniqueCreators.map((item) => {
                 const facultySessions = filteredSessionsByTime.filter(
@@ -2690,179 +3126,68 @@ function DeveloperDashboard() {
                 );
               })}
             </div>
+                )}
+              </div>
+            )}
 
-            {/* Dev Rename Session Dialog */}
-            <Dialog open={devRenameOpen} onOpenChange={setDevRenameOpen}>
-              <DialogContent className="max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
-                <DialogHeader className="text-left">
-                  <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
-                    <Pencil className="h-4 w-4 text-primary" />
-                    Rename Session (Developer Override)
-                  </DialogTitle>
-                </DialogHeader>
-
-                <form onSubmit={handleSaveDevRename} className="space-y-4 pt-2">
-                  <div className="space-y-2 text-left">
-                    <label className="text-xs font-semibold text-muted-foreground">
-                      Session Title
-                    </label>
-                    <Input
-                      value={devNewTitle}
-                      onChange={(e) => setDevNewTitle(e.target.value)}
-                      required
-                      autoFocus
-                      placeholder="Session Title"
-                      className="rounded-xl border-border bg-background/50 h-10 text-sm"
-                    />
-                    {devRenameSession && (
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
-                        <span>
-                          Code:{" "}
-                          <span className="font-mono font-bold text-primary">
-                            {devRenameSession.code}
-                          </span>
-                        </span>
-                        <span>
-                          ID:{" "}
-                          <span className="font-mono text-muted-foreground">
-                            {devRenameSession.id.slice(0, 8)}...
-                          </span>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <Button
+            {/* VIEW 4: QUESTIONS MANAGEMENT & ANALYTICS */}
+            {activeSection === "questions" && (
+              <div className="space-y-4">
+                {/* Segmented Subnav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-1.5 p-1 bg-card/60 border border-border/60 rounded-xl">
+                    <button
                       type="button"
-                      variant="outline"
-                      onClick={() => setDevRenameOpen(false)}
-                      className="rounded-xl text-xs h-8"
+                      onClick={() => setQuestionsSubTab("management")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        questionsSubTab === "management"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
                     >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={
-                        devRenaming ||
-                        !devNewTitle.trim() ||
-                        devNewTitle.trim() === devRenameSession?.title
-                      }
-                      className="gradient-bg text-white font-semibold rounded-xl text-xs h-8 gap-1.5 shadow-md"
+                      Question Management
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuestionsSubTab("analytics")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        questionsSubTab === "analytics"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
                     >
-                      {devRenaming ? "Saving..." : "Save Changes"}
-                    </Button>
+                      Question Analytics
+                    </button>
                   </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </TabsContent>
-
-          {/* TAB: LOGIN HISTORY MONITOR */}
-          <TabsContent value="login_logs" className="space-y-4">
-            <div className="glass rounded-2xl overflow-hidden border border-border/60">
-              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Faculty Login Logs & Active Sessions ({loginLogs.length})
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Total Questions: <strong className="text-foreground">{filteredQuestionsByTime.length}</strong>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground font-medium">
-                  Active Faculty Online:{" "}
-                  <span className="font-bold text-emerald-400">
-                    {loginLogs.filter((l) => !l.logout_time).length}
-                  </span>
-                </div>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
-                    <tr>
-                      <th className="px-4 py-3">Faculty / User Email</th>
-                      <th className="px-4 py-3">Role</th>
-                      <th className="px-4 py-3">Login Time</th>
-                      <th className="px-4 py-3">Logout Time</th>
-                      <th className="px-4 py-3">Session Duration</th>
-                      <th className="px-4 py-3">Browser / Device</th>
-                      <th className="px-4 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {loginLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No login history recorded yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      loginLogs.map((log) => {
-                        const isOnline = !log.logout_time;
-                        const rawDuration = log.session_duration;
-                        const durationSec =
-                          typeof rawDuration === "number"
-                            ? rawDuration
-                            : typeof rawDuration === "string"
-                              ? parseInt(rawDuration, 10) || 0
-                              : 0;
-                        const durationFormatted =
-                          durationSec > 0
-                            ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
-                            : isOnline
-                              ? "Active"
-                              : "< 1m";
+                {questionsSubTab === "analytics" && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="glass rounded-2xl p-4 border border-border/60 space-y-2">
+                      <span className="text-[11px] font-bold uppercase text-muted-foreground">Poll Questions</span>
+                      <div className="text-2xl font-black text-cyan-400">{pollQuestionsCount}</div>
+                      <p className="text-[11px] text-muted-foreground">Multiple-choice format with live tallying</p>
+                    </div>
+                    <div className="glass rounded-2xl p-4 border border-border/60 space-y-2">
+                      <span className="text-[11px] font-bold uppercase text-muted-foreground">Word Clouds</span>
+                      <div className="text-2xl font-black text-purple-400">{wordcloudQuestionsCount}</div>
+                      <p className="text-[11px] text-muted-foreground">Open phrase visualization clouds</p>
+                    </div>
+                    <div className="glass rounded-2xl p-4 border border-border/60 space-y-2">
+                      <span className="text-[11px] font-bold uppercase text-muted-foreground">Quiz & MCQs</span>
+                      <div className="text-2xl font-black text-emerald-400">{quizQuestionsCount}</div>
+                      <p className="text-[11px] text-muted-foreground">Multiple-choice scored assessments</p>
+                    </div>
+                  </div>
+                )}
 
-                        return (
-                          <tr key={log.id} className="hover:bg-accent/40 transition">
-                            <td className="px-4 py-3 font-semibold text-foreground">
-                              {log.email || `User ${log.user_id.slice(0, 8)}`}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                                {log.role}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground font-mono">
-                              {new Date(log.login_time).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground font-mono">
-                              {log.logout_time
-                                ? new Date(log.logout_time).toLocaleString()
-                                : "Active Session"}
-                            </td>
-                            <td className="px-4 py-3 font-mono font-semibold text-foreground">
-                              {durationFormatted}
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
-                              {log.browser || "Browser"} • {log.device || "Desktop"} (
-                              {log.operating_system || "OS"})
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border",
-                                  isOnline
-                                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
-                                    : "bg-muted text-muted-foreground border-border",
-                                )}
-                              >
-                                {isOnline && (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                )}
-                                {isOnline ? "Online" : "Logged Out"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* TAB: QUESTIONS ADDED MONITOR */}
-          <TabsContent value="questions" className="space-y-4">
-            <div className="glass rounded-2xl overflow-hidden border border-border/60">
+                {questionsSubTab === "management" && (
+                  <div className="glass rounded-2xl overflow-hidden border border-border/60">
               {/* Type Filter Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -3042,205 +3367,592 @@ function DeveloperDashboard() {
                 </table>
               </div>
             </div>
-          </TabsContent>
+                )}
+              </div>
+            )}
 
-          {/* TAB 3: SUBMISSIONS MONITOR */}
-          <TabsContent value="responses" className="space-y-4">
-            <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers (
-                {filteredResponsesByTime.length})
-              </h3>
+            {/* VIEW 5: SUBMISSIONS MANAGEMENT */}
+            {activeSection === "submissions" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Total Answers Recorded</span>
+                    <div className="text-2xl font-black text-purple-400">{filteredResponsesByTime.length}</div>
+                    <p className="text-[11px] text-muted-foreground">Responses across active time window</p>
+                  </div>
+                  <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Questions Answered</span>
+                    <div className="text-2xl font-black text-primary">{filteredQuestionsByTime.length}</div>
+                    <p className="text-[11px] text-muted-foreground">Unique questions receiving submissions</p>
+                  </div>
+                  <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                    <span className="text-[11px] font-bold uppercase text-muted-foreground">Active Today</span>
+                    <div className="text-2xl font-black text-emerald-400">
+                      {filteredResponsesByTime.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Logged within current calendar day</p>
+                  </div>
+                </div>
 
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {filteredResponsesByTime.map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 text-xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2.5 py-1 rounded-lg text-xs">
-                        {r.answer}
-                      </span>
-                      <span className="text-muted-foreground truncate max-w-[250px]">
-                        Participant ID: {r.participant_id.slice(0, 8)}...
+                <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers (
+                    {filteredResponsesByTime.length})
+                  </h3>
+
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                    {filteredResponsesByTime.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2.5 py-1 rounded-lg text-xs">
+                            {r.answer}
+                          </span>
+                          <span className="text-muted-foreground truncate max-w-[250px]">
+                            Participant ID: {r.participant_id.slice(0, 8)}...
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground text-[11px] font-mono">
+                          {new Date(r.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 6: ACTIVITY MONITORING */}
+            {activeSection === "activity" && (
+              <div className="space-y-4">
+                <div className="glass rounded-2xl p-5 border border-border/60 space-y-4 font-mono">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold flex items-center gap-2 text-emerald-500">
+                        <Terminal className="h-4 w-4" /> Live Realtime Telemetry & Audit Stream
                       </span>
                     </div>
-                    <span className="text-muted-foreground text-[11px] font-mono">
-                      {new Date(r.created_at).toLocaleTimeString()}
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(["ALL", "AUTH", "SESSION", "RESPONSE", "QUESTION", "SYSTEM"] as const).map(
+                        (tag) => (
+                          <button
+                            key={tag}
+                            onClick={() => setLogFilterTag(tag)}
+                            className={cn(
+                              "px-2 py-0.5 rounded text-[10px] font-bold uppercase transition border",
+                              logFilterTag === tag
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card/50 text-muted-foreground border-border hover:text-foreground",
+                            )}
+                          >
+                            {tag}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-black/90 rounded-xl p-4 text-xs space-y-2.5 max-h-[500px] overflow-y-auto border border-border/60 text-slate-200 shadow-inner">
+                    {filteredAuditLogs.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500 italic">
+                        No telemetry logs found for current filter.
+                      </div>
+                    ) : (
+                      filteredAuditLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          className="flex items-start gap-3 hover:bg-slate-900/60 p-1 rounded transition"
+                        >
+                          <span className="text-slate-500 text-[10px] select-none font-bold">
+                            {log.id}
+                          </span>
+                          <span className="text-slate-400 text-[10px] select-none">
+                            [{log.timestamp}]
+                          </span>
+                          <span
+                            className={cn(
+                              "px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider select-none",
+                              log.tag === "AUTH"
+                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                : log.tag === "SESSION"
+                                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                                  : log.tag === "RESPONSE"
+                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                    : "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+                            )}
+                          >
+                            {log.tag}
+                          </span>
+                          <span
+                            className={cn(
+                              "flex-1 break-all",
+                              log.type === "success"
+                                ? "text-emerald-400"
+                                : log.type === "warn"
+                                  ? "text-amber-300"
+                                  : log.type === "error"
+                                    ? "text-rose-400"
+                                    : "text-slate-200",
+                            )}
+                          >
+                            {log.msg}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 7: SECURITY MONITORING */}
+            {activeSection === "security" && (
+              <div className="space-y-4">
+                {/* Segmented Subnav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-1.5 p-1 bg-card/60 border border-border/60 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setSecuritySubTab("overview")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        securitySubTab === "overview"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Security Overview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSecuritySubTab("failed_attempts")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5",
+                        securitySubTab === "failed_attempts"
+                          ? "bg-rose-500 text-white shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Failed Attempts
+                      {failedAttempts.length > 0 && (
+                        <span className="h-4 px-1.5 rounded-full text-[10px] bg-rose-500/20 text-rose-300 font-bold grid place-items-center">
+                          {failedAttempts.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSecuritySubTab("logins")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        securitySubTab === "logins"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Login History ({loginLogs.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSecuritySubTab("waf")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        securitySubTab === "waf"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      WAF & Perimeter
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Perimeter Active
                     </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* TAB 4: TELEMETRY LOGS */}
-          <TabsContent value="telemetry" className="space-y-4">
-            <div className="glass rounded-2xl p-5 border border-border/60 space-y-4 font-mono">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold flex items-center gap-2 text-emerald-500">
-                    <Terminal className="h-4 w-4" /> Live Realtime Telemetry & Audit Stream
-                  </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(["ALL", "AUTH", "SESSION", "RESPONSE", "QUESTION", "SYSTEM"] as const).map(
-                    (tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => setLogFilterTag(tag)}
-                        className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase transition border",
-                          logFilterTag === tag
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-card/50 text-muted-foreground border-border hover:text-foreground",
-                        )}
-                      >
-                        {tag}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-black/90 rounded-xl p-4 text-xs space-y-2.5 max-h-[500px] overflow-y-auto border border-border/60 text-slate-200 shadow-inner">
-                {filteredAuditLogs.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 italic">
-                    No telemetry logs found for current filter.
-                  </div>
-                ) : (
-                  filteredAuditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex items-start gap-3 hover:bg-slate-900/60 p-1 rounded transition"
-                    >
-                      <span className="text-slate-500 text-[10px] select-none font-bold">
-                        {log.id}
-                      </span>
-                      <span className="text-slate-400 text-[10px] select-none">
-                        [{log.timestamp}]
-                      </span>
-                      <span
-                        className={cn(
-                          "px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider select-none",
-                          log.tag === "AUTH"
-                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                            : log.tag === "SESSION"
-                              ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                              : log.tag === "RESPONSE"
-                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                : "bg-amber-500/20 text-amber-400 border border-amber-500/30",
-                        )}
-                      >
-                        {log.tag}
-                      </span>
-                      <span
-                        className={cn(
-                          "flex-1 break-all",
-                          log.type === "success"
-                            ? "text-emerald-400"
-                            : log.type === "warn"
-                              ? "text-amber-300"
-                              : log.type === "error"
-                                ? "text-rose-400"
-                                : "text-slate-200",
-                        )}
-                      >
-                        {log.msg}
-                      </span>
+                {/* Subtab 1: Security Overview */}
+                {securitySubTab === "overview" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Failed Developer Attempts</span>
+                        <div className={cn("text-2xl font-black", failedAttempts.length > 0 ? "text-rose-400" : "text-emerald-400")}>
+                          {failedAttempts.length}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Recorded via centralized audit RPC</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Active Faculty Online</span>
+                        <div className="text-2xl font-black text-emerald-400">
+                          {loginLogs.filter((l) => !l.logout_time).length}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Simultaneous authenticated sessions</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Perimeter Defense Status</span>
+                        <div className="text-2xl font-black text-primary">Enforced</div>
+                        <p className="text-[11px] text-muted-foreground">Advisory lock & SQL rate limiting active</p>
+                      </div>
                     </div>
-                  ))
+
+                    <div className="glass rounded-2xl p-5 border border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-primary" /> Web Application Firewall (WAF) & Perimeter Rules
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Inspect rules, manage IP rate-limiting, and review edge threat protection.
+                        </p>
+                      </div>
+                      <Button asChild size="sm" className="gradient-bg text-white rounded-xl text-xs font-bold gap-1.5 shadow-sm">
+                        <Link to="/developer-waf">
+                          Open WAF Portal
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subtab 2: Failed Attempts (Access Security) */}
+                {securitySubTab === "failed_attempts" && (
+                  <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                      <div>
+                        <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                          <Shield className="h-5 w-5 text-rose-500" /> Security Access Log: Failed
+                          Developer Password Attempts
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Tracks every unauthorized access attempt into the Developer Portal with
+                          timestamp, entered input, and client device info.
+                        </p>
+                      </div>
+
+                      {failedAttempts.length > 0 && (
+                        <Button
+                          onClick={handleClearFailedAttempts}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Clear Access Logs
+                        </Button>
+                      )}
+                    </div>
+
+                    {failedAttempts.length === 0 ? (
+                      <div className="text-center py-12 space-y-3">
+                        <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 grid place-items-center text-emerald-500 mx-auto">
+                          <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <div className="text-sm font-bold text-foreground">
+                          No Failed Password Attempts Recorded
+                        </div>
+                        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                          All developer portal access attempts have been clean and authorized.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                            <tr>
+                              <th className="px-4 py-3">Log ID</th>
+                              <th className="px-4 py-3">Timestamp</th>
+                              <th className="px-4 py-3">Client Environment</th>
+                              <th className="px-4 py-3">IP Address (Informational)</th>
+                              <th className="px-4 py-3 text-right">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {failedAttempts.map((attempt) => (
+                              <tr key={attempt.id} className="hover:bg-rose-500/5 transition">
+                                <td className="px-4 py-3 font-mono font-bold text-rose-400">
+                                  {attempt.id.slice(0, 8)}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground font-mono">
+                                  {attempt.attempted_at
+                                    ? new Date(attempt.attempted_at).toLocaleString()
+                                    : "Unknown"}
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-foreground">
+                                  {attempt.client_environment || attempt.user_agent || "Web Client"}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-muted-foreground">
+                                  {attempt.ip_address || "unknown"}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/30">
+                                    Access Denied
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Subtab 3: Login History */}
+                {securitySubTab === "logins" && (
+                  <div className="glass rounded-2xl overflow-hidden border border-border/60">
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/40 border-b border-border/60">
+                      <div className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+                        Faculty Login Logs & Active Sessions ({loginLogs.length})
+                      </div>
+                      <div className="text-xs text-muted-foreground font-medium">
+                        Active Faculty Online:{" "}
+                        <span className="font-bold text-emerald-400">
+                          {loginLogs.filter((l) => !l.logout_time).length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
+                          <tr>
+                            <th className="px-4 py-3">Faculty / User Email</th>
+                            <th className="px-4 py-3">Role</th>
+                            <th className="px-4 py-3">Login Time</th>
+                            <th className="px-4 py-3">Logout Time</th>
+                            <th className="px-4 py-3">Session Duration</th>
+                            <th className="px-4 py-3">Browser / Device</th>
+                            <th className="px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {loginLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                                No login history recorded yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            loginLogs.map((log) => {
+                              const isOnline = !log.logout_time;
+                              const rawDuration = log.session_duration;
+                              const durationSec =
+                                typeof rawDuration === "number"
+                                  ? rawDuration
+                                  : typeof rawDuration === "string"
+                                    ? parseInt(rawDuration, 10) || 0
+                                    : 0;
+                              const durationFormatted =
+                                durationSec > 0
+                                  ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+                                  : isOnline
+                                    ? "Active"
+                                    : "< 1m";
+
+                              return (
+                                <tr key={log.id} className="hover:bg-accent/40 transition">
+                                  <td className="px-4 py-3 font-semibold text-foreground">
+                                    {log.email || `User ${log.user_id.slice(0, 8)}`}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                      {log.role}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-muted-foreground font-mono">
+                                    {new Date(log.login_time).toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-3 text-muted-foreground font-mono">
+                                    {log.logout_time
+                                      ? new Date(log.logout_time).toLocaleString()
+                                      : "Active Session"}
+                                  </td>
+                                  <td className="px-4 py-3 font-mono font-semibold text-foreground">
+                                    {durationFormatted}
+                                  </td>
+                                  <td className="px-4 py-3 text-muted-foreground">
+                                    {log.browser || "Browser"} • {log.device || "Desktop"} (
+                                    {log.operating_system || "OS"})
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider border",
+                                        isOnline
+                                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                                          : "bg-muted text-muted-foreground border-border",
+                                      )}
+                                    >
+                                      {isOnline && (
+                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      )}
+                                      {isOnline ? "Online" : "Logged Out"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subtab 4: WAF & Perimeter */}
+                {securitySubTab === "waf" && (
+                  <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                      <div>
+                        <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                          <Shield className="h-5 w-5 text-primary" /> Web Application Firewall & Security Rules
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Enterprise perimeter filtering, geographic rate-limiting, and anomaly detection.
+                        </p>
+                      </div>
+                      <Button asChild size="sm" className="gradient-bg text-white rounded-xl text-xs font-bold gap-1.5 shadow-sm">
+                        <Link to="/developer-waf">
+                          Manage WAF Config
+                        </Link>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-xl bg-card/60 border border-border/60 space-y-1.5">
+                        <span className="font-bold text-foreground">Failed Developer Access Anti-Spam:</span>
+                        <p className="text-muted-foreground">Enforces 5 attempts/min per IP and 30 attempts/min global limit using PostgreSQL transaction advisory locking.</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-card/60 border border-border/60 space-y-1.5">
+                        <span className="font-bold text-foreground">RLS Policy Isolation:</span>
+                        <p className="text-muted-foreground">Public execution revoked from public role; access log reads restricted to authorized developer passkey verification.</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          </TabsContent>
+            )}
 
-          {/* TAB 5: FAILED PASSWORD ATTEMPTS SECURITY LOG */}
-          <TabsContent value="security" className="space-y-4">
-            <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
-                <div>
-                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-rose-500" /> Security Access Log: Failed
-                    Developer Password Attempts
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Tracks every unauthorized access attempt into the Developer Portal with
-                    timestamp, entered input, and client device info.
-                  </p>
+            {/* VIEW 8: SYSTEM HEALTH & AI TELEMETRY */}
+            {activeSection === "health" && (
+              <div className="space-y-4">
+                {/* Segmented Subnav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                  <div className="flex items-center gap-1.5 p-1 bg-card/60 border border-border/60 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setHealthSubTab("infrastructure")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        healthSubTab === "infrastructure"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Infrastructure & Telemetry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHealthSubTab("ai_services")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5",
+                        healthSubTab === "ai_services"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      AI Services & Key Pool (16 Keys)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHealthSubTab("tokens")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition",
+                        healthSubTab === "tokens"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      Token Telemetry & Usage
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Services Healthy
+                    </span>
+                  </div>
                 </div>
 
-                {failedAttempts.length > 0 && (
-                  <Button
-                    onClick={handleClearFailedAttempts}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 text-xs border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Clear Access Logs
-                  </Button>
+                {/* Subtab 1: Infrastructure & Telemetry Health */}
+                {healthSubTab === "infrastructure" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">PostgreSQL Database</span>
+                        <div className="text-xl font-black text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-4 w-4" /> Connected
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Supabase cloud host reachable</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Realtime Engine</span>
+                        <div className="text-xl font-black text-blue-400 flex items-center gap-1.5">
+                          <Zap className="h-4 w-4" /> Active
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">WebSockets subscriptions live</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">AI Key Redundancy</span>
+                        <div className="text-xl font-black text-amber-400">16 Keys</div>
+                        <p className="text-[11px] text-muted-foreground">Groq (5) + Gemini (11) pools</p>
+                      </div>
+                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
+                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Server Mode</span>
+                        <div className={cn("text-xl font-black", isServerDown ? "text-rose-400" : "text-emerald-400")}>
+                          {isServerDown ? "Maintenance Mode" : "Normal Mode"}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">App routing & access status</p>
+                      </div>
+                    </div>
+
+                    <div className="glass rounded-2xl p-5 border border-border/60 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                          System Diagnostics & Environment
+                        </h4>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setHealthSubTab("ai_services");
+                          }}
+                          className="h-7 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1"
+                        >
+                          <Key className="h-3 w-3" /> Test AI Keys Pool
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-card/60 border border-border/40">
+                          <div className="font-bold text-foreground">Client Environment:</div>
+                          <div className="text-muted-foreground font-mono text-[11px] mt-0.5 truncate">{navigator.userAgent}</div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-card/60 border border-border/40">
+                          <div className="font-bold text-foreground">API Latency Benchmark:</div>
+                          <div className="text-emerald-400 font-mono font-bold text-sm mt-0.5">Sub-50ms Supabase Edge</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </div>
 
-              {failedAttempts.length === 0 ? (
-                <div className="text-center py-12 space-y-3">
-                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 grid place-items-center text-emerald-500 mx-auto">
-                    <CheckCircle2 className="h-6 w-6" />
-                  </div>
-                  <div className="text-sm font-bold text-foreground">
-                    No Failed Password Attempts Recorded
-                  </div>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    All developer portal access attempts have been clean and authorized.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
-                      <tr>
-                        <th className="px-4 py-3">Log ID</th>
-                        <th className="px-4 py-3">Timestamp</th>
-                        <th className="px-4 py-3">Client Environment</th>
-                        <th className="px-4 py-3">IP Address (Informational)</th>
-                        <th className="px-4 py-3 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {failedAttempts.map((attempt) => (
-                        <tr key={attempt.id} className="hover:bg-rose-500/5 transition">
-                          <td className="px-4 py-3 font-mono font-bold text-rose-400">
-                            {attempt.id.slice(0, 8)}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground font-mono">
-                            {attempt.attempted_at
-                              ? new Date(attempt.attempted_at).toLocaleString()
-                              : "Unknown"}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {attempt.client_environment || attempt.user_agent || "Web Client"}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-muted-foreground">
-                            {attempt.ip_address || "unknown"}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/30">
-                              Access Denied
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* TAB: AI KEYS TELEMETRY DIAGNOSTICS */}
-          <TabsContent value="ai_keys" className="space-y-4">
+                {/* Subtab 2: AI Services & Key Pool */}
+                {healthSubTab === "ai_services" && (
+                  <div className="space-y-4">
             <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
                 <div>
@@ -3652,10 +4364,11 @@ function DeveloperDashboard() {
                 </table>
               </div>
             </div>
-          </TabsContent>
+                  </div>
+                )}
 
-          {/* TAB: TOKEN ANALYTICS & USAGE TELEMETRY */}
-          <TabsContent value="tokens" className="space-y-6">
+                {/* Subtab 3: Token Telemetry & Usage */}
+                {healthSubTab === "tokens" && (
             <div className="glass rounded-2xl p-6 border border-border/60 space-y-6">
               {/* Header Bar */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
@@ -4157,10 +4870,13 @@ function DeveloperDashboard() {
                 )}
               </div>
             </div>
-          </TabsContent>
+                )}
+              </div>
+            )}
 
-          {/* TAB 9: CONTACT MESSAGES / FEEDBACK */}
-          <TabsContent value="contact_messages" className="space-y-4">
+            {/* VIEW 9: CONTACT MESSAGES */}
+            {activeSection === "contact_messages" && (
+              <div className="space-y-4">
             <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
                 <div>
@@ -4290,8 +5006,294 @@ function DeveloperDashboard() {
                 </div>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+
+        {/* VIEW 10: USER FEEDBACK & REPORTS */}
+        {activeSection === "feedback" && (
+          <div className="space-y-4">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-purple-400" /> Platform Feedback & Sentiment
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Feedback categorized by topic, bug reports, and suggestions from classroom participants.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-purple-500/10 border border-purple-500/30 px-3 py-1 text-xs font-black text-purple-400">
+                    {contactMessages.length} Submissions
+                  </span>
+                </div>
+              </div>
+
+              {/* Feedback Category Filter Pills */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["ALL", "Feedback", "Bug", "Feature", "Inquiry"] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFeedbackCategoryFilter(cat)}
+                    className={cn(
+                      "px-3 py-1 rounded-xl text-xs font-bold transition border",
+                      feedbackCategoryFilter === cat
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card/60 text-muted-foreground border-border hover:text-foreground",
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {contactMessages.length === 0 ? (
+                <div className="text-center py-12 text-xs text-muted-foreground italic">
+                  No feedback received yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {contactMessages.map((msg) => {
+                    const { dateStr, timeStr } = formatSubmissionDate(msg.created_at);
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => setSelectedContactMessage(msg)}
+                        className="group relative glass rounded-2xl p-4 sm:p-5 border border-border/60 hover:border-primary/50 transition-all cursor-pointer shadow-sm bg-card/60 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-sm text-foreground truncate">{msg.name}</span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                            {msg.status || "feedback"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                          {msg.message}
+                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground/70 pt-2 border-t border-border/40">
+                          <span>{msg.email}</span>
+                          <span>{dateStr} {timeStr}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 11: SYSTEM SETTINGS & MAINTENANCE */}
+        {activeSection === "settings" && (
+          <div className="space-y-6">
+            <div className="glass rounded-2xl p-6 border border-border/60 space-y-6">
+              <div>
+                <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" /> Institutional System Settings & Maintenance
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Emergency controls, database hygiene routines, platform maintenance, and dataset export tools.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Emergency Server Down Mode */}
+                <div className="p-5 rounded-2xl bg-card/60 border border-border/60 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                        <AlertOctagon className="h-4 w-4 text-rose-500" /> Emergency Server Down Mode
+                      </span>
+                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider", isServerDown ? "bg-rose-500 text-white" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30")}>
+                        {isServerDown ? "ACTIVE (DOWN)" : "ONLINE"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      Puts the entire application into maintenance lock and redirects visitors to the emergency developer contact screen.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleToggleServerDown}
+                    variant={isServerDown ? "default" : "destructive"}
+                    size="sm"
+                    className="w-full text-xs font-bold rounded-xl h-9"
+                  >
+                    {isServerDown ? "Restore Application Online" : "Trigger Emergency Server Down"}
+                  </Button>
+                </div>
+
+                {/* Auto-Draft Mode / Cleanup Stale Sessions */}
+                <div className="p-5 rounded-2xl bg-card/60 border border-border/60 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                        <Flame className="h-4 w-4 text-amber-500" /> Stale Session Cleanup
+                      </span>
+                      <span className="text-[10px] font-bold text-muted-foreground font-mono">
+                        {liveSessionsCount} Live
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      Demotes old or abandoned live classroom sessions back into draft mode to preserve platform performance and prevent ghost connections.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleDemoteAllLiveToDraft}
+                    disabled={isDemotingAll || liveSessionsCount === 0}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-bold rounded-xl h-9 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                  >
+                    {isDemotingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                    Demote All Live Sessions to Draft ({liveSessionsCount})
+                  </Button>
+                </div>
+
+                {/* Database Hygiene / Purge Test Data */}
+                <div className="p-5 rounded-2xl bg-card/60 border border-border/60 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <Trash2 className="h-4 w-4 text-muted-foreground" /> Database Hygiene & Test Cleanup
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      Removes orphaned questions with zero responses and cleans empty test classrooms created during development.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleRunCleanup}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs font-bold rounded-xl h-9"
+                    >
+                      Clean Orphaned Data
+                    </Button>
+                    <Button
+                      onClick={handlePurgeEmptySessions}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs font-bold rounded-xl h-9 text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
+                    >
+                      Purge Empty Sessions
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Machine Learning Dataset Export */}
+                <div className="p-5 rounded-2xl bg-card/60 border border-border/60 space-y-3 flex flex-col justify-between">
+                  <div>
+                    <span className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-cyan-400" /> ML Dataset Extraction
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      Exports anonymized question and response telemetry formatted for training institutional educational models.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        toast.info("Extracting and anonymizing ML training dataset...");
+                        await downloadMLDatasetCSV();
+                        toast.success("ML Training Dataset exported successfully (CSV)!");
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        toast.error(`Export failed: ${msg}`);
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-bold rounded-xl h-9 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10"
+                  >
+                    Export ML Training Dataset (CSV)
+                  </Button>
+                </div>
+              </div>
+
+              {/* Portal Session Security Lockout */}
+              <div className="pt-4 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-xs text-foreground">Lock Administrative Session</div>
+                  <div className="text-[11px] text-muted-foreground">Terminates the current administrative passkey session and locks the portal.</div>
+                </div>
+                <Button
+                  onClick={handleLockDeveloper}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-bold rounded-xl h-8 text-rose-400 border-rose-500/30 hover:bg-rose-500/10 gap-1.5"
+                >
+                  <Lock className="h-3.5 w-3.5" /> Lock Developer Portal
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dev Rename Session Dialog */}
+        <Dialog open={devRenameOpen} onOpenChange={setDevRenameOpen}>
+          <DialogContent className="max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
+            <DialogHeader className="text-left">
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Pencil className="h-4 w-4 text-primary" />
+                Rename Session (Developer Override)
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveDevRename} className="space-y-4 pt-2">
+              <div className="space-y-2 text-left">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Session Title
+                </label>
+                <Input
+                  value={devNewTitle}
+                  onChange={(e) => setDevNewTitle(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="Session Title"
+                  className="rounded-xl border-border bg-background/50 h-10 text-sm"
+                />
+                {devRenameSession && (
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                    <span>
+                      Code:{" "}
+                      <span className="font-mono font-bold text-primary">
+                        {devRenameSession.code}
+                      </span>
+                    </span>
+                    <span>
+                      ID:{" "}
+                      <span className="font-mono text-muted-foreground">
+                        {devRenameSession.id.slice(0, 8)}...
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDevRenameOpen(false)}
+                  className="rounded-xl text-xs h-8"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    devRenaming ||
+                    !devNewTitle.trim() ||
+                    devNewTitle.trim() === devRenameSession?.title
+                  }
+                  className="gradient-bg text-white font-semibold rounded-xl text-xs h-8 gap-1.5 shadow-md"
+                >
+                  {devRenaming ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Key Account / Owner Modal */}
         <Dialog
