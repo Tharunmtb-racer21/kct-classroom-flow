@@ -20,9 +20,11 @@ import {
   LayoutDashboard,
   Loader2,
   Lock,
+  Menu,
   MessageSquare,
   Pencil,
   PieChart as PieChartIcon,
+  Presentation,
   Radio,
   RefreshCw,
   RotateCcw,
@@ -33,6 +35,7 @@ import {
   Terminal,
   Trash2,
   TrendingUp,
+  User,
   UserCheck,
   Users,
   Zap,
@@ -90,6 +93,15 @@ import {
 } from "@/lib/token-tracker";
 import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
+import { DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+
+const devMobileNavItems = [
+  { title: "Dashboard", url: "/developer" as const, icon: LayoutDashboard },
+  { title: "ML Intel", url: "/dashboard/intelligence" as const, icon: Brain },
+  { title: "Security", url: "/dashboard/security" as const, icon: ShieldCheck },
+  { title: "WAF", url: "/developer-waf" as const, icon: Shield },
+];
 
 type SessionRow = {
   id: string;
@@ -195,6 +207,7 @@ export const Route = createFileRoute("/developer")({
 });
 
 function DeveloperDashboard() {
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [passkey, setPasskey] = useState("");
   const [contactMessages, setContactMessages] = useState<ContactMessageRow[]>([]);
   const [selectedContactMessage, setSelectedContactMessage] = useState<ContactMessageRow | null>(
@@ -1560,158 +1573,180 @@ function DeveloperDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary/20">
-      {/* Top Telemetry Bar */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-card/80 backdrop-blur-xl px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link to="/dashboard">
-            <Button size="sm" className="gradient-bg gap-2 text-xs font-semibold shrink-0">
-              <LayoutDashboard className="h-3.5 w-3.5" /> Back to App
-            </Button>
-          </Link>
-          <div className="grid h-10 w-10 place-items-center rounded-xl overflow-hidden shadow-md shrink-0">
-            <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-10 w-10 object-cover" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-base tracking-tight">
-                KCT <span className="gradient-text">PULSE</span>
-              </span>
-              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> DEVELOPER
-                TELEMETRY SUITE
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Real-time Faculty, Session & Student Join Analytics
-            </p>
+    <div className="relative flex h-dvh w-full flex-col md:flex-row overflow-hidden bg-background text-foreground selection:bg-primary/20">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-fixed bg-no-repeat"
+        style={{
+          backgroundImage: "url('/kct-temple-bg-opt.jpg')",
+          opacity: "var(--bg-img-opacity)",
+          mixBlendMode: "var(--bg-img-blend)" as any,
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "var(--dashboard-overlay)" }}
+      />
+
+      {/* Mobile Top Header */}
+      <header className="relative z-20 flex md:hidden items-center justify-between px-4 py-3 border-b border-border/60 bg-sidebar/80 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5">
+          <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 -ml-1 text-foreground">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open developer navigation</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-[300px] max-w-[85vw] bg-sidebar/95 border-r border-border/60">
+              <DeveloperSidebarContent
+                isServerDown={isServerDown}
+                onToggleServerDown={() => {
+                  handleToggleServerDown();
+                  setMobileDrawerOpen(false);
+                }}
+                timeframe={timeframe}
+                setTimeframe={(tf) => {
+                  setTimeframe(tf);
+                  setMobileDrawerOpen(false);
+                }}
+                onRunCleanup={() => {
+                  handleRunCleanup();
+                  setMobileDrawerOpen(false);
+                }}
+                onPurgeEmptySessions={() => {
+                  handlePurgeEmptySessions();
+                  setMobileDrawerOpen(false);
+                }}
+                onRefresh={() => {
+                  loadData();
+                  setMobileDrawerOpen(false);
+                }}
+                loading={loading}
+                onExportMLDataset={async () => {
+                  setMobileDrawerOpen(false);
+                  try {
+                    toast.info("Extracting and anonymizing ML training dataset...");
+                    await downloadMLDatasetCSV();
+                    toast.success("ML Training Dataset exported successfully (CSV)!");
+                  } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    toast.error(`Export failed: ${msg}`);
+                  }
+                }}
+                onLockPortal={() => {
+                  setMobileDrawerOpen(false);
+                  handleLockDeveloper();
+                }}
+                activeItem="Developer Dashboard"
+                onClose={() => setMobileDrawerOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex items-center gap-2">
+            <img src="/kct-logo-opt.jpg" alt="KCT Logo" className="h-8 w-8 rounded-lg object-cover" />
+            <span className="font-extrabold text-sm tracking-tight">
+              KCT <span className="gradient-text">PULSE</span>
+            </span>
+            <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-black text-emerald-400">
+              DEV
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button
-            onClick={handleToggleServerDown}
-            variant="outline"
-            size="sm"
-            className={cn(
-              "gap-2 text-xs font-black transition-all border animate-pulse",
-              isServerDown
-                ? "bg-rose-600 text-white border-rose-400 hover:bg-rose-700 shadow-lg shadow-rose-600/30"
-                : "border-rose-500/50 text-rose-400 hover:bg-rose-500/10",
-            )}
-          >
-            <AlertOctagon className="h-4 w-4" />
-            {isServerDown ? "🚨 DISABLE Server Down Mode" : "⚠️ TRIGGER Server Down Mode"}
-          </Button>
-
-          {/* Timeframe Selector */}
-          <div className="flex items-center bg-card border border-border rounded-xl p-1 text-xs">
-            {(["1D", "7D", "30D", "ALL"] as const).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={cn(
-                  "px-2.5 py-1 rounded-lg font-extrabold transition",
-                  timeframe === tf
-                    ? "gradient-bg text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
-
-          <Button
-            onClick={handleRunCleanup}
-            variant="outline"
-            size="sm"
-            className="gap-2 text-xs border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Auto-Draft Cleanup
-          </Button>
-
-          <Button
-            onClick={handlePurgeEmptySessions}
-            variant="outline"
-            size="sm"
-            className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10"
-          >
-            <Flame className="h-3.5 w-3.5" /> Purge DB Test Data
-          </Button>
-
-          <Button
-            onClick={() => loadData()}
-            variant="outline"
-            size="sm"
-            className="gap-2 text-xs border-border"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-
-          <Button
-            onClick={async () => {
-              try {
-                toast.info("Extracting and anonymizing ML training dataset...");
-                await downloadMLDatasetCSV();
-                toast.success("ML Training Dataset exported successfully (CSV)!");
-              } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                toast.error(`Export failed: ${msg}`);
-              }
-            }}
-            variant="outline"
-            size="sm"
-            className="gap-2 text-xs border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 font-bold"
-          >
-            <Download className="h-3.5 w-3.5" /> Export ML Dataset (CSV)
-          </Button>
-
-          <Link to="/dashboard/intelligence">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs border-purple-500/40 text-purple-400 hover:bg-purple-500/10 font-bold"
-            >
-              <Brain className="h-3.5 w-3.5" /> ML Intelligence
-            </Button>
-          </Link>
-
-          <Link to="/dashboard/security">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-bold"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" /> Security Telemetry
-            </Button>
-          </Link>
-
-          <Link to="/developer-waf">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs border-red-500/40 text-red-500 hover:bg-red-500/10 font-bold"
-            >
-              <Shield className="h-3.5 w-3.5" /> WAF Firewall
-            </Button>
-          </Link>
-
-          <Button
-            onClick={handleLockDeveloper}
-            variant="destructive"
-            size="sm"
-            className="gap-2 text-xs font-semibold"
-          >
-            <Lock className="h-3.5 w-3.5" /> Lock Portal
-          </Button>
-
+        <div className="flex items-center gap-2">
+          {isServerDown && (
+            <span className="rounded-full bg-rose-500/15 border border-rose-500/40 px-2 py-0.5 text-[9px] font-black text-rose-400 uppercase tracking-wider animate-pulse">
+              DOWN
+            </span>
+          )}
           <ThemeToggle variant="ghost" size="sm" />
         </div>
       </header>
 
-      {/* Main Developer Telemetry Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden items-center justify-around border-t border-border/60 bg-sidebar/95 backdrop-blur-xl py-2 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-xl">
+        {devMobileNavItems.map((item) => {
+          const active = item.url === "/developer";
+          return (
+            <Link
+              key={item.url}
+              to={item.url}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition",
+                active ? "gradient-text font-extrabold" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              <span className="truncate">{item.title}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Persistent Desktop Developer Sidebar + Main Content Area */}
+      <div className="relative z-10 flex h-dvh w-full pb-16 md:pb-0 overflow-hidden">
+        <DeveloperSidebar
+          isServerDown={isServerDown}
+          onToggleServerDown={handleToggleServerDown}
+          timeframe={timeframe}
+          setTimeframe={setTimeframe}
+          onRunCleanup={handleRunCleanup}
+          onPurgeEmptySessions={handlePurgeEmptySessions}
+          onRefresh={loadData}
+          loading={loading}
+          onExportMLDataset={async () => {
+            try {
+              toast.info("Extracting and anonymizing ML training dataset...");
+              await downloadMLDatasetCSV();
+              toast.success("ML Training Dataset exported successfully (CSV)!");
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              toast.error(`Export failed: ${msg}`);
+            }
+          }}
+          onLockPortal={handleLockDeveloper}
+          activeItem="Developer Dashboard"
+        />
+
+        <main className="flex-1 min-w-0 flex flex-col justify-between overflow-x-hidden overflow-y-auto">
+          <div className="max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+            {/* Essential Page Header (No Giant Toolbar) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">
+                    Developer Telemetry Suite
+                  </h1>
+                  <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" /> LIVE
+                  </span>
+                  {isServerDown && (
+                    <span className="rounded-full bg-rose-500/10 border border-rose-500/40 px-2.5 py-0.5 text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                      <AlertOctagon className="h-3 w-3" /> Server Down Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                  Real-time Faculty, Session & Student Join Analytics · Window:{" "}
+                  <span className="font-extrabold text-foreground">{timeframe}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <Button
+                  onClick={() => loadData()}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-xs border-border/60 hover:bg-accent"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                  <span>Refresh</span>
+                </Button>
+              </div>
+            </div>
         {/* Security Warning Banner for Failed Password Attempts */}
         {failedAttempts.length > 0 && (
           <div className="glass rounded-2xl p-4 border border-rose-500/40 bg-rose-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -4444,21 +4479,23 @@ function DeveloperDashboard() {
             )}
           </DialogContent>
         </Dialog>
-      </main>
-
-      <footer className="border-t border-border/60 bg-card/40 py-6 text-center text-xs text-muted-foreground mt-8">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© {new Date().getFullYear()} KCT PULSE. Internal Developer Telemetry Portal.</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-medium bg-muted/60 px-3 py-1 rounded-full border border-border text-foreground/70">
-              Designed by <span className="font-extrabold text-foreground">THARUN N E</span>
-            </span>
-            <span className="text-[11px] font-medium bg-muted/60 px-3 py-1 rounded-full border border-border text-foreground/70">
-              Developed by <span className="font-extrabold text-foreground">NAVNEETH V</span>
-            </span>
           </div>
-        </div>
-      </footer>
+
+          <footer className="mt-auto border-t border-border/60 bg-card/40 py-6 text-center text-xs text-muted-foreground">
+            <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p>© {new Date().getFullYear()} KCT PULSE. Internal Developer Telemetry Portal.</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-medium bg-muted/60 px-3 py-1 rounded-full border border-border text-foreground/70">
+                  Designed by <span className="font-extrabold text-foreground">THARUN N E</span>
+                </span>
+                <span className="text-[11px] font-medium bg-muted/60 px-3 py-1 rounded-full border border-border text-foreground/70">
+                  Developed by <span className="font-extrabold text-foreground">NAVNEETH V</span>
+                </span>
+              </div>
+            </div>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }
