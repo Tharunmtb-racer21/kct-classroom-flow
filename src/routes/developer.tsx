@@ -5,6 +5,7 @@ import {
   AlertOctagon,
   BarChart3,
   Brain,
+  Calendar,
   CheckCircle2,
   Clock,
   Database,
@@ -20,6 +21,7 @@ import {
   LayoutDashboard,
   Loader2,
   Lock,
+  Mail,
   Menu,
   MessageSquare,
   Pencil,
@@ -33,6 +35,7 @@ import {
   ShieldCheck,
   Sparkles,
   Terminal,
+  Tag,
   Trash2,
   TrendingUp,
   User,
@@ -68,6 +71,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { verifyDevPassword } from "@/lib/dev-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -191,6 +204,32 @@ type ContactMessageRow = {
   status: string;
 };
 
+function formatSubmissionDate(isoString: string): { dateStr: string; timeStr: string; fullStr: string } {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) {
+      return { dateStr: isoString, timeStr: "", fullStr: isoString };
+    }
+    const dateStr = d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Kolkata",
+    });
+    const timeStr =
+      d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "Asia/Kolkata",
+      }) + " IST";
+    const fullStr = `${dateStr} • ${timeStr}`;
+    return { dateStr, timeStr, fullStr };
+  } catch {
+    return { dateStr: isoString, timeStr: "", fullStr: isoString };
+  }
+}
+
 export const Route = createFileRoute("/developer")({
   head: () => ({
     meta: [
@@ -213,6 +252,8 @@ function DeveloperDashboard() {
   const [selectedContactMessage, setSelectedContactMessage] = useState<ContactMessageRow | null>(
     null,
   );
+  const [deletingMessage, setDeletingMessage] = useState<ContactMessageRow | null>(null);
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
 
@@ -862,11 +903,22 @@ function DeveloperDashboard() {
         console.warn("[DeveloperTelemetry] Error loading login logs:", err);
       }
 
-      // 7. Fetch Contact Messages
-      const { data: cmData } = await supabase
-        .from("contact_messages")
-        .select("id,created_at,name,email,subject,message,user_id,status")
-        .order("created_at", { ascending: false });
+      // 7. Fetch Contact Messages (via secure developer RPC)
+      let cmRows: ContactMessageRow[] = [];
+      try {
+        const { data: rpcMessages, error: rpcErr } = await (supabase.rpc as any)(
+          "get_developer_contact_messages",
+          { dev_passkey: keyToUse || undefined, p_limit: 200 },
+        );
+
+        if (!rpcErr && rpcMessages && Array.isArray(rpcMessages)) {
+          cmRows = rpcMessages as ContactMessageRow[];
+        } else if (rpcErr) {
+          console.warn("[DeveloperTelemetry] Error loading contact messages via RPC:", rpcErr.message);
+        }
+      } catch (err) {
+        console.warn("[DeveloperTelemetry] Error loading contact messages:", err);
+      }
 
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
@@ -875,7 +927,6 @@ function DeveloperDashboard() {
       const qRows = (qData as QuestionRow[]) || [];
       const pRows = (pData as ParticipantRow[]) || [];
       const rRows = (rData as ResponseRow[]) || [];
-      const cmRows = (cmData as ContactMessageRow[]) || [];
 
       setSessions(sRows);
       setQuestions(qRows);
@@ -1128,10 +1179,14 @@ function DeveloperDashboard() {
 
   const handleUpdateMessageStatus = async (id: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("contact_messages")
-        .update({ status: newStatus })
-        .eq("id", id);
+      const { error } = await (supabase.rpc as any)(
+        "developer_update_contact_message_status",
+        {
+          dev_passkey: passkey.trim(),
+          target_id: id,
+          new_status: newStatus,
+        },
+      );
       if (error) throw error;
 
       setContactMessages((prev) =>
@@ -1144,20 +1199,35 @@ function DeveloperDashboard() {
         "success",
       );
     } catch (err: any) {
-      toast.error(`Failed to update message: ${err.message}`);
+      console.error("Failed to update message status:", err);
+      toast.error(`Failed to update message: ${err?.message || "Unknown error"}`);
     }
   };
 
-  const handleDeleteMessage = async (id: string) => {
+  const confirmDeleteMessage = async () => {
+    if (!deletingMessage) return;
+    const targetId = deletingMessage.id;
     try {
-      const { error } = await supabase.from("contact_messages").delete().eq("id", id);
+      setIsDeletingMessage(true);
+      const { error } = await (supabase.rpc as any)(
+        "developer_delete_contact_message",
+        { dev_passkey: passkey.trim(), target_id: targetId },
+      );
+
       if (error) throw error;
 
-      setContactMessages((prev) => prev.filter((msg) => msg.id !== id));
-      toast.success("Message deleted successfully.");
-      addAuditLog(`Contact Message ${id.slice(0, 8)} deleted`, "SYSTEM", "warn");
+      setContactMessages((prev) => prev.filter((msg) => msg.id !== targetId));
+      if (selectedContactMessage?.id === targetId) {
+        setSelectedContactMessage(null);
+      }
+      toast.success("Feedback message deleted successfully.");
+      addAuditLog(`Contact Message ${targetId.slice(0, 8)} deleted`, "SYSTEM", "warn");
+      setDeletingMessage(null);
     } catch (err: any) {
-      toast.error(`Failed to delete message: ${err.message}`);
+      console.error("Failed to delete contact message:", err);
+      toast.error(`Failed to delete message: ${err?.message || "Unknown error"}`);
+    } finally {
+      setIsDeletingMessage(false);
     }
   };
 
@@ -4076,13 +4146,26 @@ function DeveloperDashboard() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
                 <div>
                   <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-blue-400" /> Contact Messages & Feedback
-                    Telemetry
+                    <MessageSquare className="h-5 w-5 text-blue-400" /> Contact Messages & Feedback Telemetry
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Manage feedback, feature requests, and bug reports submitted by students and
-                    faculty.
+                    Manage feedback, feature requests, and bug reports submitted by students and faculty.
                   </p>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <span className="rounded-full bg-blue-500/10 border border-blue-500/30 px-3 py-1 text-xs font-black text-blue-400">
+                    {contactMessages.length} {contactMessages.length === 1 ? "Message" : "Messages"}
+                  </span>
+                  <Button
+                    onClick={() => loadData()}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-xs border-border/60 hover:bg-accent h-8"
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                    <span>Refresh</span>
+                  </Button>
                 </div>
               </div>
 
@@ -4114,113 +4197,77 @@ function DeveloperDashboard() {
               )}
 
               {contactMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground bg-card/10 rounded-2xl border border-dashed border-border/60 p-6">
-                  <MessageSquare className="h-10 w-10 text-muted-foreground/45 mb-3" />
-                  <p className="text-sm font-semibold">
-                    No feedback messages logged in database yet.
-                  </p>
-                  <p className="text-xs mt-1 max-w-sm">
-                    When users submit a message through the contact modal, it will appear here in
-                    real-time.
+                <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground bg-card/10 rounded-2xl border border-dashed border-border/60 p-8 space-y-2">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-muted/40 border border-border/60 text-muted-foreground mb-2">
+                    <MessageSquare className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-bold text-foreground">No feedback messages yet.</p>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    Messages submitted through Contact Us will appear here.
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
-                      <tr>
-                        <th className="px-4 py-3">Received Time</th>
-                        <th className="px-4 py-3">Sender Details</th>
-                        <th className="px-4 py-3">Subject / Topic</th>
-                        <th className="px-4 py-3">Message Snippet</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {contactMessages.map((msg) => (
-                        <tr
-                          key={msg.id}
-                          className={cn(
-                            "hover:bg-card/40 transition",
-                            msg.status === "unread" &&
-                              "bg-blue-500/5 font-semibold text-foreground",
-                          )}
-                        >
-                          <td className="px-4 py-4 font-mono text-muted-foreground">
-                            {new Date(msg.created_at).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-4 space-y-0.5">
-                            <div className="font-extrabold text-foreground">{msg.name}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
-                              {msg.email}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {contactMessages.map((msg) => {
+                    const { dateStr, timeStr } = formatSubmissionDate(msg.created_at);
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => setSelectedContactMessage(msg)}
+                        className={cn(
+                          "group relative glass rounded-2xl p-4 sm:p-5 border border-border/60 hover:border-primary/50 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-[var(--shadow-glow)] bg-card/60 hover:bg-card/85 flex flex-col justify-between gap-3.5 select-none",
+                          msg.status === "unread" && "border-blue-500/40 bg-blue-500/[0.04]",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="font-extrabold text-sm sm:text-base text-foreground truncate">
+                                {msg.name}
+                              </span>
+                              {msg.status === "unread" && (
+                                <span
+                                  className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0"
+                                  title="Unread"
+                                />
+                              )}
                             </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border",
-                                msg.subject === "Bug Report"
-                                  ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
-                                  : msg.subject === "Feature Request"
-                                    ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-500"
-                                    : msg.subject === "Session Issue"
-                                      ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
-                                      : "bg-muted border-border text-foreground/80",
-                              )}
-                            >
-                              {msg.subject}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 max-w-[250px] truncate text-muted-foreground font-normal">
-                            {msg.message}
-                          </td>
-                          <td className="px-4 py-4">
-                            <button
-                              onClick={() =>
-                                handleUpdateMessageStatus(
-                                  msg.id,
-                                  msg.status === "unread" ? "read" : "unread",
-                                )
-                              }
-                              className={cn(
-                                "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider cursor-pointer border transition",
-                                msg.status === "unread"
-                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
-                                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20",
-                              )}
-                            >
-                              {msg.status}
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 text-right flex justify-end gap-1.5">
-                            <Button
-                              onClick={() => setSelectedContactMessage(msg)}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7 px-2 border-border"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                if (
-                                  window.confirm("Are you sure you want to delete this message?")
-                                ) {
-                                  handleDeleteMessage(msg.id);
-                                }
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7 px-2 border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono truncate">
+                              <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                              <span className="truncate">{msg.email}</span>
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingMessage(msg);
+                            }}
+                            className="shrink-0 h-8 px-2.5 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/60 font-semibold gap-1.5 transition-colors"
+                            title="Delete message"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2.5 border-t border-border/40 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                            <span>{dateStr}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                            <span>{timeStr}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -4364,121 +4411,214 @@ function DeveloperDashboard() {
           open={!!selectedContactMessage}
           onOpenChange={(open) => !open && setSelectedContactMessage(null)}
         >
-          <DialogContent className="sm:max-w-[550px] glass rounded-3xl border border-border/80 shadow-2xl p-6 select-none animate-in fade-in zoom-in-95 duration-200">
-            {selectedContactMessage && (
-              <div className="space-y-4 text-left">
-                <DialogHeader>
-                  <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-500">
-                        <MessageSquare className="h-5 w-5" />
+          <DialogContent className="sm:max-w-[620px] glass rounded-3xl border border-border/80 shadow-2xl p-6 select-none animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {selectedContactMessage && (() => {
+              const { fullStr } = formatSubmissionDate(selectedContactMessage.created_at);
+              return (
+                <div className="space-y-4 text-left">
+                  <DialogHeader>
+                    <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 shrink-0">
+                          <MessageSquare className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <DialogTitle className="text-base sm:text-lg font-black tracking-tight text-foreground">
+                            Contact Message
+                          </DialogTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Submitted through Contact Us modal
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border",
+                          selectedContactMessage.status === "unread"
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
+                            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500",
+                        )}
+                      >
+                        {selectedContactMessage.status}
+                      </span>
+                    </div>
+                  </DialogHeader>
+
+                  <div className="space-y-3.5 text-xs">
+                    {/* Identity: Full Name & Email Address */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5">
+                      <div>
+                        <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
+                          <User className="h-3 w-3 text-muted-foreground" /> Full Name
+                        </span>
+                        <span className="font-extrabold text-sm text-foreground">
+                          {selectedContactMessage.name}
+                        </span>
                       </div>
                       <div>
-                        <DialogTitle className="text-lg font-black tracking-tight">
-                          {selectedContactMessage.subject}
-                        </DialogTitle>
-                        <p className="text-xs text-muted-foreground">
-                          Received {new Date(selectedContactMessage.created_at).toLocaleString()}
-                        </p>
+                        <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
+                          <Mail className="h-3 w-3 text-muted-foreground" /> Email Address
+                        </span>
+                        <a
+                          href={`mailto:${selectedContactMessage.email}`}
+                          className="font-bold text-xs text-primary hover:underline font-mono break-all"
+                        >
+                          {selectedContactMessage.email}
+                        </a>
                       </div>
                     </div>
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider",
-                        selectedContactMessage.status === "unread"
-                          ? "bg-amber-500/10 border border-amber-500/30 text-amber-500"
-                          : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-500",
-                      )}
-                    >
-                      {selectedContactMessage.status}
-                    </span>
-                  </div>
-                </DialogHeader>
 
-                <div className="space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-4 bg-card/45 border border-border/60 rounded-xl p-3 text-xs">
-                    <div>
-                      <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">
-                        From Name
-                      </span>
-                      <span className="font-extrabold text-foreground">
-                        {selectedContactMessage.name}
-                      </span>
+                    {/* Submission: Category & Time */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5">
+                      <div>
+                        <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
+                          <Tag className="h-3 w-3 text-muted-foreground" /> Category / Subject
+                        </span>
+                        <span className="inline-block rounded-md bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs font-bold text-primary">
+                          {selectedContactMessage.subject}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-muted-foreground" /> Submitted Time
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {fullStr}
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                          DB Timestamp: {selectedContactMessage.created_at}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">
-                        Email Address
+
+                    {/* Full Message (No Truncation) */}
+                    <div className="space-y-1.5">
+                      <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                        <MessageSquare className="h-3 w-3 text-muted-foreground" /> Message
                       </span>
-                      <a
-                        href={`mailto:${selectedContactMessage.email}`}
-                        className="font-extrabold text-primary hover:underline font-mono"
-                      >
-                        {selectedContactMessage.email}
-                      </a>
+                      <div className="bg-card/70 border border-border/70 rounded-xl p-4 font-sans text-xs text-foreground whitespace-pre-wrap leading-relaxed max-h-[320px] overflow-y-auto selection:bg-primary/20">
+                        {selectedContactMessage.message}
+                      </div>
+                    </div>
+
+                    {/* Technical Metadata */}
+                    <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-1.5 font-mono text-[11px] text-muted-foreground">
+                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/80 mb-1">
+                        Technical Metadata
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                        <span>Message ID:</span>
+                        <span className="text-foreground font-semibold select-all break-all">
+                          {selectedContactMessage.id}
+                        </span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                        <span>User ID:</span>
+                        <span className="text-foreground font-semibold select-all break-all">
+                          {selectedContactMessage.user_id || "Anonymous / Unauthenticated"}
+                        </span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                        <span>Status:</span>
+                        <span className="text-foreground font-semibold uppercase">
+                          {selectedContactMessage.status}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="block font-bold text-muted-foreground uppercase text-[9px] tracking-wider mb-0.5">
-                      Message Content
-                    </span>
-                    <div className="bg-card/25 border border-border/60 rounded-xl p-4 font-sans text-sm text-foreground whitespace-pre-wrap leading-relaxed max-h-[250px] overflow-y-auto">
-                      {selectedContactMessage.message}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border/60">
-                  <Button
-                    onClick={() => {
-                      handleDeleteMessage(selectedContactMessage.id);
-                      setSelectedContactMessage(null);
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete Message
-                  </Button>
-                  <div className="flex gap-2">
-                    {selectedContactMessage.status === "unread" ? (
-                      <Button
-                        onClick={() => {
-                          handleUpdateMessageStatus(selectedContactMessage.id, "read");
-                          setSelectedContactMessage(null);
-                        }}
-                        size="sm"
-                        className="gradient-bg text-xs font-semibold"
-                      >
-                        Mark as Read
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={() => {
-                          handleUpdateMessageStatus(selectedContactMessage.id, "unread");
-                          setSelectedContactMessage(null);
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs border-border font-semibold"
-                      >
-                        Mark as Unread
-                      </Button>
-                    )}
+                  {/* Actions */}
+                  <div className="flex justify-between items-center pt-4 border-t border-border/60">
                     <Button
-                      onClick={() => setSelectedContactMessage(null)}
-                      variant="ghost"
+                      type="button"
+                      onClick={() => setDeletingMessage(selectedContactMessage)}
+                      variant="outline"
                       size="sm"
-                      className="text-xs text-muted-foreground font-semibold"
+                      className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold"
                     >
-                      Close
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
                     </Button>
+                    <div className="flex gap-2">
+                      {selectedContactMessage.status === "unread" ? (
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            handleUpdateMessageStatus(selectedContactMessage.id, "read");
+                            setSelectedContactMessage(null);
+                          }}
+                          size="sm"
+                          className="gradient-bg text-xs font-semibold"
+                        >
+                          Mark as Read
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            handleUpdateMessageStatus(selectedContactMessage.id, "unread");
+                            setSelectedContactMessage(null);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs border-border font-semibold"
+                        >
+                          Mark as Unread
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        onClick={() => setSelectedContactMessage(null)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground font-semibold"
+                      >
+                        Close
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Feedback Message Confirmation Modal */}
+        <AlertDialog
+          open={!!deletingMessage}
+          onOpenChange={(open) => !open && setDeletingMessage(null)}
+        >
+          <AlertDialogContent className="glass rounded-2xl border border-border/80 shadow-2xl p-6 max-w-md select-none">
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 shrink-0">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <AlertDialogTitle className="text-base font-bold text-foreground">
+                  Delete this feedback message?
+                </AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                This action permanently removes this message from the database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-4 flex gap-2 justify-end">
+              <AlertDialogCancel
+                disabled={isDeletingMessage}
+                onClick={() => setDeletingMessage(null)}
+                className="text-xs h-9 px-4"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeletingMessage}
+                onClick={confirmDeleteMessage}
+                className="text-xs h-9 px-4 bg-rose-600 text-white hover:bg-rose-700 font-bold"
+              >
+                {isDeletingMessage ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
           </div>
 
           <footer className="mt-auto border-t border-border/60 bg-card/40 py-6 text-center text-xs text-muted-foreground">
