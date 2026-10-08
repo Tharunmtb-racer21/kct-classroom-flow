@@ -1,13 +1,14 @@
 /**
  * dashboard.intelligence.tsx
  * 🧠 Classroom Intelligence Dashboard for Faculty
- * Real-time AI + ML classroom analytics platform displaying overall engagement,
- * student classification, weak topic detection, performance trends, and pedagogical advice.
+ * Truthful, deterministic classroom interaction and engagement diagnostics.
+ * Powered by authentic question responses, attempt rates, and concept accuracy.
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/lib/firebase";
 import {
   calculateStudentEngagement,
   calculateClassroomEngagement,
@@ -25,7 +26,6 @@ import {
   XAxis,
   YAxis,
   Tooltip as RechartsTooltip,
-  Legend as RechartsLegend,
   CartesianGrid,
   AreaChart,
   Area,
@@ -36,12 +36,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Users,
-  Award,
-  Zap,
   RefreshCw,
   Sparkles,
   BookOpen,
-  ChevronRight,
   PieChart as PieChartIcon,
   BarChart3,
 } from "lucide-react";
@@ -63,59 +60,105 @@ export const Route = createFileRoute("/_authenticated/dashboard/intelligence")({
 });
 
 export default function ClassroomIntelligenceDashboard() {
+  let routeUser: any = null;
+  try {
+    const routeContext = Route.useRouteContext();
+    routeUser = (routeContext as any)?.user;
+  } catch {
+    // Fallback if rendered outside RouterProvider tree
+  }
+  const facultyUid = routeUser?.uid || auth.currentUser?.uid;
+
   const [sessions, setSessions] = useState<
     Array<{ id: string; title: string; code: string; created_at: string }>
   >([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | "all">("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [studentAnalyses, setStudentAnalyses] = useState<StudentEngagementAnalysis[]>([]);
   const [classroomStats, setClassroomStats] = useState<ClassroomEngagementBreakdown | null>(null);
   const [weakTopicData, setWeakTopicData] = useState<WeakTopicAnalysis | null>(null);
 
-  // Load Sessions
+  // 1. Load Sessions scoped strictly to the authenticated faculty
   useEffect(() => {
     async function loadFacultySessions() {
-      const { data } = await supabase
-        .from("sessions")
-        .select("id, title, code, created_at")
-        .order("created_at", { ascending: false });
+      if (!facultyUid) return;
+      try {
+        const { data, error } = await supabase
+          .from("sessions")
+          .select("id, title, code, created_at")
+          .eq("creator_id", facultyUid)
+          .order("created_at", { ascending: false });
 
-      if (data) {
-        setSessions(data);
-        if (data.length > 0) {
-          setSelectedSessionId("all");
+        if (error) {
+          console.error("[Classroom Intelligence] Failed to load faculty sessions:", error);
+          setLoadError("Failed to load faculty sessions: " + error.message);
+          return;
         }
+
+        if (data) {
+          setSessions(data);
+          if (data.length > 0) {
+            setSelectedSessionId("all");
+          }
+        }
+      } catch (err: any) {
+        console.error("[Classroom Intelligence] Unexpected session fetch error:", err);
+        setLoadError(err?.message || "Failed to load sessions");
       }
     }
     loadFacultySessions();
-  }, []);
+  }, [facultyUid]);
 
-  // Compute ML Intelligence Analytics
-  const runMLAnalytics = useCallback(async () => {
+  // 2. Fetch and Compute Classroom Intelligence Analytics
+  const runAnalytics = useCallback(async () => {
+    if (!facultyUid) return;
     setIsLoading(true);
+    setLoadError(null);
+
     try {
-      // 1. Fetch questions, participants, responses
-      const sessionFilter = selectedSessionId !== "all" ? selectedSessionId : null;
+      // Scoped reports-style embedded query — resolves parent + children in a single scoped request
+      let query = supabase
+        .from("sessions")
+        .select(`
+          id,
+          title,
+          code,
+          created_at,
+          participants (
+            id,
+            name,
+            session_id,
+            joined_at
+          ),
+          questions!session_id (
+            id,
+            title,
+            type,
+            correct_answer,
+            responses (
+              id,
+              answer,
+              participant_id,
+              question_id
+            )
+          )
+        `)
+        .eq("creator_id", facultyUid);
 
-      let participantsQuery = supabase
-        .from("participants")
-        .select("id, name, session_id, joined_at");
-      let questionsQuery = supabase
-        .from("questions")
-        .select("id, session_id, title, type, correct_answer");
-
-      if (sessionFilter) {
-        participantsQuery = participantsQuery.eq("session_id", sessionFilter);
-        questionsQuery = questionsQuery.eq("session_id", sessionFilter);
+      if (selectedSessionId !== "all") {
+        query = query.eq("id", selectedSessionId);
       }
 
-      const [{ data: participants }, { data: questions }] = await Promise.all([
-        participantsQuery,
-        questionsQuery,
-      ]);
+      const { data: scopedSessions, error: queryErr } = await query;
 
-      if (!participants || participants.length === 0 || !questions || questions.length === 0) {
+      if (queryErr) {
+        console.error("[Classroom Intelligence] Query failure:", queryErr);
+        throw new Error(queryErr.message);
+      }
+
+      if (!scopedSessions || scopedSessions.length === 0) {
         setStudentAnalyses([]);
         setClassroomStats(null);
         setWeakTopicData(null);
@@ -123,28 +166,30 @@ export default function ClassroomIntelligenceDashboard() {
         return;
       }
 
-      const questionIds = questions.map((q) => q.id);
+      // Flatten items for the selected scope
+      const allQuestions = scopedSessions.flatMap((s: any) => s.questions || []);
+      const allParticipants = scopedSessions.flatMap((s: any) => s.participants || []);
+      const allResponses = allQuestions.flatMap((q: any) => q.responses || []);
 
-      const { data: responses } = await supabase
-        .from("responses")
-        .select("id, question_id, participant_id, answer, created_at")
-        .in("question_id", questionIds);
+      if (allParticipants.length === 0 || allQuestions.length === 0) {
+        setStudentAnalyses([]);
+        setClassroomStats(null);
+        setWeakTopicData(null);
+        setIsLoading(false);
+        return;
+      }
 
-      const safeResponses = responses || [];
-
-      // Pre-index questions by ID and count total quiz questions once
-      const questionsById = new Map<string, (typeof questions)[0]>();
-      let totalQuizQuestionsInSession = 0;
-      questions.forEach((q) => {
+      // Pre-index questions by ID
+      const questionsById = new Map<string, (typeof allQuestions)[0]>();
+      allQuestions.forEach((q: any) => {
         questionsById.set(q.id, q);
-        if (q.type === "quiz") totalQuizQuestionsInSession++;
       });
 
-      // Pre-index responses by participant and by question in a single O(R) pass
-      const responsesByParticipant = new Map<string, typeof safeResponses>();
-      const responsesByQuestion = new Map<string, typeof safeResponses>();
+      // Pre-index responses by participant and by question in an O(R) pass
+      const responsesByParticipant = new Map<string, typeof allResponses>();
+      const responsesByQuestion = new Map<string, typeof allResponses>();
 
-      safeResponses.forEach((r) => {
+      allResponses.forEach((r: any) => {
         let pList = responsesByParticipant.get(r.participant_id);
         if (!pList) {
           pList = [];
@@ -160,12 +205,19 @@ export default function ClassroomIntelligenceDashboard() {
         qList.push(r);
       });
 
-      // 2. Map Student Features & Compute Student Engagement Scores
-      const studentMap: StudentEngagementAnalysis[] = participants.map((p) => {
-        const studentResponses = responsesByParticipant.get(p.id) || [];
-        const attemptedQuestions = new Set(studentResponses.map((r) => r.question_id)).size;
+      // Compute Student Engagement Scores using authentic observable features
+      const studentMap: StudentEngagementAnalysis[] = allParticipants.map((p: any) => {
+        // Scope session questions to the student's specific session
+        const sessionQuestions =
+          selectedSessionId === "all"
+            ? scopedSessions.find((s: any) => s.id === p.session_id)?.questions || allQuestions
+            : allQuestions;
+        const totalSessionQuestions = sessionQuestions.length;
+        const totalQuizQuestions = sessionQuestions.filter((q: any) => q.type === "quiz").length;
 
-        // Correct answer count
+        const studentResponses = responsesByParticipant.get(p.id) || [];
+        const attemptedQuestions = new Set(studentResponses.map((r: any) => r.question_id)).size;
+
         let correctCount = 0;
         let quizCount = 0;
         let pollCount = 0;
@@ -195,64 +247,80 @@ export default function ClassroomIntelligenceDashboard() {
           name: p.name,
           sessionId: p.session_id,
           joinedAt: p.joined_at,
-          totalSessionQuestions: questions.length,
+          totalSessionQuestions,
           attemptedQuestions,
-          skippedQuestions: Math.max(0, questions.length - attemptedQuestions),
+          skippedQuestions: Math.max(0, totalSessionQuestions - attemptedQuestions),
           correctAnswers: correctCount,
-          totalQuizQuestions: totalQuizQuestionsInSession,
+          totalQuizQuestions,
           pollParticipationCount: pollCount,
           wordcloudParticipationCount: wordcloudCount,
-          responseTimingsMs: [4000, 6000, 5000], // Extracted response timings
-          historicalAccuracyPercentages: [65, 70], // Sample multi-session trend history
+          responseTimingsMs: [], // Authentically empty (not tracked)
+          historicalAccuracyPercentages: [], // Authentically empty (not faked)
         });
       });
 
       setStudentAnalyses(studentMap);
 
-      // 3. Compute Classroom Aggregates
+      // Compute Classroom Aggregates
       const classEng = calculateClassroomEngagement(studentMap);
       setClassroomStats(classEng);
 
-      // 4. Compute Weak Topic Analysis & Pedagogical Recommendations
-      const questionPerfList = questions.map((q) => {
+      // Compute Question & Concept Performance & Pedagogical Recommendations
+      const questionPerfList = allQuestions.map((q: any) => {
         const qResponses = responsesByQuestion.get(q.id) || [];
         return {
           questionId: q.id,
           title: q.title,
           type: q.type as "quiz" | "poll" | "wordcloud",
           correctAnswer: q.correct_answer,
-          responses: qResponses.map((r) => ({ answer: r.answer, responseTimeMs: 5000 })),
-          totalParticipantsInSession: participants.length,
+          responses: qResponses.map((r: any) => ({ answer: r.answer })),
+          totalParticipantsInSession:
+            allParticipants.filter((p: any) => {
+              const parent = scopedSessions.find((s: any) =>
+                s.questions?.some((sq: any) => sq.id === q.id),
+              );
+              return parent ? p.session_id === parent.id : false;
+            }).length || allParticipants.length,
         };
       });
 
       const weakTopicsAnalysis = analyzeWeakTopics(questionPerfList);
       setWeakTopicData(weakTopicsAnalysis);
-    } catch (err) {
-      console.error("Failed to compute ML analytics:", err);
+    } catch (err: any) {
+      console.error("[Classroom Intelligence] Failed to compute analytics:", err);
+      setLoadError(err?.message || "Failed to load classroom analytics");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSessionId]);
+  }, [facultyUid, selectedSessionId]);
 
   useEffect(() => {
-    runMLAnalytics();
-  }, [runMLAnalytics]);
+    runAnalytics();
+  }, [runAnalytics]);
 
-  // Realtime subscription setup
+  // Realtime subscription scoped to current faculty's sessions
   useEffect(() => {
-    const throttledRunML = throttle(runMLAnalytics, 10000);
+    if (!facultyUid) return;
+    const throttledRun = throttle(runAnalytics, 10000);
     const channel = supabase
-      .channel("ml_intelligence_realtime")
+      .channel(`classroom-intelligence-sync-${facultyUid}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${facultyUid}` },
+        () => throttledRun(),
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "responses" }, () => {
-        throttledRunML();
+        throttledRun();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
+        throttledRun();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [runMLAnalytics]);
+  }, [facultyUid, runAnalytics]);
 
   // Memoized Chart Data: Cohort Engagement Distribution
   const engagementDistributionData = useMemo(() => {
@@ -276,7 +344,7 @@ export default function ClassroomIntelligenceDashboard() {
     ].filter((d) => d.value > 0);
   }, [classroomStats]);
 
-  // Memoized Chart Data: Topic Accuracy Comparison
+  // Memoized Chart Data: Question Concept Accuracy Comparison
   const topicChartData = useMemo(() => {
     if (!weakTopicData?.topics || weakTopicData.topics.length === 0) return [];
     return weakTopicData.topics.map((t) => ({
@@ -284,7 +352,8 @@ export default function ClassroomIntelligenceDashboard() {
       fullName: t.topicName,
       accuracy: t.accuracyPercentage,
       skipRate: t.skipRatePercentage,
-      speedSec: Number((t.avgResponseTimeMs / 1000).toFixed(1)),
+      attemptedCount: t.attemptedCount,
+      questionCount: t.questionCount,
       color:
         t.status === "weak"
           ? "#f43f5e"
@@ -329,7 +398,7 @@ export default function ClassroomIntelligenceDashboard() {
                 Classroom <span className="gradient-text">Intelligence</span>
               </h1>
               <p className="text-sm text-muted-foreground">
-                ML-powered student engagement score, weak topic detection, and learning insights
+                Deterministic student engagement model, learning insights, and performance diagnostics
               </p>
             </div>
           </div>
@@ -337,11 +406,11 @@ export default function ClassroomIntelligenceDashboard() {
 
         <div className="flex items-center gap-3">
           <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-[240px]">
               <SelectValue placeholder="Select Session" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Sessions Combined</SelectItem>
+              <SelectItem value="all">All Sessions Combined ({sessions.length})</SelectItem>
               {sessions.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.title} ({s.code})
@@ -350,11 +419,34 @@ export default function ClassroomIntelligenceDashboard() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="icon" onClick={runMLAnalytics} disabled={isLoading}>
+          <Button variant="outline" size="icon" onClick={runAnalytics} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
+
+      {/* Query Error State */}
+      {loadError && (
+        <Card className="border-rose-500/50 bg-rose-500/10">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">Telemetry Query Error</p>
+                <p className="text-xs text-muted-foreground">{loadError}</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={runAnalytics}
+              className="border-rose-500/40 text-rose-600 hover:bg-rose-500/10"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Stats & Graphical Engagement Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -403,21 +495,23 @@ export default function ClassroomIntelligenceDashboard() {
                         boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
                         padding: "8px 12px",
                       }}
-                      formatter={(val: any) => [`${val} students`, "Cohort"]}
+                      formatter={(val: any) => [`${val} participants`, "Cohort"]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="text-xs text-muted-foreground italic text-center py-6">
-                  {classroomStats?.hasSufficientData
+                  {isLoading
                     ? "Evaluating cohorts..."
-                    : "Awaiting responses..."}
+                    : classroomStats?.hasSufficientData
+                      ? "Evaluating cohorts..."
+                      : "Awaiting participant responses..."}
                 </div>
               )}
             </div>
             <Progress value={classroomStats?.overallScore || 0} className="h-1.5 mb-1.5" />
             <p className="text-[11px] text-muted-foreground leading-tight">
-              Derived from student attendance, quiz accuracy, and answering tempo.
+              Derived from attempt rate (35%), quiz accuracy (35%), format variety (18%), and presence (12%). Response timing is not recorded.
             </p>
           </CardContent>
         </Card>
@@ -435,7 +529,7 @@ export default function ClassroomIntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Students scoring ≥ 75% in engagement model with consistent responses.
+              Participants scoring ≥ 75% in engagement model with consistent responses.
             </p>
           </CardContent>
         </Card>
@@ -453,7 +547,7 @@ export default function ClassroomIntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Students scoring 45–74% consistency. Likely to benefit from interactive prompts.
+              Participants scoring 45–74% consistency. Likely to benefit from interactive prompts.
             </p>
           </CardContent>
         </Card>
@@ -471,7 +565,7 @@ export default function ClassroomIntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Students with high skip rate or score &lt;45%. Flagged for gentle mentoring.
+              Participants with high skip rate or score &lt;45%. Flagged for gentle mentoring.
             </p>
           </CardContent>
         </Card>
@@ -481,13 +575,13 @@ export default function ClassroomIntelligenceDashboard() {
       <Card className="bg-gradient-to-r from-primary/10 via-accent/30 to-background border-primary/20 shadow-md">
         <CardContent className="pt-6 flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="p-3 rounded-xl bg-primary text-primary-foreground shadow-lg shrink-0">
-            <Sparkles className="h-6 w-6 animate-pulse" />
+            <Sparkles className="h-6 w-6" />
           </div>
           <div className="flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-base">Faculty Pedagogical Recommendation</h3>
               <Badge variant="secondary" className="text-xs">
-                AI + ML Insights
+                Rule-Based Recommendation
               </Badge>
             </div>
             <p className="text-sm text-foreground/90 font-medium">
@@ -506,9 +600,9 @@ export default function ClassroomIntelligenceDashboard() {
             <div className="flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-lg font-bold">Topic Performance & Weak Topics</CardTitle>
+                <CardTitle className="text-lg font-bold">Question & Concept Performance</CardTitle>
                 <CardDescription>
-                  Evaluates concept accuracy, skip rate, and student latency
+                  Evaluates concept accuracy, skip rate, and student error patterns
                 </CardDescription>
               </div>
             </div>
@@ -537,7 +631,7 @@ export default function ClassroomIntelligenceDashboard() {
                             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
                           }}
                           formatter={(val: any, name: any, item: any) => [
-                            `${val}% (Latency: ${item.payload.speedSec}s, Skip: ${item.payload.skipRate}%)`,
+                            `${val}% (Attempted: ${item.payload.attemptedCount}, Skip: ${item.payload.skipRate}%)`,
                             "Accuracy",
                           ]}
                           labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
@@ -586,7 +680,7 @@ export default function ClassroomIntelligenceDashboard() {
                     />
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                       <span>Questions: {t.questionCount}</span>
-                      <span>Avg Speed: {(t.avgResponseTimeMs / 1000).toFixed(1)}s</span>
+                      <span>Attempted: {t.attemptedCount}</span>
                       <span>Skip Rate: {t.skipRatePercentage}%</span>
                     </div>
                   </div>
@@ -595,21 +689,21 @@ export default function ClassroomIntelligenceDashboard() {
             ) : (
               <div className="py-12 text-center text-muted-foreground space-y-2">
                 <BookOpen className="h-10 w-10 mx-auto text-muted-foreground/40" />
-                <p className="font-semibold text-sm">Not enough historical topic data</p>
-                <p className="text-xs">Host quiz questions to analyze weak concept performance.</p>
+                <p className="font-semibold text-sm">Not enough historical concept data</p>
+                <p className="text-xs">Host quiz questions to analyze concept performance.</p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Student Learning Trends & Score List */}
+        {/* Participant Learning Scores & Distribution */}
         <Card className="shadow-md">
           <CardHeader>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-lg font-bold">Student Engagement Scores</CardTitle>
-                <CardDescription>Individual non-judgmental participation breakdown</CardDescription>
+                <CardTitle className="text-lg font-bold">Participant Engagement Scores</CardTitle>
+                <CardDescription>Scoped session participant records breakdown</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -622,7 +716,7 @@ export default function ClassroomIntelligenceDashboard() {
                     <span className="flex items-center gap-1.5">
                       <TrendingUp className="h-3.5 w-3.5 text-primary" /> Class Score Distribution Curve
                     </span>
-                    <span className="font-mono text-primary font-bold">{studentAnalyses.length} Students</span>
+                    <span className="font-mono text-primary font-bold">{studentAnalyses.length} Participants</span>
                   </div>
                   <div className="h-36 w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -645,7 +739,7 @@ export default function ClassroomIntelligenceDashboard() {
                             color: "hsl(var(--foreground))",
                             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
                           }}
-                          formatter={(val: any) => [`${val} students`, "Cohort"]}
+                          formatter={(val: any) => [`${val} participants`, "Cohort"]}
                         />
                         <Area
                           type="monotone"
@@ -661,51 +755,55 @@ export default function ClassroomIntelligenceDashboard() {
                 </div>
 
                 <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                {studentAnalyses.map((s) => (
-                  <div
-                    key={s.participantId}
-                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background hover:bg-accent/30 transition"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{s.name}</span>
-                        <Badge
-                          variant="outline"
-                          className={
-                            s.engagementLevel === "highly_engaged"
-                              ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-                              : s.engagementLevel === "moderately_engaged"
-                                ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30"
-                                : "border-rose-500 text-rose-600 bg-rose-50 dark:bg-rose-950/30"
-                          }
-                        >
-                          {s.engagementLabel}
-                        </Badge>
+                  {studentAnalyses.map((s) => (
+                    <div
+                      key={s.participantId}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background hover:bg-accent/30 transition"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm">{s.name}</span>
+                          <Badge
+                            variant="outline"
+                            className={
+                              s.engagementLevel === "highly_engaged"
+                                ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+                                : s.engagementLevel === "moderately_engaged"
+                                  ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+                                  : "border-rose-500 text-rose-600 bg-rose-50 dark:bg-rose-950/30"
+                            }
+                          >
+                            {s.engagementLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Attempt Rate: {s.attemptRatePercentage}% | Accuracy: {s.accuracyPercentage}%
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Attempt Rate: {s.attemptRatePercentage}% | Accuracy: {s.accuracyPercentage}%
-                      </p>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="font-extrabold text-base text-primary">
-                        {s.engagementScore}{" "}
-                        <span className="text-xs font-normal text-muted-foreground">/100</span>
-                      </div>
-                      <div className="text-xs font-medium text-muted-foreground flex items-center justify-end gap-1">
-                        <span>Trend: {s.trendIcon}</span>
+                      <div className="text-right">
+                        <div className="font-extrabold text-base text-primary">
+                          {s.engagementScore}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">/100</span>
+                        </div>
+                        <div className="text-xs font-medium text-muted-foreground flex items-center justify-end gap-1">
+                          <span>Trend: {s.trendIcon}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
                 </div>
               </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground space-y-2">
                 <Users className="h-10 w-10 mx-auto text-muted-foreground/40" />
-                <p className="font-semibold text-sm">No participant activity recorded</p>
+                <p className="font-semibold text-sm">
+                  {sessions.length === 0 ? "No sessions created" : "No participant activity recorded"}
+                </p>
                 <p className="text-xs">
-                  Students joining live sessions will appear here automatically.
+                  {sessions.length === 0
+                    ? "Create and launch a classroom session to begin tracking intelligence."
+                    : "Participants joining live sessions will appear here automatically."}
                 </p>
               </div>
             )}

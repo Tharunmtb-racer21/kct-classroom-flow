@@ -1,7 +1,7 @@
 /**
  * weak-topic-engine.ts
- * ML Engine for Weak Topic Detection & Faculty Pedagogical Recommendations.
- * Analyzes question performance, response times, skip rates, and error patterns
+ * Rule-Based Engine for Question Concept Performance & Faculty Pedagogical Recommendations.
+ * Analyzes question performance, skip rates, and error patterns
  * to identify concepts where students struggle, generating actionable faculty advice.
  */
 
@@ -177,7 +177,7 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
         ? Math.round(
             stats.responseTimesMs.reduce((a, b) => a + b, 0) / stats.responseTimesMs.length,
           )
-        : 5000;
+        : 0;
 
     let status: "good" | "moderate" | "weak" = "good";
     let statusBadge: "🟢" | "🟡" | "🔴" = "🟢";

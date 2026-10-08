@@ -1,8 +1,8 @@
 /**
  * ml-engine.ts
- * Core Machine Learning analytics engine for KCT PULSE.
+ * Deterministic Classroom Analytics Engine for KCT PULSE.
  * Analyzes classroom interaction data to derive student engagement scores,
- * overall classroom engagement levels, and student learning trends.
+ * overall classroom engagement levels, and student participation distribution.
  */
 
 export interface StudentRawData {
@@ -59,14 +59,15 @@ export interface ClassroomEngagementBreakdown {
 }
 
 /**
- * Feature Extraction & Weighting Model for Student Engagement Score (0 - 100)
+ * Deterministic Feature Weighting Model for Student Engagement Score (0 - 100)
  *
- * Feature Weights:
- * - Attempt Rate (30%): Fraction of active questions attempted vs skipped
- * - Accuracy Rate (30%): Correct answers out of total quiz questions attempted
- * - Response Consistency / Speed (15%): Normal response latency balance (neither hyper-fast spam nor lagging)
- * - Multi-Format Interaction (15%): Balance across quizzes, polls, and wordclouds
- * - Attendance & Session Presence (10%): Timely join and completion
+ * Response timing was removed because it is not recorded in the database.
+ * The remaining original weights (30% Attempt Rate, 30% Quiz Accuracy, 15% Format Variety, 10% Presence)
+ * were proportionally normalized to total 100%:
+ * - Attempt Rate (35%): Fraction of active questions attempted vs skipped (30 / 85 ≈ 35.3%)
+ * - Quiz Accuracy (35%): Correct answers out of total quiz questions attempted (30 / 85 ≈ 35.3%)
+ * - Multi-Format Interaction (18%): Participation across quizzes, polls, and wordclouds (15 / 85 ≈ 17.6%)
+ * - Attendance & Session Presence (12%): Timely join and active session completion (10 / 85 ≈ 11.8%)
  */
 export function calculateStudentEngagement(data: StudentRawData): StudentEngagementAnalysis {
   const {
@@ -78,7 +79,7 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     totalQuizQuestions,
     pollParticipationCount,
     wordcloudParticipationCount,
-    responseTimingsMs,
+    responseTimingsMs = [],
     historicalAccuracyPercentages = [],
   } = data;
 
@@ -100,8 +101,8 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
       pollParticipationRate: 0,
       wordcloudParticipationRate: 0,
       performanceTrend: "insufficient_data",
-      trendLabel: "Insufficient Data",
-      trendIcon: "❓",
+      trendLabel: "Insufficient historical data",
+      trendIcon: "—",
       hasSufficientData: false,
     };
   }
@@ -115,35 +116,20 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
       ? Math.min(100, Math.round((correctAnswers / totalQuizQuestions) * 100))
       : attemptRate; // Fallback to attempt rate if session only has polls/wordclouds
 
-  // 3. Response Timing Efficiency (0-100)
-  const avgResponseTime =
-    responseTimingsMs.length > 0
-      ? responseTimingsMs.reduce((a, b) => a + b, 0) / responseTimingsMs.length
-      : 5000;
-
-  // Ideal response time window: 2,000ms to 12,000ms
-  let timingScore = 100;
-  if (avgResponseTime < 1000) {
-    timingScore = 60; // Hyper-fast / suspicious speed penalty
-  } else if (avgResponseTime > 15000) {
-    timingScore = Math.max(40, 100 - Math.round((avgResponseTime - 15000) / 300));
-  }
-
-  // 4. Format Variety Score (Quizzes + Polls + Wordclouds)
+  // 3. Format Variety Score (Quizzes + Polls + Wordclouds)
   const pollRate = pollParticipationCount > 0 ? 100 : 0;
   const wcRate = wordcloudParticipationCount > 0 ? 100 : 0;
   const formatVarietyScore = Math.round(quizAccuracy * 0.5 + pollRate * 0.25 + wcRate * 0.25);
 
-  // 5. Attendance & Presence Score
+  // 4. Attendance & Presence Score
   const presenceScore = attemptRate >= 80 ? 100 : attemptRate >= 50 ? 75 : 40;
 
-  // Weighted Score Computation
+  // 5. Deterministic Weighted Score Computation (Authentic observables only)
   const weightedScore = Math.round(
-    attemptRate * 0.3 +
-      quizAccuracy * 0.3 +
-      timingScore * 0.15 +
-      formatVarietyScore * 0.15 +
-      presenceScore * 0.1,
+    attemptRate * 0.35 +
+      quizAccuracy * 0.35 +
+      formatVarietyScore * 0.18 +
+      presenceScore * 0.12,
   );
 
   const engagementScore = Math.max(0, Math.min(100, weightedScore));
@@ -163,10 +149,10 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     badgeColor = "red";
   }
 
-  // Performance Trend Classification (Feature 4)
+  // Performance Trend Classification (Requires genuine past observations)
   let performanceTrend: PerformanceTrend = "insufficient_data";
-  let trendLabel = "Insufficient Data";
-  let trendIcon = "❓";
+  let trendLabel = "Insufficient historical data";
+  let trendIcon = "—";
 
   if (historicalAccuracyPercentages.length >= 1) {
     const prevAverage =
@@ -188,6 +174,11 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
       trendIcon = "➡️";
     }
   }
+
+  const avgResponseTime =
+    responseTimingsMs && responseTimingsMs.length > 0
+      ? Math.round(responseTimingsMs.reduce((a, b) => a + b, 0) / responseTimingsMs.length)
+      : 0;
 
   return {
     participantId,
@@ -244,10 +235,8 @@ export function calculateClassroomEngagement(
   const participationRate = Math.round(totalAttempt / count);
   const quizPerformanceRate = Math.round(totalAccuracy / count);
 
-  // Response Consistency: % of students with response times between 1s and 15s
-  const consistentStudents = activeStudents.filter(
-    (s) => s.avgResponseTimeMs >= 1000 && s.avgResponseTimeMs <= 15000,
-  ).length;
+  // Response Consistency: % of students with consistent participation (attempted >= 70% of available questions)
+  const consistentStudents = activeStudents.filter((s) => s.attemptRatePercentage >= 70).length;
   const responseConsistencyRate = Math.round((consistentStudents / count) * 100);
 
   // Attendance & Interaction metrics
