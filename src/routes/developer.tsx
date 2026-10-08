@@ -188,9 +188,11 @@ type AuditLogItem = {
 
 type FailedAttemptRecord = {
   id: string;
-  attemptedPass: string;
-  timestamp: string;
-  userAgent: string;
+  attempted_at: string;
+  client_environment: string | null;
+  user_agent: string | null;
+  ip_address: string | null;
+  status: string;
 };
 
 type ContactMessageRow = {
@@ -744,25 +746,10 @@ function DeveloperDashboard() {
     ];
   }, [sessions]);
 
-  // Load Failed Password Attempt History
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("kct_dev_failed_attempts");
-        if (raw) setFailedAttempts(JSON.parse(raw));
-      } catch (e) {
-        console.error("Failed to parse failed attempts:", e);
-      }
-    }
-  }, []);
-
-  const recordFailedAttempt = (attempted: string) => {
+  const recordFailedAttempt = async () => {
     if (typeof window === "undefined") return;
-    const newRecord: FailedAttemptRecord = {
-      id: `FAIL-${Date.now().toString().slice(-6)}`,
-      attemptedPass: attempted || "(empty input)",
-      timestamp: new Date().toLocaleString(),
-      userAgent: navigator.userAgent.includes("Windows")
+    try {
+      const clientEnv = navigator.userAgent.includes("Windows")
         ? "Windows Client"
         : navigator.userAgent.includes("Mac")
           ? "macOS Client"
@@ -770,24 +757,29 @@ function DeveloperDashboard() {
             ? "Android Device"
             : navigator.userAgent.includes("iPhone")
               ? "iPhone Device"
-              : "Web Client",
-    };
-    try {
-      const raw = localStorage.getItem("kct_dev_failed_attempts");
-      const list: FailedAttemptRecord[] = raw ? JSON.parse(raw) : [];
-      const updated = [newRecord, ...list].slice(0, 50);
-      localStorage.setItem("kct_dev_failed_attempts", JSON.stringify(updated));
-      setFailedAttempts(updated);
-    } catch (e) {
-      console.error("Failed to save attempt:", e);
+              : "Web Client";
+
+      // Non-blocking asynchronous RPC call (candidate password is never sent or logged)
+      await (supabase.rpc as any)("record_developer_failed_attempt", {
+        client_env: clientEnv,
+      });
+    } catch (err) {
+      console.warn("[DeveloperTelemetry] Non-blocking failed attempt telemetry notice:", err);
     }
   };
 
-  const handleClearFailedAttempts = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("kct_dev_failed_attempts");
+  const handleClearFailedAttempts = async () => {
+    try {
+      const { error } = await (supabase.rpc as any)("clear_developer_access_logs", {
+        dev_passkey: passkey.trim(),
+      });
+      if (error) throw error;
       setFailedAttempts([]);
       toast.success("Security access logs cleared.");
+      addAuditLog("Developer access attempt logs purged", "SYSTEM", "warn");
+    } catch (err: any) {
+      console.error("Failed to clear access logs:", err);
+      toast.error(`Failed to clear access logs: ${err?.message || "Unknown error"}`);
     }
   };
 
@@ -802,9 +794,8 @@ function DeveloperDashboard() {
       localStorage.setItem("kct_dev_auth_time", Date.now().toString());
       loadData(passkey);
     } else {
-      const entered = passkey;
       setErrorMsg("Access Denied: Incorrect developer password.");
-      recordFailedAttempt(entered);
+      recordFailedAttempt();
     }
   };
 
@@ -920,6 +911,23 @@ function DeveloperDashboard() {
         console.warn("[DeveloperTelemetry] Error loading contact messages:", err);
       }
 
+      // 8. Fetch Developer Access Logs (via secure developer RPC)
+      let alRows: FailedAttemptRecord[] = [];
+      try {
+        const { data: rpcAccessLogs, error: rpcAccessErr } = await (supabase.rpc as any)(
+          "get_developer_access_logs",
+          { dev_passkey: keyToUse || undefined, p_limit: 100 },
+        );
+
+        if (!rpcAccessErr && rpcAccessLogs && Array.isArray(rpcAccessLogs)) {
+          alRows = rpcAccessLogs as FailedAttemptRecord[];
+        } else if (rpcAccessErr) {
+          console.warn("[DeveloperTelemetry] Error loading access logs via RPC:", rpcAccessErr.message);
+        }
+      } catch (err) {
+        console.warn("[DeveloperTelemetry] Error loading access logs:", err);
+      }
+
       const pingEnd = performance.now();
       setApiLatencyMs(Math.round(pingEnd - startPing));
 
@@ -935,6 +943,7 @@ function DeveloperDashboard() {
       setProfiles(profRows);
       setLoginLogs(lRows);
       setContactMessages(cmRows);
+      setFailedAttempts(alRows);
 
       // Re-populate audit log history
       const initialLogs: AuditLogItem[] = [];
@@ -1833,12 +1842,20 @@ function DeveloperDashboard() {
                     {failedAttempts.length} unauthorized access attempt(s)
                   </span>{" "}
                   recorded. Last attempt:{" "}
-                  <span className="font-mono text-foreground">{failedAttempts[0]?.timestamp}</span>{" "}
-                  with input{" "}
-                  <code className="font-mono bg-card px-1.5 py-0.5 rounded text-rose-400 border border-rose-500/30 font-black">
-                    {failedAttempts[0]?.attemptedPass}
-                  </code>
-                  .
+                  <span className="font-mono text-foreground">
+                    {failedAttempts[0]?.attempted_at
+                      ? new Date(failedAttempts[0].attempted_at).toLocaleString()
+                      : "Recently"}
+                  </span>{" "}
+                  from{" "}
+                  <span className="font-semibold text-foreground">
+                    {failedAttempts[0]?.client_environment || "Unknown Device"}
+                  </span>{" "}
+                  (IP:{" "}
+                  <span className="font-mono text-muted-foreground">
+                    {failedAttempts[0]?.ip_address || "unknown"}
+                  </span>
+                  ).
                 </div>
               </div>
             </div>
@@ -3185,9 +3202,9 @@ function DeveloperDashboard() {
                     <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
                       <tr>
                         <th className="px-4 py-3">Log ID</th>
-                        <th className="px-4 py-3">Attempted Password Input</th>
                         <th className="px-4 py-3">Timestamp</th>
                         <th className="px-4 py-3">Client Environment</th>
+                        <th className="px-4 py-3">IP Address (Informational)</th>
                         <th className="px-4 py-3 text-right">Status</th>
                       </tr>
                     </thead>
@@ -3195,16 +3212,18 @@ function DeveloperDashboard() {
                       {failedAttempts.map((attempt) => (
                         <tr key={attempt.id} className="hover:bg-rose-500/5 transition">
                           <td className="px-4 py-3 font-mono font-bold text-rose-400">
-                            {attempt.id}
-                          </td>
-                          <td className="px-4 py-3 font-mono font-black text-foreground bg-card/60 px-2.5 py-1 rounded max-w-[220px] truncate border border-border/40">
-                            {attempt.attemptedPass}
+                            {attempt.id.slice(0, 8)}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground font-mono">
-                            {attempt.timestamp}
+                            {attempt.attempted_at
+                              ? new Date(attempt.attempted_at).toLocaleString()
+                              : "Unknown"}
                           </td>
                           <td className="px-4 py-3 font-semibold text-foreground">
-                            {attempt.userAgent}
+                            {attempt.client_environment || attempt.user_agent || "Web Client"}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-muted-foreground">
+                            {attempt.ip_address || "unknown"}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/30">
