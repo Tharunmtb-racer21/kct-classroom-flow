@@ -12,6 +12,7 @@ import {
   Sparkles,
   Calendar,
   Activity,
+  Brain,
   Layers,
   ArrowUpRight,
 } from "lucide-react";
@@ -308,6 +309,36 @@ function DashboardHome() {
           accent="text-indigo-400"
           description="Engagement rate"
         />
+      </div>
+
+      {/* Classroom Intelligence Discovery Card */}
+      <div className="glass rounded-2xl p-5 sm:p-6 border border-white/5 hover:border-primary/40 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-primary/10 text-primary shrink-0">
+            <Brain className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-foreground">
+                Classroom Intelligence
+              </h2>
+              <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary uppercase tracking-wider">
+                Pedagogical Analytics
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-xl">
+              Understand student engagement, participant distribution, and question concept performance across your classrooms.
+            </p>
+          </div>
+        </div>
+        <Link to="/dashboard/intelligence" className="shrink-0 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto border-primary/30 hover:bg-primary/10 text-primary font-semibold text-xs sm:text-sm h-10 rounded-xl px-4 gap-1.5"
+          >
+            Open Intelligence <ArrowUpRight className="h-4 w-4" />
+          </Button>
+        </Link>
       </div>
 
       {/* Active Sessions Section */}

@@ -114,6 +114,7 @@ import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 import { AdminSection, DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { SecurityIntelligenceView } from "@/components/developer/security-intelligence-view";
 
 type SessionRow = {
   id: string;
@@ -3578,45 +3579,7 @@ function DeveloperDashboard() {
 
                 {/* Subtab 1: Security Overview */}
                 {securitySubTab === "overview" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
-                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Failed Developer Attempts</span>
-                        <div className={cn("text-2xl font-black", failedAttempts.length > 0 ? "text-rose-400" : "text-emerald-400")}>
-                          {failedAttempts.length}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">Recorded via centralized audit RPC</p>
-                      </div>
-                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
-                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Active Faculty Online</span>
-                        <div className="text-2xl font-black text-emerald-400">
-                          {loginLogs.filter((l) => !l.logout_time).length}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">Simultaneous authenticated sessions</p>
-                      </div>
-                      <div className="glass rounded-2xl p-4 border border-border/60 space-y-1">
-                        <span className="text-[11px] font-bold uppercase text-muted-foreground">Perimeter Defense Status</span>
-                        <div className="text-2xl font-black text-primary">Enforced</div>
-                        <p className="text-[11px] text-muted-foreground">Advisory lock & SQL rate limiting active</p>
-                      </div>
-                    </div>
-
-                    <div className="glass rounded-2xl p-5 border border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
-                          <Shield className="h-4 w-4 text-primary" /> Web Application Firewall (WAF) & Perimeter Rules
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Inspect rules, manage IP rate-limiting, and review edge threat protection.
-                        </p>
-                      </div>
-                      <Button asChild size="sm" className="gradient-bg text-white rounded-xl text-xs font-bold gap-1.5 shadow-sm">
-                        <Link to="/developer-waf">
-                          Open WAF Portal
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
+                  <SecurityIntelligenceView />
                 )}
 
                 {/* Subtab 2: Failed Attempts (Access Security) */}

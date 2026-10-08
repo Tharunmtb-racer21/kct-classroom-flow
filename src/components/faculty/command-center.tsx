@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   PlusCircle,
   Activity,
+  Brain,
   MapPin,
   Wifi,
   ShieldAlert,
@@ -358,12 +359,12 @@ function QuickActionsBar() {
       bg: "bg-purple-500/10",
     },
     {
-      title: "Live Monitor",
-      desc: "Security telemetry",
-      icon: Activity,
-      href: "/dashboard/security",
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
+      title: "Classroom Intelligence",
+      desc: "Engagement analytics",
+      icon: Brain,
+      href: "/dashboard/intelligence",
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
     },
     {
       title: "Live Map",
@@ -426,8 +427,8 @@ function ActionCenter({ actions, onDismiss }: ActionCenterProps) {
   const handleActionClick = (item: FacultyActionItem) => {
     switch (item.action) {
       case "VIEW_MONITOR":
-        toast.info(`Opening monitor for ${item.title}`);
-        navigate({ to: "/dashboard/security" });
+        toast.info(`Opening intelligence for ${item.title}`);
+        navigate({ to: "/dashboard/intelligence" });
         break;
       case "VIEW_RESULTS":
         toast.info("Navigating to results & reports");
