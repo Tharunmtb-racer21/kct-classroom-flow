@@ -7,6 +7,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { calculateStudentEngagement, type StudentEngagementAnalysis } from "@/lib/ml-engine";
+import { isAnswerCorrect } from "@/lib/answer-evaluator";
 
 export interface MLTrainingRecord {
   student_id_hash: string;
@@ -52,7 +53,7 @@ export async function extractMLTrainingDataset(): Promise<MLTrainingRecord[]> {
       { data: integrityEvents },
     ] = await Promise.all([
       supabase.from("participants").select("id, name, session_id, joined_at"),
-      supabase.from("questions").select("id, session_id, type, title, correct_answer"),
+      supabase.from("questions").select("id, session_id, type, title, correct_answer, options"),
       supabase.from("responses").select("id, question_id, participant_id, answer, created_at"),
       supabase
         .from("exam_integrity_events")
@@ -83,10 +84,7 @@ export async function extractMLTrainingDataset(): Promise<MLTrainingRecord[]> {
         if (matchedQ) {
           if (matchedQ.type === "quiz") {
             quizCount++;
-            if (
-              matchedQ.correct_answer &&
-              resp.answer.trim().toLowerCase() === matchedQ.correct_answer.trim().toLowerCase()
-            ) {
+            if (isAnswerCorrect(resp.answer, matchedQ.correct_answer, matchedQ.options)) {
               correctCount++;
             }
           } else if (matchedQ.type === "poll") {
@@ -105,12 +103,14 @@ export async function extractMLTrainingDataset(): Promise<MLTrainingRecord[]> {
         joinedAt: p.joined_at,
         totalSessionQuestions: studentQuestions.length,
         attemptedQuestions,
+        attemptedQuizQuestions: quizCount,
+        unattemptedQuestions: Math.max(0, studentQuestions.length - attemptedQuestions),
         skippedQuestions: Math.max(0, studentQuestions.length - attemptedQuestions),
         correctAnswers: correctCount,
-        totalQuizQuestions: quizCount,
+        totalQuizQuestions: studentQuestions.filter((q) => q.type === "quiz").length,
         pollParticipationCount: pollCount,
         wordcloudParticipationCount: wordcloudCount,
-        responseTimingsMs: [4500, 5200, 4800],
+        responseTimingsMs: [],
       });
 
       // Integrity event aggregates

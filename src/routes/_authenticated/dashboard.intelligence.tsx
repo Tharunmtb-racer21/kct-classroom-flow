@@ -2,7 +2,8 @@
  * dashboard.intelligence.tsx
  * 🧠 Classroom Intelligence Dashboard for Faculty
  * Truthful, deterministic classroom interaction and engagement diagnostics.
- * Powered by authentic question responses, attempt rates, and concept accuracy.
+ * Powered by authentic question responses, attempt rates, concept accuracy,
+ * and robust answer evaluation.
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -16,6 +17,11 @@ import {
   type ClassroomEngagementBreakdown,
 } from "@/lib/ml-engine";
 import { analyzeWeakTopics, type WeakTopicAnalysis } from "@/lib/weak-topic-engine";
+import {
+  isAnswerCorrect,
+  calculateQuestionObservedPerformance,
+  type QuestionObservedPerformance,
+} from "@/lib/answer-evaluator";
 import {
   ResponsiveContainer,
   PieChart,
@@ -41,6 +47,7 @@ import {
   BookOpen,
   PieChart as PieChartIcon,
   BarChart3,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +86,7 @@ export default function ClassroomIntelligenceDashboard() {
   const [studentAnalyses, setStudentAnalyses] = useState<StudentEngagementAnalysis[]>([]);
   const [classroomStats, setClassroomStats] = useState<ClassroomEngagementBreakdown | null>(null);
   const [weakTopicData, setWeakTopicData] = useState<WeakTopicAnalysis | null>(null);
+  const [observedQuestions, setObservedQuestions] = useState<QuestionObservedPerformance[]>([]);
 
   // 1. Load Sessions scoped strictly to the authenticated faculty
   useEffect(() => {
@@ -137,6 +145,7 @@ export default function ClassroomIntelligenceDashboard() {
             title,
             type,
             correct_answer,
+            options,
             responses (
               id,
               answer,
@@ -145,7 +154,8 @@ export default function ClassroomIntelligenceDashboard() {
             )
           )
         `)
-        .eq("creator_id", facultyUid);
+        .eq("creator_id", facultyUid)
+        .order("created_at", { ascending: false });
 
       if (selectedSessionId !== "all") {
         query = query.eq("id", selectedSessionId);
@@ -162,6 +172,7 @@ export default function ClassroomIntelligenceDashboard() {
         setStudentAnalyses([]);
         setClassroomStats(null);
         setWeakTopicData(null);
+        setObservedQuestions([]);
         setIsLoading(false);
         return;
       }
@@ -175,6 +186,7 @@ export default function ClassroomIntelligenceDashboard() {
         setStudentAnalyses([]);
         setClassroomStats(null);
         setWeakTopicData(null);
+        setObservedQuestions([]);
         setIsLoading(false);
         return;
       }
@@ -213,13 +225,14 @@ export default function ClassroomIntelligenceDashboard() {
             ? scopedSessions.find((s: any) => s.id === p.session_id)?.questions || allQuestions
             : allQuestions;
         const totalSessionQuestions = sessionQuestions.length;
-        const totalQuizQuestions = sessionQuestions.filter((q: any) => q.type === "quiz").length;
+        const sessionQuizQuestions = sessionQuestions.filter((q: any) => q.type === "quiz");
+        const totalQuizQuestions = sessionQuizQuestions.length;
 
         const studentResponses = responsesByParticipant.get(p.id) || [];
         const attemptedQuestions = new Set(studentResponses.map((r: any) => r.question_id)).size;
 
         let correctCount = 0;
-        let quizCount = 0;
+        let attemptedQuizCount = 0;
         let pollCount = 0;
         let wordcloudCount = 0;
 
@@ -227,10 +240,10 @@ export default function ClassroomIntelligenceDashboard() {
           const matchedQ = questionsById.get(resp.question_id);
           if (matchedQ) {
             if (matchedQ.type === "quiz") {
-              quizCount += 1;
+              attemptedQuizCount += 1;
+              // Robust answer evaluation (case, whitespace, comma-delimited sets, prefix normalization)
               if (
-                matchedQ.correct_answer &&
-                resp.answer.trim().toLowerCase() === matchedQ.correct_answer.trim().toLowerCase()
+                isAnswerCorrect(resp.answer, matchedQ.correct_answer, matchedQ.options)
               ) {
                 correctCount += 1;
               }
@@ -249,13 +262,15 @@ export default function ClassroomIntelligenceDashboard() {
           joinedAt: p.joined_at,
           totalSessionQuestions,
           attemptedQuestions,
+          attemptedQuizQuestions: attemptedQuizCount,
+          unattemptedQuestions: Math.max(0, totalSessionQuestions - attemptedQuestions),
           skippedQuestions: Math.max(0, totalSessionQuestions - attemptedQuestions),
           correctAnswers: correctCount,
           totalQuizQuestions,
           pollParticipationCount: pollCount,
           wordcloudParticipationCount: wordcloudCount,
-          responseTimingsMs: [], // Authentically empty (not tracked)
-          historicalAccuracyPercentages: [], // Authentically empty (not faked)
+          responseTimingsMs: [], // Authentically empty (not tracked in database)
+          historicalAccuracyPercentages: [], // Authentically empty (ephemeral sessions)
         });
       });
 
@@ -268,24 +283,53 @@ export default function ClassroomIntelligenceDashboard() {
       // Compute Question & Concept Performance & Pedagogical Recommendations
       const questionPerfList = allQuestions.map((q: any) => {
         const qResponses = responsesByQuestion.get(q.id) || [];
+        const parentSession = scopedSessions.find((s: any) =>
+          s.questions?.some((sq: any) => sq.id === q.id),
+        );
+        const totalSessionParticipants =
+          parentSession?.participants?.length ||
+          allParticipants.filter((p: any) => p.session_id === q.session_id).length ||
+          allParticipants.length;
+
         return {
           questionId: q.id,
           title: q.title,
           type: q.type as "quiz" | "poll" | "wordcloud",
           correctAnswer: q.correct_answer,
+          options: q.options,
           responses: qResponses.map((r: any) => ({ answer: r.answer })),
-          totalParticipantsInSession:
-            allParticipants.filter((p: any) => {
-              const parent = scopedSessions.find((s: any) =>
-                s.questions?.some((sq: any) => sq.id === q.id),
-              );
-              return parent ? p.session_id === parent.id : false;
-            }).length || allParticipants.length,
+          totalParticipantsInSession: totalSessionParticipants,
         };
       });
 
       const weakTopicsAnalysis = analyzeWeakTopics(questionPerfList);
       setWeakTopicData(weakTopicsAnalysis);
+
+      // Compute Individual Question Observed Performance & Difficulty Diagnostics
+      const quizQuestions = allQuestions.filter((q: any) => q.type === "quiz");
+      const observedList: QuestionObservedPerformance[] = quizQuestions.map((q: any) => {
+        const qResponses = responsesByQuestion.get(q.id) || [];
+        const parentSession = scopedSessions.find((s: any) =>
+          s.questions?.some((sq: any) => sq.id === q.id),
+        );
+        const totalSessionParticipants =
+          parentSession?.participants?.length ||
+          allParticipants.filter((p: any) => p.session_id === q.session_id).length ||
+          allParticipants.length;
+
+        return calculateQuestionObservedPerformance(
+          {
+            id: q.id,
+            title: q.title,
+            type: q.type,
+            correct_answer: q.correct_answer,
+            options: q.options,
+          },
+          qResponses.map((r: any) => ({ answer: r.answer })),
+          totalSessionParticipants,
+        );
+      });
+      setObservedQuestions(observedList);
     } catch (err: any) {
       console.error("[Classroom Intelligence] Failed to compute analytics:", err);
       setLoadError(err?.message || "Failed to load classroom analytics");
@@ -351,9 +395,10 @@ export default function ClassroomIntelligenceDashboard() {
       name: t.topicName.length > 14 ? `${t.topicName.slice(0, 14)}…` : t.topicName,
       fullName: t.topicName,
       accuracy: t.accuracyPercentage,
-      skipRate: t.skipRatePercentage,
+      coverage: t.responseCoveragePercentage,
       attemptedCount: t.attemptedCount,
       questionCount: t.questionCount,
+      sampleSufficiencyLabel: t.sampleSufficiencyLabel,
       color:
         t.status === "weak"
           ? "#f43f5e"
@@ -394,10 +439,15 @@ export default function ClassroomIntelligenceDashboard() {
               <Brain className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                Classroom <span className="gradient-text">Intelligence</span>
-              </h1>
-              <p className="text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+                  Classroom <span className="gradient-text">Intelligence</span>
+                </h1>
+                <Badge variant="outline" className="text-[11px] font-medium border-primary/30 text-primary">
+                  Phase 1 · Deterministic Analytics
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Deterministic student engagement model, learning insights, and performance diagnostics
               </p>
             </div>
@@ -460,7 +510,9 @@ export default function ClassroomIntelligenceDashboard() {
             <CardTitle className="text-xl font-bold flex items-center justify-between pt-1">
               <span>Overall Score</span>
               <span className="text-2xl font-black text-primary">
-                {classroomStats ? `${classroomStats.overallScore}%` : "—"}
+                {classroomStats && classroomStats.hasSufficientData
+                  ? `${classroomStats.overallScore}%`
+                  : "—"}
               </span>
             </CardTitle>
           </CardHeader>
@@ -511,7 +563,7 @@ export default function ClassroomIntelligenceDashboard() {
             </div>
             <Progress value={classroomStats?.overallScore || 0} className="h-1.5 mb-1.5" />
             <p className="text-[11px] text-muted-foreground leading-tight">
-              Derived from attempt rate (35%), quiz accuracy (35%), format variety (18%), and presence (12%). Response timing is not recorded.
+              Formula: Attempt rate (35%), quiz accuracy on attempted questions (35%), format variety (18%), and presence (12%).
             </p>
           </CardContent>
         </Card>
@@ -565,7 +617,7 @@ export default function ClassroomIntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Participants with high skip rate or score &lt;45%. Flagged for gentle mentoring.
+              Participants with low attempt rate or score &lt;45%. Flagged for gentle mentoring.
             </p>
           </CardContent>
         </Card>
@@ -594,17 +646,22 @@ export default function ClassroomIntelligenceDashboard() {
 
       {/* Topic Performance & Learning Trend Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Weak Topic Detection */}
+        {/* Question Concept Performance */}
         <Card className="shadow-md">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-              <div>
-                <CardTitle className="text-lg font-bold">Question & Concept Performance</CardTitle>
-                <CardDescription>
-                  Evaluates concept accuracy, skip rate, and student error patterns
-                </CardDescription>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-lg font-bold">Concept Accuracy & Response Coverage</CardTitle>
+                  <CardDescription>
+                    Observed concept accuracy, coverage, and error patterns
+                  </CardDescription>
+                </div>
               </div>
+              <Badge variant="outline" className="text-xs">
+                Observed Metrics
+              </Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -612,8 +669,13 @@ export default function ClassroomIntelligenceDashboard() {
               <div className="space-y-4">
                 {/* Visual Topic Accuracy Bar Chart */}
                 <div className="rounded-xl border border-border/60 bg-accent/20 p-3">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <BarChart3 className="h-3.5 w-3.5 text-primary" /> Concept Accuracy Comparison (%)
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <BarChart3 className="h-3.5 w-3.5 text-primary" /> Concept Accuracy Comparison (%)
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      N = Total Attempts
+                    </span>
                   </div>
                   <div className="h-44 w-full">
                     <ResponsiveContainer width="100%" height="100%">
@@ -631,8 +693,8 @@ export default function ClassroomIntelligenceDashboard() {
                             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
                           }}
                           formatter={(val: any, name: any, item: any) => [
-                            `${val}% (Attempted: ${item.payload.attemptedCount}, Skip: ${item.payload.skipRate}%)`,
-                            "Accuracy",
+                            `${val}% (N=${item.payload.attemptedCount}, Coverage: ${item.payload.coverage}%)`,
+                            "Observed Accuracy",
                           ]}
                           labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
                         />
@@ -656,17 +718,31 @@ export default function ClassroomIntelligenceDashboard() {
                         <span>{t.statusBadge}</span>
                         <span>{t.topicName}</span>
                       </div>
-                      <span
-                        className={`text-sm font-extrabold ${
-                          t.status === "weak"
-                            ? "text-rose-500"
-                            : t.status === "moderate"
-                              ? "text-amber-500"
-                              : "text-emerald-500"
-                        }`}
-                      >
-                        {t.accuracyPercentage}%
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={
+                            t.sampleSufficiency === "reliable"
+                              ? "border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 text-[10px]"
+                              : t.sampleSufficiency === "preliminary"
+                                ? "border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/20 text-[10px]"
+                                : "border-border text-muted-foreground text-[10px]"
+                          }
+                        >
+                          {t.sampleSufficiencyLabel}
+                        </Badge>
+                        <span
+                          className={`text-sm font-extrabold ${
+                            t.status === "weak"
+                              ? "text-rose-500"
+                              : t.status === "moderate"
+                                ? "text-amber-500"
+                                : "text-emerald-500"
+                          }`}
+                        >
+                          {t.accuracyPercentage}%
+                        </span>
+                      </div>
                     </div>
                     <Progress
                       value={t.accuracyPercentage}
@@ -681,7 +757,7 @@ export default function ClassroomIntelligenceDashboard() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                       <span>Questions: {t.questionCount}</span>
                       <span>Attempted: {t.attemptedCount}</span>
-                      <span>Skip Rate: {t.skipRatePercentage}%</span>
+                      <span>Response Coverage: {t.responseCoveragePercentage}%</span>
                     </div>
                   </div>
                 ))}
@@ -699,12 +775,17 @@ export default function ClassroomIntelligenceDashboard() {
         {/* Participant Learning Scores & Distribution */}
         <Card className="shadow-md">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <div>
-                <CardTitle className="text-lg font-bold">Participant Engagement Scores</CardTitle>
-                <CardDescription>Scoped session participant records breakdown</CardDescription>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-lg font-bold">Participant Engagement Scores</CardTitle>
+                  <CardDescription>Formula-derived student engagement breakdown</CardDescription>
+                </div>
               </div>
+              <Badge variant="outline" className="text-xs">
+                Formula Score (0–100)
+              </Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -777,7 +858,7 @@ export default function ClassroomIntelligenceDashboard() {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Attempt Rate: {s.attemptRatePercentage}% | Accuracy: {s.accuracyPercentage}%
+                          Attempt Rate: {s.attemptRatePercentage}% | Accuracy: {s.accuracyPercentage}% ({s.correctAnswers}/{s.attemptedQuizQuestions})
                         </p>
                       </div>
 
@@ -810,6 +891,117 @@ export default function ClassroomIntelligenceDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Observed Question Performance & Difficulty Diagnostics */}
+      <Card className="shadow-md">
+        <CardHeader>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle className="text-lg font-bold">Observed Question Performance</CardTitle>
+                <CardDescription>
+                  Empirical descriptive statistics calculated from genuine student submissions
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs bg-accent/30 font-normal">
+                Descriptive Statistics · Not ML Predictions
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {observedQuestions.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground bg-accent/20 p-2.5 rounded-lg border border-border/40 gap-2">
+                <div className="flex items-center gap-1.5">
+                  <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+                  <span>
+                    <strong>Sample sufficiency thresholds:</strong> Reliable (N ≥ 15), Preliminary (5 ≤ N &lt; 15), Insufficient sample (N &lt; 5).
+                  </span>
+                </div>
+                <span className="text-[11px] opacity-75">
+                  Absence of a response row indicates unobserved exposure, not a confirmed skip.
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                {observedQuestions.map((q) => (
+                  <div
+                    key={q.questionId}
+                    className="p-3.5 rounded-xl border border-border/60 bg-card hover:bg-accent/30 transition space-y-2 flex flex-col justify-between"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-sm line-clamp-2 leading-snug" title={q.title}>
+                          {q.title}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className={
+                            q.sampleSufficiency === "reliable"
+                              ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 text-[10px] shrink-0"
+                              : q.sampleSufficiency === "preliminary"
+                                ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30 text-[10px] shrink-0"
+                                : "border-muted-foreground/30 text-muted-foreground bg-muted/20 text-[10px] shrink-0"
+                          }
+                        >
+                          {q.sampleSufficiency === "reliable"
+                            ? "Reliable (N≥15)"
+                            : q.sampleSufficiency === "preliminary"
+                              ? "Preliminary"
+                              : "Insufficient Data"}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 py-1 text-center bg-accent/20 rounded-lg p-2">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Submissions</div>
+                        <div className="text-sm font-extrabold">{q.submittedCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Observed Acc.</div>
+                        <div
+                          className={`text-sm font-extrabold ${
+                            q.submittedCount < 5
+                              ? "text-muted-foreground"
+                              : q.observedAccuracy >= 75
+                                ? "text-emerald-500"
+                                : q.observedAccuracy >= 50
+                                  ? "text-amber-500"
+                                  : "text-rose-500"
+                          }`}
+                        >
+                          {q.submittedCount > 0 ? `${q.observedAccuracy}%` : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-muted-foreground">Error Rate</div>
+                        <div className="text-sm font-extrabold text-muted-foreground">
+                          {q.submittedCount > 0 ? `${q.observedErrorRate}%` : "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 border-t border-border/30">
+                      <span>Coverage: {q.responseCoveragePercentage}%</span>
+                      <span>Correct: {q.correctCount} / {q.submittedCount}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground space-y-1">
+              <p className="text-sm font-medium">No quiz questions recorded in selected scope</p>
+              <p className="text-xs">Create quiz questions to view observed difficulty metrics.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

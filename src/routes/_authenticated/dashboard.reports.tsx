@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
+import { isAnswerCorrect } from "@/lib/answer-evaluator";
 import {
   Users,
   HelpCircle,
@@ -275,7 +276,7 @@ function ReportsPage() {
       if (q.type === "quiz") {
         total += qMarks;
         const response = q.responses?.find((r) => r.participant_id === participant.id);
-        if (response && response.answer === q.correct_answer) {
+        if (response && isAnswerCorrect(response.answer, q.correct_answer, q.options)) {
           obtained += qMarks;
         }
       } else if (q.type === "wordcloud") {
@@ -384,7 +385,7 @@ function ReportsPage() {
           if (response) {
             attempted++;
             if (q.type === "quiz") {
-              if (response.answer === q.correct_answer) {
+              if (isAnswerCorrect(response.answer, q.correct_answer, q.options)) {
                 correct++;
                 marksObtained += qMarks;
               } else {
@@ -430,7 +431,7 @@ function ReportsPage() {
 
         if (q.type === "quiz") {
           q.responses?.forEach((r) => {
-            if (r.answer === q.correct_answer) {
+            if (isAnswerCorrect(r.answer, q.correct_answer, q.options)) {
               correctResponses++;
             } else {
               wrongResponses++;

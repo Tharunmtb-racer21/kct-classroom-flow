@@ -1,8 +1,15 @@
 /**
  * ml-engine.ts
  * Deterministic Classroom Analytics Engine for KCT PULSE.
- * Analyzes classroom interaction data to derive student engagement scores,
- * overall classroom engagement levels, and student participation distribution.
+ *
+ * Computes explainable, deterministic student engagement metrics,
+ * classroom-level cohort distributions, and participation indicators.
+ *
+ * NOTE:
+ * - Current engagement scores are formula-derived heuristics, NOT supervised ML predictions.
+ * - Weights are grounded in observable classroom actions:
+ *   Attempt Rate: 35%, Quiz Accuracy on attempted questions: 35%,
+ *   Multi-Format Interaction: 18%, Session Presence: 12%.
  */
 
 export interface StudentRawData {
@@ -12,13 +19,20 @@ export interface StudentRawData {
   joinedAt: string;
   totalSessionQuestions: number;
   attemptedQuestions: number;
-  skippedQuestions: number;
+  attemptedQuizQuestions?: number;
+  /**
+   * Unattempted questions in session.
+   * Qualified: In the database, missing response rows represent unobserved exposure,
+   * not confirmed active skips.
+   */
+  unattemptedQuestions?: number;
+  skippedQuestions?: number; // Maintained for backwards compatibility
   correctAnswers: number;
   totalQuizQuestions: number;
   pollParticipationCount: number;
   wordcloudParticipationCount: number;
-  responseTimingsMs: number[];
-  historicalAccuracyPercentages?: number[]; // Performance from past sessions
+  responseTimingsMs?: number[];
+  historicalAccuracyPercentages?: number[];
 }
 
 export type EngagementLevel = "highly_engaged" | "moderately_engaged" | "needs_attention";
@@ -27,13 +41,17 @@ export type PerformanceTrend = "improving" | "stable" | "declining" | "insuffici
 export interface StudentEngagementAnalysis {
   participantId: string;
   name: string;
-  engagementScore: number; // 0 - 100
+  engagementScore: number; // 0 - 100 deterministic formula score
   engagementLevel: EngagementLevel;
   engagementLabel: string;
   badgeColor: string;
-  accuracyPercentage: number;
-  attemptRatePercentage: number;
-  avgResponseTimeMs: number;
+  accuracyPercentage: number; // Observed quiz accuracy strictly on attempted quiz questions
+  attemptRatePercentage: number; // Observed attempt rate across all session questions
+  attemptedQuestions: number;
+  totalSessionQuestions: number;
+  attemptedQuizQuestions: number;
+  correctAnswers: number;
+  avgResponseTimeMs: number; // Currently 0 (unrecorded in schema)
   quizAccuracyPercentage: number;
   pollParticipationRate: number;
   wordcloudParticipationRate: number;
@@ -41,6 +59,7 @@ export interface StudentEngagementAnalysis {
   trendLabel: string;
   trendIcon: string;
   hasSufficientData: boolean;
+  scoreType: "formula_deterministic";
 }
 
 export interface ClassroomEngagementBreakdown {
@@ -61,13 +80,12 @@ export interface ClassroomEngagementBreakdown {
 /**
  * Deterministic Feature Weighting Model for Student Engagement Score (0 - 100)
  *
- * Response timing was removed because it is not recorded in the database.
- * The remaining original weights (30% Attempt Rate, 30% Quiz Accuracy, 15% Format Variety, 10% Presence)
- * were proportionally normalized to total 100%:
- * - Attempt Rate (35%): Fraction of active questions attempted vs skipped (30 / 85 ≈ 35.3%)
- * - Quiz Accuracy (35%): Correct answers out of total quiz questions attempted (30 / 85 ≈ 35.3%)
- * - Multi-Format Interaction (18%): Participation across quizzes, polls, and wordclouds (15 / 85 ≈ 17.6%)
- * - Attendance & Session Presence (12%): Timely join and active session completion (10 / 85 ≈ 11.8%)
+ * Features and Weights:
+ * - Attempt Rate (35%): Fraction of session questions attempted
+ * - Quiz Accuracy (35%): Evaluated strictly over *attempted* quiz questions
+ *   so unattempted questions are not penalized twice (attempt rate already accounts for them)
+ * - Multi-Format Interaction (18%): Participation across quizzes, polls, and wordclouds
+ * - Attendance & Session Presence (12%): Consistent participation throughout session
  */
 export function calculateStudentEngagement(data: StudentRawData): StudentEngagementAnalysis {
   const {
@@ -75,6 +93,7 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     name,
     totalSessionQuestions,
     attemptedQuestions,
+    attemptedQuizQuestions,
     correctAnswers,
     totalQuizQuestions,
     pollParticipationCount,
@@ -83,7 +102,7 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     historicalAccuracyPercentages = [],
   } = data;
 
-  // Cold start guard: check minimum response data
+  // Cold start guard: participant must have joined a session with questions
   const hasSufficientData = totalSessionQuestions > 0 && attemptedQuestions > 0;
 
   if (!hasSufficientData) {
@@ -96,25 +115,43 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
       badgeColor: "gray",
       accuracyPercentage: 0,
       attemptRatePercentage: 0,
+      attemptedQuestions: 0,
+      totalSessionQuestions,
+      attemptedQuizQuestions: 0,
+      correctAnswers: 0,
       avgResponseTimeMs: 0,
       quizAccuracyPercentage: 0,
       pollParticipationRate: 0,
       wordcloudParticipationRate: 0,
       performanceTrend: "insufficient_data",
-      trendLabel: "Insufficient historical data",
+      trendLabel: "Insufficient response data",
       trendIcon: "—",
       hasSufficientData: false,
+      scoreType: "formula_deterministic",
     };
   }
 
   // 1. Attempt Rate (0-100)
   const attemptRate = Math.min(100, Math.round((attemptedQuestions / totalSessionQuestions) * 100));
 
+  // Determine attempted quiz questions
+  const actualAttemptedQuizzes =
+    typeof attemptedQuizQuestions === "number"
+      ? attemptedQuizQuestions
+      : Math.min(attemptedQuestions, totalQuizQuestions);
+
   // 2. Quiz Accuracy (0-100)
-  const quizAccuracy =
-    totalQuizQuestions > 0
-      ? Math.min(100, Math.round((correctAnswers / totalQuizQuestions) * 100))
-      : attemptRate; // Fallback to attempt rate if session only has polls/wordclouds
+  // Measured on attempted quiz questions to avoid counting unanswered questions as incorrect responses.
+  let quizAccuracy = 0;
+  if (actualAttemptedQuizzes > 0) {
+    quizAccuracy = Math.min(100, Math.round((correctAnswers / actualAttemptedQuizzes) * 100));
+  } else if (totalQuizQuestions === 0) {
+    // If the session contained only polls/wordclouds, fall back to attempt rate
+    quizAccuracy = attemptRate;
+  } else {
+    // 0 attempted quiz questions in a session that contained quizzes
+    quizAccuracy = 0;
+  }
 
   // 3. Format Variety Score (Quizzes + Polls + Wordclouds)
   const pollRate = pollParticipationCount > 0 ? 100 : 0;
@@ -149,12 +186,14 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     badgeColor = "red";
   }
 
-  // Performance Trend Classification (Requires genuine past observations)
+  // Longitudinal Performance Trend (Requires genuine past session observations)
+  // Since participants are session-scoped and do not have cross-session IDs,
+  // historical accuracy is unobserved unless explicitly linked.
   let performanceTrend: PerformanceTrend = "insufficient_data";
-  let trendLabel = "Insufficient historical data";
+  let trendLabel = "Session-scoped (no prior history)";
   let trendIcon = "—";
 
-  if (historicalAccuracyPercentages.length >= 1) {
+  if (historicalAccuracyPercentages && historicalAccuracyPercentages.length >= 1) {
     const prevAverage =
       historicalAccuracyPercentages.reduce((a, b) => a + b, 0) /
       historicalAccuracyPercentages.length;
@@ -189,6 +228,10 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     badgeColor,
     accuracyPercentage: quizAccuracy,
     attemptRatePercentage: attemptRate,
+    attemptedQuestions,
+    totalSessionQuestions,
+    attemptedQuizQuestions: actualAttemptedQuizzes,
+    correctAnswers,
     avgResponseTimeMs: Math.round(avgResponseTime),
     quizAccuracyPercentage: quizAccuracy,
     pollParticipationRate: pollRate,
@@ -197,11 +240,12 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     trendLabel,
     trendIcon,
     hasSufficientData: true,
+    scoreType: "formula_deterministic",
   };
 }
 
 /**
- * Aggregate Classroom Engagement Analysis (Feature 2)
+ * Aggregate Classroom Engagement Analysis
  */
 export function calculateClassroomEngagement(
   students: StudentEngagementAnalysis[],

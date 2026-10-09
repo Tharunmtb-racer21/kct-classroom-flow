@@ -1,21 +1,26 @@
 /**
  * weak-topic-engine.ts
  * Rule-Based Engine for Question Concept Performance & Faculty Pedagogical Recommendations.
- * Analyzes question performance, skip rates, and error patterns
- * to identify concepts where students struggle, generating actionable faculty advice.
+ * Analyzes authentic question performance, response coverage, and error patterns
+ * to identify concepts where students struggle, generating actionable, explainable advice.
  */
+
+import { isAnswerCorrect } from "@/lib/answer-evaluator";
 
 export interface QuestionPerformanceData {
   questionId: string;
   title: string;
   type: "quiz" | "poll" | "wordcloud";
   correctAnswer: string | null;
+  options?: string[] | null;
   responses: Array<{
     answer: string;
     responseTimeMs?: number;
   }>;
   totalParticipantsInSession: number;
 }
+
+export type SampleSufficiency = "insufficient" | "preliminary" | "reliable";
 
 export interface TopicPerformanceResult {
   topicName: string;
@@ -26,7 +31,18 @@ export interface TopicPerformanceResult {
   attemptedCount: number;
   correctCount: number;
   avgResponseTimeMs: number;
-  skipRatePercentage: number;
+  /**
+   * Response Coverage: Percentage of eligible session participants who submitted an answer.
+   * Qualified: Absence of a response is unobserved exposure, NOT confirmed active skip.
+   */
+  responseCoveragePercentage: number;
+  /**
+   * Qualified non-response rate: fraction of eligible participants without an observed response.
+   */
+  unobservedExposureRatePercentage: number;
+  sampleSufficiency: SampleSufficiency;
+  sampleSufficiencyLabel: string;
+  isReliable: boolean;
 }
 
 export interface WeakTopicAnalysis {
@@ -34,11 +50,13 @@ export interface WeakTopicAnalysis {
   weakTopics: TopicPerformanceResult[];
   recommendation: string | null;
   hasSufficientData: boolean;
+  qualificationNote?: string;
 }
 
 /**
  * Extracts a topic name/concept from a question title.
  * Uses natural keyword grouping or fallback phrase extraction.
+ * Note: Official curriculum tags do not exist in the schema, so this is a heuristic grouping.
  */
 function extractTopicFromQuestion(title: string): string {
   const cleanTitle = title.trim();
@@ -79,7 +97,7 @@ function extractTopicFromQuestion(title: string): string {
     }
   }
 
-  // Fallback topic extraction: take first 3 words or question prompt prefix
+  // Fallback topic extraction: take first 2 meaningful words
   const words = cleanTitle
     .replace(/[^\w\s]/gi, "")
     .split(/\s+/)
@@ -105,18 +123,18 @@ function extractTopicFromQuestion(title: string): string {
  * Analyzes performance across session questions to produce topic breakdown and recommendations.
  */
 export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTopicAnalysis {
-  // Only evaluate quiz questions for accuracy & weak topics
+  // Only evaluate quiz questions for accuracy & concept performance
   const quizQuestions = questions.filter((q) => q.type === "quiz" && q.correctAnswer);
-
   const totalResponsesCount = quizQuestions.reduce((acc, q) => acc + q.responses.length, 0);
 
-  // Cold Start Check: Need at least 2 responses across quiz questions
+  // Cold Start Guard: Need at least 2 responses across quiz questions
   if (quizQuestions.length === 0 || totalResponsesCount < 2) {
     return {
       topics: [],
       weakTopics: [],
       recommendation: null,
       hasSufficientData: false,
+      qualificationNote: "Insufficient response data to evaluate concept performance (N < 2).",
     };
   }
 
@@ -128,7 +146,7 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
       attemptedCount: number;
       correctCount: number;
       responseTimesMs: number[];
-      totalPossibleAttempts: number;
+      totalEligibleParticipants: number;
     }
   >();
 
@@ -139,15 +157,16 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
       attemptedCount: 0,
       correctCount: 0,
       responseTimesMs: [],
-      totalPossibleAttempts: 0,
+      totalEligibleParticipants: 0,
     };
 
     existing.questionCount += 1;
     existing.attemptedCount += q.responses.length;
-    existing.totalPossibleAttempts += Math.max(q.responses.length, q.totalParticipantsInSession);
+    existing.totalEligibleParticipants += Math.max(q.responses.length, q.totalParticipantsInSession);
 
     for (const resp of q.responses) {
-      if (resp.answer.trim().toLowerCase() === q.correctAnswer?.trim().toLowerCase()) {
+      // Use robust answer evaluator supporting case, trimming, prefixes, and multiple-choice sets
+      if (isAnswerCorrect(resp.answer, q.correctAnswer, q.options)) {
         existing.correctCount += 1;
       }
       if (resp.responseTimeMs) {
@@ -164,13 +183,16 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
     const accuracy =
       stats.attemptedCount > 0 ? Math.round((stats.correctCount / stats.attemptedCount) * 100) : 0;
 
-    const skipRate =
-      stats.totalPossibleAttempts > 0
-        ? Math.round(
-            ((stats.totalPossibleAttempts - stats.attemptedCount) / stats.totalPossibleAttempts) *
-              100,
+    // Response coverage among eligible participants
+    const responseCoverage =
+      stats.totalEligibleParticipants > 0
+        ? Math.min(
+            100,
+            Math.round((stats.attemptedCount / stats.totalEligibleParticipants) * 100),
           )
         : 0;
+
+    const unobservedExposureRate = Math.max(0, 100 - responseCoverage);
 
     const avgResponseTimeMs =
       stats.responseTimesMs.length > 0
@@ -178,6 +200,21 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
             stats.responseTimesMs.reduce((a, b) => a + b, 0) / stats.responseTimesMs.length,
           )
         : 0;
+
+    // Sample size sufficiency: N < 5 is insufficient, 5 <= N < 15 is preliminary, N >= 15 is reliable
+    let sampleSufficiency: SampleSufficiency = "insufficient";
+    let sampleSufficiencyLabel = "Insufficient Sample (N < 5)";
+    let isReliable = false;
+
+    if (stats.attemptedCount >= 15) {
+      sampleSufficiency = "reliable";
+      sampleSufficiencyLabel = "Reliable Sample (N ≥ 15)";
+      isReliable = true;
+    } else if (stats.attemptedCount >= 5) {
+      sampleSufficiency = "preliminary";
+      sampleSufficiencyLabel = "Preliminary (N: 5–14)";
+      isReliable = true;
+    }
 
     let status: "good" | "moderate" | "weak" = "good";
     let statusBadge: "🟢" | "🟡" | "🔴" = "🟢";
@@ -199,7 +236,11 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
       attemptedCount: stats.attemptedCount,
       correctCount: stats.correctCount,
       avgResponseTimeMs,
-      skipRatePercentage: Math.max(0, skipRate),
+      responseCoveragePercentage: responseCoverage,
+      unobservedExposureRatePercentage: unobservedExposureRate,
+      sampleSufficiency,
+      sampleSufficiencyLabel,
+      isReliable,
     });
   });
 
@@ -208,19 +249,31 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
 
   const weakTopics = topicsResult.filter((t) => t.status === "weak");
 
-  // Generate Faculty Pedagogical Recommendation (Feature 3)
+  // Generate Faculty Pedagogical Recommendation (Feature 3: Rule-based recommendation)
   let recommendation: string | null = null;
 
-  if (weakTopics.length > 0) {
+  // Filter topics with sufficient sample for confident recommendations
+  const confidentWeak = weakTopics.filter((t) => t.sampleSufficiency !== "insufficient");
+  const confidentTopics = topicsResult.filter((t) => t.sampleSufficiency !== "insufficient");
+
+  if (confidentWeak.length > 0) {
+    const primaryWeak = confidentWeak[0];
+    const prefix =
+      primaryWeak.sampleSufficiency === "preliminary" ? "Preliminary observation: " : "";
+    recommendation = `${prefix}Students appear to encounter difficulty with ${primaryWeak.topicName} (Observed Accuracy: ${primaryWeak.accuracyPercentage}%, N=${primaryWeak.attemptedCount}). Consider spending 5–10 minutes reviewing foundational concepts and working through an illustrative example.`;
+  } else if (weakTopics.length > 0) {
     const primaryWeak = weakTopics[0];
-    recommendation = `Students appear to be struggling with ${primaryWeak.topicName} (Accuracy: ${primaryWeak.accuracyPercentage}%). Consider spending 5–10 additional minutes reviewing core concepts and working through example problems before moving to the next topic.`;
-  } else if (topicsResult.some((t) => t.status === "moderate")) {
-    const modTopic = topicsResult.find((t) => t.status === "moderate")!;
-    recommendation = `Overall class understanding is strong, but ${modTopic.topicName} shows moderate accuracy (${modTopic.accuracyPercentage}%). A quick 3-minute recap or summary quiz would solidify key takeaways.`;
+    recommendation = `Early response pattern for ${primaryWeak.topicName} shows ${primaryWeak.accuracyPercentage}% accuracy, but sample size is small (N=${primaryWeak.attemptedCount}). Gather additional responses before adjusting lesson pace.`;
+  } else if (confidentTopics.some((t) => t.status === "moderate")) {
+    const modTopic = confidentTopics.find((t) => t.status === "moderate")!;
+    recommendation = `Class comprehension is steady, with ${modTopic.topicName} showing moderate observed accuracy (${modTopic.accuracyPercentage}%, N=${modTopic.attemptedCount}). A brief recap or follow-up question would reinforce key points.`;
+  } else if (confidentTopics.length > 0) {
+    const avgAcc = Math.round(
+      confidentTopics.reduce((a, b) => a + b.accuracyPercentage, 0) / confidentTopics.length,
+    );
+    recommendation = `Observed student understanding is high across active topics (Average Accuracy: ${avgAcc}%). You can proceed to the next syllabus module.`;
   } else {
-    recommendation = `Great work! Students are demonstrating high mastery across all active lecture topics (Average accuracy: ${Math.round(
-      topicsResult.reduce((a, b) => a + b.accuracyPercentage, 0) / topicsResult.length,
-    )}%). You can safely proceed to the next module.`;
+    recommendation = `Classroom data is preliminary across all topics (N < 5 per concept). Continued live participation will unlock reliable pedagogical guidance.`;
   }
 
   return {

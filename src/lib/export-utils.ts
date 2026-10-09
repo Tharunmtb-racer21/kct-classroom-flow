@@ -2,6 +2,8 @@
  * Export Utilities for KCT PULSE — Exporting Session Reports to CSV & Excel (.xlsx)
  */
 
+import { isAnswerCorrect } from "@/lib/answer-evaluator";
+
 type Response = {
   id: string;
   answer: string;
@@ -95,7 +97,7 @@ export function exportSessionToCSV(session: ReportSession) {
       const resp = pMap?.get(q.id);
       if (resp) {
         responsesCount++;
-        if (q.type === "quiz" && resp.answer === q.correct_answer) {
+        if (q.type === "quiz" && isAnswerCorrect(resp.answer, q.correct_answer, q.options)) {
           correctCount++;
           marksObtained += q.marks ?? q.points ?? 0;
         }
@@ -181,7 +183,7 @@ export async function exportSessionToExcel(session: ReportSession) {
       const resp = pMap?.get(q.id);
       if (resp) {
         responsesCount++;
-        if (q.type === "quiz" && resp.answer === q.correct_answer) {
+        if (q.type === "quiz" && isAnswerCorrect(resp.answer, q.correct_answer, q.options)) {
           correctCount++;
           marksObtained += q.marks ?? q.points ?? 0;
         }
