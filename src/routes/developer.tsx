@@ -2313,35 +2313,75 @@ function DeveloperDashboard() {
                         <ChevronRight className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-[310px] overflow-y-auto pr-1">
                       {sessions.slice(0, 5).map((s) => {
                         const fac = getFacultyInfo(s.creator_id);
+                        const formattedDate = s.created_at
+                          ? new Date(s.created_at).toLocaleDateString()
+                          : "Recent";
+                        const fullDateString = s.created_at
+                          ? new Date(s.created_at).toLocaleString()
+                          : "Recent";
+
                         return (
-                          <div key={s.id} className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-card/60 border border-border/40 text-xs">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center text-primary font-mono text-[10px] shrink-0 font-bold">
-                                {s.code}
+                          <div
+                            key={s.id}
+                            className="grid grid-cols-[58px_1fr_58px] sm:grid-cols-[68px_1fr_68px] items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-card/60 hover:bg-card/90 border border-border/40 hover:border-border/60 transition-colors text-xs"
+                          >
+                            {/* 1. Fixed-width Session Code */}
+                            <div
+                              className="w-[58px] sm:w-[68px] h-7 sm:h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-mono text-[10px] sm:text-[11px] font-bold tracking-wider select-all shrink-0"
+                              title={`Session Code: ${s.code}`}
+                            >
+                              <span className="truncate px-1">{s.code}</span>
+                            </div>
+
+                            {/* 2. Flexible Title & Metadata (min-w-0 ensures truncation works) */}
+                            <div className="min-w-0 flex flex-col justify-center space-y-0.5">
+                              <div
+                                className="font-bold text-foreground text-xs leading-snug truncate"
+                                title={s.title || "Untitled Session"}
+                              >
+                                {s.title || "Untitled Session"}
                               </div>
-                              <div className="min-w-0">
-                                <div className="font-bold text-foreground truncate">{s.title}</div>
-                                <div className="text-[10px] text-muted-foreground truncate">
-                                  by {fac.name} • {s.created_at ? new Date(s.created_at).toLocaleDateString() : "Recent"}
-                                </div>
+                              <div
+                                className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground min-w-0"
+                                title={`Created by ${fac.name} • ${fullDateString}`}
+                              >
+                                <span className="truncate text-foreground/80 font-medium max-w-[110px] sm:max-w-[180px] md:max-w-none">
+                                  by {fac.name}
+                                </span>
+                                <span className="text-muted-foreground/40 shrink-0 font-bold">•</span>
+                                <span className="shrink-0 text-muted-foreground whitespace-nowrap">
+                                  {formattedDate}
+                                </span>
                               </div>
                             </div>
-                            <span className={cn(
-                              "text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0",
-                              s.status === "live" ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" :
-                              s.status === "draft" ? "bg-amber-500/15 text-amber-500 border border-amber-500/30" :
-                              "bg-muted text-muted-foreground"
-                            )}>
-                              {s.status}
-                            </span>
+
+                            {/* 3. Fixed-width Status Badge Aligned Right */}
+                            <div className="w-[58px] sm:w-[68px] shrink-0 flex items-center justify-end">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center justify-center w-full px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border text-center transition-colors",
+                                  s.status === "live"
+                                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shadow-[0_0_8px_-2px_rgba(16,185,129,0.3)]"
+                                    : s.status === "draft"
+                                      ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                                      : "bg-muted/70 text-muted-foreground border-border/60"
+                                )}
+                                title={`Session Status: ${s.status.toUpperCase()}`}
+                              >
+                                {s.status === "live" && (
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
+                                )}
+                                {s.status}
+                              </span>
+                            </div>
                           </div>
                         );
                       })}
                       {sessions.length === 0 && (
-                        <div className="text-xs text-muted-foreground text-center py-6">
+                        <div className="text-xs text-muted-foreground text-center py-6 bg-card/30 rounded-xl border border-dashed border-border/50">
                           No recorded classroom sessions yet.
                         </div>
                       )}
