@@ -27,14 +27,34 @@ import {
   Pencil,
   Trash2,
   CheckCircle2,
+  AlertCircle,
   BookOpen,
+  LogOut,
+  KeyRound,
+  Clock,
+  Mail,
+  Camera,
 } from "lucide-react";
 import { formatDisplayName } from "@/lib/utils";
-import { FacultyCommandCenter } from "@/components/faculty/command-center";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/dashboard/profile")({
   component: ProfilePage,
 });
+
+function getInitials(name: string, email: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return "FP";
+}
 
 function ProfilePage() {
   const navigate = useNavigate();
@@ -45,6 +65,10 @@ function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [role, setRole] = useState<string>("Faculty");
   const [createdAt, setCreatedAt] = useState<string>("");
+  const [lastSignIn, setLastSignIn] = useState<string>("");
+  const [authProvider, setAuthProvider] = useState<string>("Institutional SSO");
+  const [emailVerified, setEmailVerified] = useState<boolean>(false);
+  const [isSynced, setIsSynced] = useState<boolean>(false);
   const [sessionCount, setSessionCount] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -56,27 +80,58 @@ function ProfilePage() {
     if (!user) return;
 
     setEmail(user.email ?? "");
+    setEmailVerified(Boolean(user.emailVerified));
+
+    // Authenticated identity provider detection
+    const providerId = user.providerData?.[0]?.providerId;
+    if (providerId === "google.com") {
+      setAuthProvider("Google Workspace (Institutional SSO)");
+    } else if (providerId === "password") {
+      setAuthProvider("Institutional Email & Password");
+    } else if (providerId) {
+      setAuthProvider(providerId);
+    } else {
+      setAuthProvider("Institutional Single Sign-On");
+    }
+
+    if (user.metadata?.lastSignInTime) {
+      setLastSignIn(
+        new Date(user.metadata.lastSignInTime).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+    }
 
     // 1. Get profile data
-    const { data: profile } = await supabase
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("full_name, avatar_url, created_at")
       .eq("id", user.uid)
       .maybeSingle();
 
-    if (profile) {
+    if (profile && !profileErr) {
+      setIsSynced(true);
       setFullName(formatDisplayName(profile.full_name, user.email));
-      setAvatarUrl(profile.avatar_url); // Remain null (empty placeholder) if no photo exists
+      setAvatarUrl(profile.avatar_url);
 
-      if (profile.created_at) {
+      const createdDate = profile.created_at || user.metadata?.creationTime;
+      if (createdDate) {
         setCreatedAt(
-          new Date(profile.created_at).toLocaleDateString("en-US", {
+          new Date(createdDate).toLocaleDateString("en-US", {
             year: "numeric",
             month: "long",
             day: "numeric",
           }),
         );
       }
+    } else {
+      setIsSynced(false);
+      setFullName(formatDisplayName(user.displayName, user.email));
+      setAvatarUrl(user.photoURL);
     }
 
     // 2. Get user role
@@ -104,18 +159,23 @@ function ProfilePage() {
   }, []);
 
   const save = async () => {
+    if (!fullName.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+
     setSaving(true);
     const user = auth.currentUser;
     if (!user) return;
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName })
+      .update({ full_name: fullName.trim() })
       .eq("id", user.uid);
     setSaving(false);
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Profile updated");
+      toast.success("Profile updated successfully");
       setIsEditing(false);
       loadProfile();
     }
@@ -156,7 +216,7 @@ function ProfilePage() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
-      toast.success("Profile photo updated successfully! 🎉");
+      toast.success("Profile photo updated successfully");
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to upload photo");
@@ -175,7 +235,7 @@ function ProfilePage() {
         .eq("id", user.uid);
       if (error) throw error;
       setAvatarUrl(null);
-      toast.success("Profile photo removed (set to empty)");
+      toast.success("Profile photo removed");
     } catch (err: any) {
       toast.error(err.message || "Failed to remove photo");
     }
@@ -191,7 +251,6 @@ function ProfilePage() {
     if (!user) return;
 
     try {
-      // Delete user profile rows from DB
       const { error } = await supabase.from("profiles").delete().eq("id", user.uid);
       if (error) throw error;
 
@@ -210,50 +269,65 @@ function ProfilePage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Faculty Profile</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your institutional profile details and account metadata.
-        </p>
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-8 sm:py-10 space-y-6">
+      {/* Page Title & Header Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/40">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            Faculty Profile
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Institutional account credentials, teaching metrics, and security settings.
+          </p>
+        </div>
 
-        <Link to="/dashboard/guide" className="mt-4 inline-flex">
-          <Button className="gradient-bg font-semibold gap-2">
-            <BookOpen className="h-4 w-4" />
-            Open Faculty Guide
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/dashboard/guide">
+            <Button variant="outline" size="sm" className="gap-2 border-border/60">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Faculty Guide
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Chrome Profile Settings style Header Card */}
-      <div className="mt-8 glass rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-border/40 bg-[#1c2230]/40">
-        {/* Left Side: Avatar & Details */}
-        <div className="flex flex-col sm:flex-row items-center gap-5 w-full sm:w-auto">
-          {/* Avatar Image container (Perfect circle) */}
-          <div
-            className="relative group cursor-pointer h-20 w-20"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={fullName}
-                className="h-20 w-20 rounded-full object-cover border border-border/60 shadow-md group-hover:opacity-75 transition-all"
-              />
-            ) : (
-              // Empty circular placeholder
-              <div className="h-20 w-20 rounded-full bg-[#2a3142] border border-border/30 flex items-center justify-center text-muted-foreground shadow-md group-hover:opacity-75 transition-all">
-                <User className="h-8 w-8 text-muted-foreground/60" />
-              </div>
-            )}
-
-            {/* Hover overlay to upload photo */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-all">
-              {uploading ? (
-                <Loader2 className="h-5 w-5 text-white animate-spin" />
+      {/* Profile Header Identity Card */}
+      <div className="glass rounded-2xl p-6 border border-border/50 bg-card/60 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 w-full sm:w-auto">
+          {/* Avatar with Upload Capability */}
+          <div className="relative group shrink-0">
+            <div
+              className="h-20 w-20 rounded-full overflow-hidden border-2 border-border/60 bg-muted/40 cursor-pointer shadow-md transition-all group-hover:border-primary/60"
+              onClick={() => fileInputRef.current?.click()}
+              title="Click to update profile photo"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={fullName}
+                  className="h-full w-full object-cover group-hover:opacity-75 transition-opacity"
+                />
               ) : (
-                <Upload className="h-5 w-5 text-white" />
+                <div className="h-full w-full flex items-center justify-center font-bold text-xl text-primary bg-primary/10 group-hover:opacity-75 transition-opacity">
+                  {getInitials(fullName, email)}
+                </div>
               )}
+
+              {/* Hover overlay */}
+              <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploading ? (
+                  <Loader2 className="h-5 w-5 text-white animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-white" />
+                )}
+              </div>
             </div>
 
             <input
@@ -266,120 +340,292 @@ function ProfilePage() {
             />
           </div>
 
-          {/* Name, Email and Sync details */}
-          <div className="text-center sm:text-left space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight">{fullName || "KCT Faculty"}</h2>
-            <div className="text-sm text-muted-foreground/90 font-mono">{email}</div>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-xs text-emerald-400 font-medium">
-              <CheckCircle2 className="h-3.5 w-3.5 fill-emerald-500/10" />
-              <span>Sync is on</span>
+          {/* Core Identity Details */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                {fullName || "KCT Faculty"}
+              </h2>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs font-semibold">
+                {role}
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground font-mono">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground/70" />
+              <span>{email}</span>
+            </div>
+
+            {/* Genuine Account Synchronization State */}
+            <div className="flex items-center gap-1.5 text-xs font-medium pt-0.5">
+              {isSynced ? (
+                <span className="inline-flex items-center gap-1 text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Cloud Profile Connected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-400">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Profile Not Initialized
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Side: Action controls (Edit, Delete, Sign out) */}
-        <div className="flex items-center gap-2">
-          {/* Edit Profile name button */}
-          <button
+        {/* Primary Header Actions */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-border/30 justify-end">
+          <Button
             onClick={() => setIsEditing(!isEditing)}
-            className="p-2.5 rounded-lg border border-border/60 hover:bg-accent/40 text-muted-foreground hover:text-foreground transition-all"
-            title="Edit Name"
+            variant={isEditing ? "secondary" : "outline"}
+            className="h-9 px-3.5 gap-2 border-border/60 text-sm font-medium"
           >
-            <Pencil className="h-4.5 w-4.5" />
-          </button>
+            <Pencil className="h-3.5 w-3.5" />
+            {isEditing ? "Close Editing" : "Edit Profile"}
+          </Button>
 
-          {/* Delete profile picture (if exists) or delete account profile */}
-          <button
-            onClick={avatarUrl ? handleDeleteProfileImage : handleDeleteAccount}
-            className="p-2.5 rounded-lg border border-border/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-            title={avatarUrl ? "Remove Profile Photo" : "Delete Account Profile"}
-          >
-            <Trash2 className="h-4.5 w-4.5" />
-          </button>
-
-          {/* Sign out button */}
           <Button
             onClick={logout}
             variant="outline"
-            className="h-10 px-4 border-border/60 text-foreground hover:bg-accent/40 transition-all text-sm font-semibold rounded-lg"
+            className="h-9 px-3.5 gap-2 border-border/60 text-sm font-medium hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
           >
-            Sign out
+            <LogOut className="h-3.5 w-3.5" />
+            Sign Out
           </Button>
         </div>
       </div>
 
-      {/* ⚡ Faculty Command Center & 🔔 Action Center */}
-      <FacultyCommandCenter />
-
-      {/* Inline edit container or full account details */}
-      {isEditing ? (
-        <div className="mt-6 glass rounded-2xl p-6 space-y-4 border border-border/40">
-          <h3 className="text-base font-semibold">Edit Display Name</h3>
-          <div className="space-y-2">
-            <Label>Full Name</Label>
-            <Input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter full name"
-            />
+      {/* Account Settings Section */}
+      <div className="glass rounded-2xl p-6 border border-border/50 bg-card/60 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-border/30">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Account Settings</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your personal display information across KCT Pulse sessions.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={save} disabled={saving} className="gradient-bg font-semibold">
-              {saving ? "Saving..." : "Save"}
+          {!isEditing && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              className="text-xs gap-1.5 text-primary hover:text-primary"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Display Name
             </Button>
-            <Button variant="ghost" onClick={() => setIsEditing(false)}>
-              Cancel
-            </Button>
+          )}
+        </div>
+
+        {isEditing ? (
+          <div className="space-y-4 pt-1">
+            <div className="space-y-2 max-w-lg">
+              <Label htmlFor="display-name" className="text-xs font-semibold uppercase text-muted-foreground">
+                Display Name
+              </Label>
+              <Input
+                id="display-name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter full name"
+                className="h-10 border-border/60"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2 max-w-lg">
+              <Label htmlFor="institutional-email" className="text-xs font-semibold uppercase text-muted-foreground">
+                Institutional Email
+              </Label>
+              <Input
+                id="institutional-email"
+                value={email}
+                disabled
+                className="h-10 border-border/40 bg-muted/40 font-mono text-muted-foreground cursor-not-allowed"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Institutional email addresses are managed via Single Sign-On and cannot be altered directly.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-2">
+              <Button onClick={save} disabled={saving} className="gradient-bg font-semibold h-9 px-4">
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+              <Button variant="ghost" onClick={() => setIsEditing(false)} className="h-9 px-4">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Display Name</div>
+              <div className="text-sm font-medium text-foreground">{fullName || "Not configured"}</div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Institutional Email</div>
+              <div className="text-sm font-mono text-foreground">{email || "Not configured"}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Academic Profile Section */}
+      <div className="glass rounded-2xl p-6 border border-border/50 bg-card/60 space-y-4">
+        <div className="pb-3 border-b border-border/30">
+          <h3 className="text-base font-semibold text-foreground">Academic Information</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Verified institutional role assignment and platform teaching footprint.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-1">
+          <div className="space-y-1 p-3.5 rounded-xl border border-border/40 bg-muted/20">
+            <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-primary" />
+              Institutional Role
+            </div>
+            <div className="text-base font-bold text-foreground">{role}</div>
+            <p className="text-[11px] text-muted-foreground">Platform Access Tier</p>
+          </div>
+
+          <div className="space-y-1 p-3.5 rounded-xl border border-border/40 bg-muted/20">
+            <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+              <Presentation className="h-3.5 w-3.5 text-primary" />
+              Classroom Sessions
+            </div>
+            <div className="text-base font-bold text-foreground">
+              {sessionCount} {sessionCount === 1 ? "Session" : "Sessions"}
+            </div>
+            <p className="text-[11px] text-muted-foreground">Total Sessions Created</p>
+          </div>
+
+          {createdAt ? (
+            <div className="space-y-1 p-3.5 rounded-xl border border-border/40 bg-muted/20">
+              <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                Enrollment Date
+              </div>
+              <div className="text-base font-bold text-foreground">{createdAt}</div>
+              <p className="text-[11px] text-muted-foreground">Profile Established</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Security and Access Section */}
+      <div className="glass rounded-2xl p-6 border border-border/50 bg-card/60 space-y-5">
+        <div className="pb-3 border-b border-border/30">
+          <h3 className="text-base font-semibold text-foreground">Security & Access</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Verified authentication credentials and platform identity protection.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5 text-primary" />
+              Authentication Method
+            </div>
+            <div className="text-sm font-medium text-foreground">{authProvider}</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              Email Verification
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">
+                {emailVerified ? "Verified Institutional Account" : "Pending Verification"}
+              </span>
+              <Badge
+                variant="outline"
+                className={
+                  emailVerified
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]"
+                    : "bg-amber-500/10 text-amber-400 border-amber-500/30 text-[10px]"
+                }
+              >
+                {emailVerified ? "Verified" : "Unverified"}
+              </Badge>
+            </div>
+          </div>
+
+          {lastSignIn ? (
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-primary" />
+                Last Active Sign-In
+              </div>
+              <div className="text-sm font-medium text-foreground">{lastSignIn}</div>
+            </div>
+          ) : null}
+
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-primary" />
+              Access Enforcement
+            </div>
+            <div className="text-sm font-medium text-foreground">
+              Faculty Scoped (RLS & Firebase Auth)
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="mt-6 glass rounded-2xl p-6 space-y-4 border border-border/40 text-sm">
-          <h3 className="text-base font-semibold border-b border-border/30 pb-2">
-            Academic Information
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs uppercase">Role</div>
-              <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                <Shield className="h-4 w-4 text-primary" />
-                {role}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-muted-foreground text-xs uppercase">Sessions Launched</div>
-              <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                <Presentation className="h-4 w-4 text-primary" />
-                {sessionCount} sessions
-              </div>
-            </div>
-            {createdAt && (
-              <div className="col-span-2 space-y-1">
-                <div className="text-muted-foreground text-xs uppercase">Account Created</div>
-                <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  {createdAt}
-                </div>
-              </div>
+
+        {/* Profile Maintenance & Danger Zone */}
+        <div className="pt-4 border-t border-border/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs text-muted-foreground">
+            {avatarUrl ? (
+              <button
+                onClick={handleDeleteProfileImage}
+                className="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 transition-colors"
+              >
+                Remove custom profile picture
+              </button>
+            ) : (
+              <span>Profile avatar uses institutional initials by default.</span>
             )}
           </div>
-        </div>
-      )}
 
+          <Button
+            onClick={handleDeleteAccount}
+            variant="ghost"
+            size="sm"
+            className="text-xs text-destructive hover:bg-destructive/10 hover:text-destructive self-start sm:self-auto gap-1.5 h-8 px-2.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Profile Record
+          </Button>
+        </div>
+      </div>
+
+      {/* Delete Account Confirmation Dialog */}
       <AlertDialog open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Account Profile</AlertDialogTitle>
-            <AlertDialogDescription className="text-destructive font-semibold">
-              WARNING: Are you sure you want to delete your profile? This cannot be undone.
+            <AlertDialogDescription className="text-muted-foreground text-sm">
+              Are you sure you want to delete your profile record? This action will remove your user profile data from KCT Pulse. Your created classroom sessions will remain preserved in platform archives.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteAccount}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold"
             >
-              Delete Account
+              Delete Profile
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
