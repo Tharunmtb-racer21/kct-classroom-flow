@@ -752,35 +752,146 @@ function DeveloperDashboard() {
     ];
   }, [sessions]);
 
-  // Real platform activity data aggregated over recent days for Dashboard Overview chart
-  const platformActivityChartData = useMemo(() => {
-    const points: { date: string; label: string; sessions: number; responses: number; joins: number }[] = [];
-    const count = timeframe === "1D" ? 6 : timeframe === "7D" ? 7 : timeframe === "30D" ? 14 : 7;
-    const now = new Date();
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const label = d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        weekday: count <= 7 ? "short" : undefined,
-      });
+  // Recent Failed Attempts calculation (sliding 24-hour window)
+  const recentFailedAttempts = useMemo(() => {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    return failedAttempts.filter(
+      (a) => a.attempted_at && a.attempted_at >= twentyFourHoursAgo,
+    );
+  }, [failedAttempts]);
 
-      const sessCount = sessions.filter((s) => s.created_at && s.created_at.startsWith(dateStr)).length;
-      const respCount = responses.filter((r) => r.created_at && r.created_at.startsWith(dateStr)).length;
-      const joinCount = participants.filter((p) => p.joined_at && p.joined_at.startsWith(dateStr)).length;
+  interface PlatformActivityDataPoint {
+    date: string;
+    label: string;
+    sessions: number;
+    responses: number | null;
+    joins: number | null;
+    isToday?: boolean;
+    responsesError?: string | null;
+    joinsError?: string | null;
+    hasError?: boolean;
+  }
 
-      points.push({
-        date: dateStr,
-        label,
-        sessions: sessCount,
-        responses: respCount,
-        joins: joinCount,
-      });
-    }
-    return points;
-  }, [timeframe, sessions, responses, participants]);
+  // Exact, uncapped platform activity data fetched via PostgREST HEAD count per timeframe bucket
+  const [activityTrendData, setActivityTrendData] = useState<PlatformActivityDataPoint[]>([]);
+  const [activityTrendLoading, setActivityTrendLoading] = useState(false);
+  const [activityTrendError, setActivityTrendError] = useState<string | null>(null);
+  const [activityTrendRetryCount, setActivityTrendRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isCancelled = false;
+
+    const fetchActivityTrends = async () => {
+      setActivityTrendLoading(true);
+      setActivityTrendError(null);
+      try {
+        const now = new Date();
+        const todayUtcStr = now.toISOString().slice(0, 10);
+        const intervals: { start: string; end: string; dateStr: string; label: string; isToday: boolean }[] = [];
+
+        if (timeframe === "1D") {
+          // Last 24 hours divided into 6 4-hour intervals
+          for (let i = 5; i >= 0; i--) {
+            const end = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
+            const start = new Date(end.getTime() - 4 * 60 * 60 * 1000);
+            const label = end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+            intervals.push({
+              start: start.toISOString(),
+              end: end.toISOString(),
+              dateStr: end.toISOString().slice(0, 10),
+              label,
+              isToday: i === 0,
+            });
+          }
+        } else {
+          // 7D: 7 full daily intervals; 30D / ALL: 30 daily intervals
+          const dayCount = timeframe === "7D" ? 7 : 30;
+          for (let i = dayCount - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setUTCDate(d.getUTCDate() - i);
+            d.setUTCHours(0, 0, 0, 0);
+            const start = d.toISOString();
+            const dEnd = new Date(d);
+            dEnd.setUTCDate(dEnd.getUTCDate() + 1);
+            const end = dEnd.toISOString();
+            const dateStr = start.slice(0, 10);
+            const isToday = dateStr === todayUtcStr;
+            const label = d.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              weekday: dayCount <= 7 ? "short" : undefined,
+              timeZone: "UTC",
+            });
+            intervals.push({ start, end, dateStr, label, isToday });
+          }
+        }
+
+        let firstQueryError: string | null = null;
+        const points = await Promise.all(
+          intervals.map(async ({ start, end, dateStr, label, isToday }) => {
+            const sessCount = sessions.filter((s) => {
+              if (!s.created_at) return false;
+              return s.created_at >= start && s.created_at < end;
+            }).length;
+
+            const [respRes, partRes] = await Promise.all([
+              supabase
+                .from("responses")
+                .select("id", { count: "exact", head: true })
+                .gte("created_at", start)
+                .lt("created_at", end),
+              supabase
+                .from("participants")
+                .select("id", { count: "exact", head: true })
+                .gte("joined_at", start)
+                .lt("joined_at", end),
+            ]);
+
+            const respError = respRes.error?.message || null;
+            const partError = partRes.error?.message || null;
+            if ((respError || partError) && !firstQueryError) {
+              firstQueryError = respError || partError || "Failed to query activity bucket";
+            }
+
+            return {
+              date: dateStr,
+              label,
+              sessions: sessCount,
+              responses: respError ? null : (respRes.count ?? 0),
+              joins: partError ? null : (partRes.count ?? 0),
+              isToday,
+              responsesError: respError,
+              joinsError: partError,
+              hasError: Boolean(respError || partError),
+            };
+          }),
+        );
+
+        if (!isCancelled) {
+          setActivityTrendData(points);
+          if (firstQueryError) {
+            setActivityTrendError(firstQueryError);
+          }
+        }
+      } catch (err: unknown) {
+        console.warn("[DeveloperTelemetry] Error fetching activity trends:", err);
+        if (!isCancelled) {
+          setActivityTrendError(err instanceof Error ? err.message : "Failed to load activity trends");
+        }
+      } finally {
+        if (!isCancelled) {
+          setActivityTrendLoading(false);
+        }
+      }
+    };
+
+    fetchActivityTrends();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [timeframe, isAuthenticated, sessions.length, activityTrendRetryCount]);
 
   const recordFailedAttempt = async () => {
     if (typeof window === "undefined") return;
@@ -1765,7 +1876,7 @@ function DeveloperDashboard() {
                   faculty: uniqueCreators.length,
                   questions: timeframeCounts.questions || filteredQuestionsByTime.length,
                   submissions: timeframeCounts.responses || filteredResponsesByTime.length,
-                  failedAttempts: failedAttempts.length,
+                  failedAttempts: recentFailedAttempts.length,
                   unreadFeedback: contactMessages.filter((m) => m.status === "unread").length,
                 }}
                 onClose={() => setMobileDrawerOpen(false)}
@@ -1824,7 +1935,7 @@ function DeveloperDashboard() {
             faculty: uniqueCreators.length,
             questions: timeframeCounts.questions || filteredQuestionsByTime.length,
             submissions: timeframeCounts.responses || filteredResponsesByTime.length,
-            failedAttempts: failedAttempts.length,
+            failedAttempts: recentFailedAttempts.length,
             unreadFeedback: contactMessages.filter((m) => m.status === "unread").length,
           }}
         />
@@ -1853,11 +1964,15 @@ function DeveloperDashboard() {
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" /> OPERATIONAL
                   </span>
 
-                  {failedAttempts.length > 0 && (
+                  {recentFailedAttempts.length > 0 ? (
                     <span className="rounded-full bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
-                      <Shield className="h-3 w-3 text-rose-500" /> {failedAttempts.length} Security Alert{failedAttempts.length > 1 ? "s" : ""}
+                      <Shield className="h-3 w-3 text-rose-500" /> {recentFailedAttempts.length} Recent Failed Attempt{recentFailedAttempts.length > 1 ? "s" : ""} (24h)
                     </span>
-                  )}
+                  ) : failedAttempts.length > 0 ? (
+                    <span className="rounded-full bg-muted/30 border border-border/50 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Shield className="h-3 w-3 text-emerald-400" /> {failedAttempts.length} Historical Log{failedAttempts.length > 1 ? "s" : ""} (0 in 24h)
+                    </span>
+                  ) : null}
 
                   {isServerDown && (
                     <span className="rounded-full bg-rose-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest animate-pulse">
@@ -2035,65 +2150,190 @@ function DeveloperDashboard() {
                   {/* 1. Platform Activity Chart */}
                   <div className="lg:col-span-2 glass rounded-2xl p-5 border border-border/60 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/40">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <TrendingUp className="h-4 w-4 text-primary" />
                         <h3 className="text-sm font-black tracking-tight text-foreground">
                           Platform Activity Trends
                         </h3>
                         <span className="text-[11px] font-bold text-muted-foreground">
-                          ({timeframe === "ALL" ? "Recent Window" : timeframe})
+                          ({timeframe === "1D" ? "Past 24 Hours (4h Buckets)" : timeframe === "7D" ? "Past 7 Days (Daily)" : "Past 30 Days (Daily)"})
                         </span>
+                        {activityTrendLoading && (
+                          <Loader2 className="h-3 w-3 text-primary animate-spin" />
+                        )}
+                        {activityTrendError && (
+                          <span className="text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Telemetry Query Warning
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-full bg-cyan-500" />
-                          <span>Sessions</span>
+                          <span>Sessions (Right Axis)</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-full bg-purple-500" />
-                          <span>Submissions</span>
+                          <span>Submissions (Left Axis)</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-full bg-blue-500" />
-                          <span>Joins</span>
+                          <span>Joins (Left Axis)</span>
                         </div>
                       </div>
                     </div>
                     <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={platformActivityChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#a855f7" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="colorJoins" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.4)" vertical={false} />
-                          <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} allowDecimals={false} />
-                          <RechartsTooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              borderColor: "hsl(var(--border))",
-                              borderRadius: "0.75rem",
-                              fontSize: "0.75rem",
-                              color: "hsl(var(--foreground))",
-                              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
-                            }}
-                          />
-                          <Area type="monotone" dataKey="sessions" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorSessions)" name="Sessions" />
-                          <Area type="monotone" dataKey="responses" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorResponses)" name="Responses" />
-                          <Area type="monotone" dataKey="joins" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorJoins)" name="Joins" />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                      {activityTrendLoading && activityTrendData.length === 0 ? (
+                        <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-muted-foreground text-xs">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          <span>Aggregating uncapped activity trends...</span>
+                        </div>
+                      ) : activityTrendError && activityTrendData.length === 0 ? (
+                        <div className="h-full w-full flex flex-col items-center justify-center gap-3 p-4 text-center">
+                          <AlertTriangle className="h-8 w-8 text-rose-500" />
+                          <div className="space-y-1">
+                            <div className="text-xs font-bold text-foreground">Telemetry Query Failed</div>
+                            <div className="text-[11px] text-muted-foreground max-w-sm">{activityTrendError}</div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActivityTrendRetryCount((c) => c + 1)}
+                            className="text-xs h-7 px-3 border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                          >
+                            Retry Query
+                          </Button>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={activityTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#a855f7" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="colorJoins" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.4)" vertical={false} />
+                            <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                            <YAxis
+                              yAxisId="left"
+                              stroke="hsl(var(--muted-foreground))"
+                              fontSize={11}
+                              tickLine={false}
+                              allowDecimals={false}
+                            />
+                            <YAxis
+                              yAxisId="right"
+                              orientation="right"
+                              stroke="#06b6d4"
+                              fontSize={11}
+                              tickLine={false}
+                              allowDecimals={false}
+                            />
+                            <RechartsTooltip
+                              content={({ active, payload }) => {
+                                if (!active || !payload || !payload.length) return null;
+                                const dp = payload[0]?.payload as PlatformActivityDataPoint;
+                                if (!dp) return null;
+                                return (
+                                  <div className="rounded-xl border border-border/80 bg-card p-3 shadow-xl text-xs space-y-1.5 min-w-[200px]">
+                                    <div className="font-bold text-foreground border-b border-border/50 pb-1 flex items-center justify-between">
+                                      <span>{dp.label}</span>
+                                      {dp.isToday && (
+                                        <span className="text-[10px] text-amber-400 font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                                          Today (In Progress)
+                                        </span>
+                                      )}
+                                    </div>
+                                    {dp.hasError && (
+                                      <div className="text-[10px] text-rose-400 font-semibold p-1.5 rounded bg-rose-500/10 border border-rose-500/20 flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                                        <span>Query error in interval ({dp.responsesError ? "submissions" : ""}{dp.responsesError && dp.joinsError ? ", " : ""}{dp.joinsError ? "joins" : ""})</span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between text-cyan-400 font-semibold">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                                        Sessions:
+                                      </span>
+                                      <span className="font-mono">{dp.sessions}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-purple-400 font-semibold">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="h-2 w-2 rounded-full bg-purple-500" />
+                                        Submissions:
+                                      </span>
+                                      <span className="font-mono">
+                                        {dp.responsesError || dp.responses === null ? (
+                                          <span className="text-rose-400 text-[11px]">Error</span>
+                                        ) : (
+                                          dp.responses.toLocaleString()
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-blue-400 font-semibold">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                                        Joins:
+                                      </span>
+                                      <span className="font-mono">
+                                        {dp.joinsError || dp.joins === null ? (
+                                          <span className="text-rose-400 text-[11px]">Error</span>
+                                        ) : (
+                                          dp.joins.toLocaleString()
+                                        )}
+                                      </span>
+                                    </div>
+                                    {dp.isToday && (
+                                      <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/30 italic">
+                                        Counts reflect activity recorded so far today
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Area
+                              yAxisId="right"
+                              type="monotone"
+                              dataKey="sessions"
+                              stroke="#06b6d4"
+                              strokeWidth={2}
+                              fillOpacity={1}
+                              fill="url(#colorSessions)"
+                              name="Sessions (Right Axis)"
+                            />
+                            <Area
+                              yAxisId="left"
+                              type="monotone"
+                              dataKey="responses"
+                              stroke="#a855f7"
+                              strokeWidth={2}
+                              fillOpacity={1}
+                              fill="url(#colorResponses)"
+                              name="Submissions (Left Axis)"
+                            />
+                            <Area
+                              yAxisId="left"
+                              type="monotone"
+                              dataKey="joins"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              fillOpacity={1}
+                              fill="url(#colorJoins)"
+                              name="Joins (Left Axis)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
                     </div>
                   </div>
 
@@ -2152,8 +2392,12 @@ function DeveloperDashboard() {
                           <Shield className="h-3.5 w-3.5 text-rose-400" />
                           <span>Access Security</span>
                         </div>
-                        <span className={cn("font-bold", failedAttempts.length > 0 ? "text-rose-400" : "text-emerald-500")}>
-                          {failedAttempts.length === 0 ? "Protected / Normal" : `${failedAttempts.length} Alerts`}
+                        <span className={cn("font-bold", recentFailedAttempts.length > 0 ? "text-rose-400" : "text-emerald-500")}>
+                          {recentFailedAttempts.length > 0
+                            ? `${recentFailedAttempts.length} Failed (24h)`
+                            : failedAttempts.length > 0
+                              ? `Normal (${failedAttempts.length} in Log)`
+                              : "Protected / Normal"}
                         </span>
                       </div>
                     </div>
@@ -2184,16 +2428,16 @@ function DeveloperDashboard() {
                       </span>
                     </div>
                     <div className="space-y-3">
-                      {failedAttempts.length > 0 && (
+                      {recentFailedAttempts.length > 0 ? (
                         <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Shield className="h-4 w-4 text-rose-400 shrink-0 animate-pulse" />
                             <div className="min-w-0">
                               <div className="text-xs font-black text-rose-400 truncate">
-                                {failedAttempts.length} Unauthorized Passkey Attempt(s)
+                                {recentFailedAttempts.length} Recent Failed Attempt(s) (24h)
                               </div>
                               <div className="text-[11px] text-muted-foreground truncate">
-                                Last from {failedAttempts[0]?.client_environment || "Unknown Device"} ({failedAttempts[0]?.ip_address || "unknown"})
+                                Last from {recentFailedAttempts[0]?.client_environment || "Unknown Device"} ({recentFailedAttempts[0]?.ip_address || "unknown"})
                               </div>
                             </div>
                           </div>
@@ -2209,7 +2453,32 @@ function DeveloperDashboard() {
                             Review
                           </Button>
                         </div>
-                      )}
+                      ) : failedAttempts.length > 0 ? (
+                        <div className="p-3 rounded-xl bg-muted/20 border border-border/50 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-foreground truncate">
+                                No Failed Attempts in Past 24h
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {failedAttempts.length} historical attempt(s) retained in 30-day security audit log
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setActiveSection("security");
+                              setSecuritySubTab("failed_attempts");
+                            }}
+                            className="text-[11px] h-7 px-2.5 text-muted-foreground hover:text-foreground shrink-0 font-medium"
+                          >
+                            Audit Log
+                          </Button>
+                        </div>
+                      ) : null}
 
                       {isServerDown && (
                         <div className="p-3 rounded-xl bg-rose-600 text-white flex items-center justify-between gap-3">
@@ -2282,7 +2551,7 @@ function DeveloperDashboard() {
                         </div>
                       )}
 
-                      {failedAttempts.length === 0 && !isServerDown && liveSessionsCount === 0 && contactMessages.filter((m) => m.status === "unread").length === 0 && (
+                      {recentFailedAttempts.length === 0 && failedAttempts.length === 0 && !isServerDown && liveSessionsCount === 0 && contactMessages.filter((m) => m.status === "unread").length === 0 && (
                         <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center space-y-1">
                           <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto" />
                           <div className="text-xs font-bold text-foreground">All Systems Operational</div>
@@ -3632,9 +3901,25 @@ function DeveloperDashboard() {
                           Developer Password Attempts
                         </h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Tracks every unauthorized access attempt into the Developer Portal with
-                          timestamp, entered input, and client device info.
+                          Tracks unauthorized access attempts into the Developer Portal with timestamp,
+                          client environment, and IP address (passwords are never logged or stored).
                         </p>
+                        <div className="flex items-center gap-2 pt-2 flex-wrap">
+                          <span
+                            className={cn(
+                              "text-[11px] px-2.5 py-0.5 rounded-lg border font-semibold flex items-center gap-1.5",
+                              recentFailedAttempts.length > 0
+                                ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+                            )}
+                          >
+                            <Shield className="h-3 w-3" />
+                            Recent Failed Attempts (24h): {recentFailedAttempts.length}
+                          </span>
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-lg border border-border/50 bg-muted/20 text-muted-foreground font-medium">
+                            Total Retained Logs: {failedAttempts.length}
+                          </span>
+                        </div>
                       </div>
 
                       {failedAttempts.length > 0 && (
