@@ -5715,29 +5715,29 @@ function DeveloperDashboard() {
           open={!!selectedContactMessage}
           onOpenChange={(open) => !open && setSelectedContactMessage(null)}
         >
-          <DialogContent className="sm:max-w-[620px] glass rounded-3xl border border-border/80 shadow-2xl p-6 select-none animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-xl sm:max-w-[620px] glass rounded-2xl sm:rounded-3xl border border-border/80 shadow-2xl p-4 sm:p-6 select-none animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0">
             {selectedContactMessage && (() => {
               const { fullStr } = formatSubmissionDate(selectedContactMessage.created_at);
               return (
-                <div className="space-y-4 text-left">
+                <div className="space-y-4 text-left min-w-0 max-w-full">
                   <DialogHeader>
-                    <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                      <div className="flex items-center gap-2.5">
+                    <div className="flex items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3 pr-7 sm:pr-8 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 shrink-0">
                           <MessageSquare className="h-5 w-5" />
                         </div>
-                        <div>
-                          <DialogTitle className="text-base sm:text-lg font-black tracking-tight text-foreground">
+                        <div className="min-w-0">
+                          <DialogTitle className="text-base sm:text-lg font-black tracking-tight text-foreground truncate">
                             Contact Message
                           </DialogTitle>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             Submitted through Contact Us modal
                           </p>
                         </div>
                       </div>
                       <span
                         className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border",
+                          "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider border shrink-0",
                           selectedContactMessage.status === "unread"
                             ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
                             : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500",
@@ -5748,24 +5748,24 @@ function DeveloperDashboard() {
                     </div>
                   </DialogHeader>
 
-                  <div className="space-y-3.5 text-xs">
+                  <div className="space-y-3.5 text-xs min-w-0">
                     {/* Identity: Full Name & Email Address */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5 min-w-0">
+                      <div className="min-w-0">
                         <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
-                          <User className="h-3 w-3 text-muted-foreground" /> Full Name
+                          <User className="h-3 w-3 text-muted-foreground shrink-0" /> Full Name
                         </span>
-                        <span className="font-extrabold text-sm text-foreground">
+                        <span className="font-extrabold text-sm text-foreground block break-words [overflow-wrap:anywhere]">
                           {selectedContactMessage.name}
                         </span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
-                          <Mail className="h-3 w-3 text-muted-foreground" /> Email Address
+                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" /> Email Address
                         </span>
                         <a
                           href={`mailto:${selectedContactMessage.email}`}
-                          className="font-bold text-xs text-primary hover:underline font-mono break-all"
+                          className="font-bold text-xs text-primary hover:underline font-mono break-all [overflow-wrap:anywhere] block"
                         >
                           {selectedContactMessage.email}
                         </a>
@@ -5773,58 +5773,58 @@ function DeveloperDashboard() {
                     </div>
 
                     {/* Submission: Category & Time */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-card/45 border border-border/60 rounded-xl p-3.5 min-w-0">
+                      <div className="min-w-0">
                         <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
-                          <Tag className="h-3 w-3 text-muted-foreground" /> Category / Subject
+                          <Tag className="h-3 w-3 text-muted-foreground shrink-0" /> Category / Subject
                         </span>
-                        <span className="inline-block rounded-md bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs font-bold text-primary">
+                        <span className="inline-block rounded-md bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs font-bold text-primary break-words [overflow-wrap:anywhere] max-w-full">
                           {selectedContactMessage.subject}
                         </span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
-                          <Calendar className="h-3 w-3 text-muted-foreground" /> Submitted Time
+                          <Calendar className="h-3 w-3 text-muted-foreground shrink-0" /> Submitted Time
                         </span>
-                        <span className="font-bold text-foreground">
+                        <span className="font-bold text-foreground block break-words">
                           {fullStr}
                         </span>
-                        <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                        <span className="block text-[10px] text-muted-foreground font-mono mt-0.5 break-all">
                           DB Timestamp: {selectedContactMessage.created_at}
                         </span>
                       </div>
                     </div>
 
                     {/* Full Message (No Truncation) */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0 max-w-full">
                       <span className="block font-bold text-muted-foreground uppercase text-[10px] tracking-wider flex items-center gap-1.5">
-                        <MessageSquare className="h-3 w-3 text-muted-foreground" /> Message
+                        <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" /> Message
                       </span>
-                      <div className="bg-card/70 border border-border/70 rounded-xl p-4 font-sans text-xs text-foreground whitespace-pre-wrap leading-relaxed max-h-[320px] overflow-y-auto selection:bg-primary/20">
+                      <div className="bg-card/70 border border-border/70 rounded-xl p-4 font-sans text-xs text-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed max-h-[320px] overflow-y-auto overflow-x-hidden selection:bg-primary/20 min-w-0">
                         {selectedContactMessage.message}
                       </div>
                     </div>
 
                     {/* Technical Metadata */}
-                    <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-1.5 font-mono text-[11px] text-muted-foreground">
+                    <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-1.5 font-mono text-[11px] text-muted-foreground min-w-0">
                       <div className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/80 mb-1">
                         Technical Metadata
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                        <span>Message ID:</span>
-                        <span className="text-foreground font-semibold select-all break-all">
+                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 min-w-0">
+                        <span className="shrink-0 text-muted-foreground/90">Message ID:</span>
+                        <span className="text-foreground font-semibold select-all break-all min-w-0 sm:text-right">
                           {selectedContactMessage.id}
                         </span>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                        <span>User ID:</span>
-                        <span className="text-foreground font-semibold select-all break-all">
+                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 min-w-0">
+                        <span className="shrink-0 text-muted-foreground/90">User ID:</span>
+                        <span className="text-foreground font-semibold select-all break-all min-w-0 sm:text-right">
                           {selectedContactMessage.user_id || "Anonymous / Unauthenticated"}
                         </span>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                        <span>Status:</span>
-                        <span className="text-foreground font-semibold uppercase">
+                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 min-w-0">
+                        <span className="shrink-0 text-muted-foreground/90">Status:</span>
+                        <span className="text-foreground font-semibold uppercase shrink-0">
                           {selectedContactMessage.status}
                         </span>
                       </div>
@@ -5832,17 +5832,17 @@ function DeveloperDashboard() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex justify-between items-center pt-4 border-t border-border/60">
+                  <div className="flex flex-wrap justify-between items-center gap-2.5 pt-4 border-t border-border/60 min-w-0">
                     <Button
                       type="button"
                       onClick={() => setDeletingMessage(selectedContactMessage)}
                       variant="outline"
                       size="sm"
-                      className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold"
+                      className="gap-2 text-xs border-rose-500/40 text-rose-500 hover:bg-rose-500/10 font-semibold shrink-0"
                     >
                       <Trash2 className="h-3.5 w-3.5" /> Delete
                     </Button>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {selectedContactMessage.status === "unread" ? (
                         <Button
                           type="button"
@@ -5851,7 +5851,7 @@ function DeveloperDashboard() {
                             setSelectedContactMessage(null);
                           }}
                           size="sm"
-                          className="gradient-bg text-xs font-semibold"
+                          className="gradient-bg text-xs font-semibold shrink-0"
                         >
                           Mark as Read
                         </Button>
@@ -5864,7 +5864,7 @@ function DeveloperDashboard() {
                           }}
                           variant="outline"
                           size="sm"
-                          className="text-xs border-border font-semibold"
+                          className="text-xs border-border font-semibold shrink-0"
                         >
                           Mark as Unread
                         </Button>
@@ -5874,7 +5874,7 @@ function DeveloperDashboard() {
                         onClick={() => setSelectedContactMessage(null)}
                         variant="ghost"
                         size="sm"
-                        className="text-xs text-muted-foreground font-semibold"
+                        className="text-xs text-muted-foreground font-semibold shrink-0"
                       >
                         Close
                       </Button>
