@@ -15,7 +15,6 @@ import {
   Database,
   Download,
   ExternalLink,
-  Eye,
   FileEdit,
   Flame,
   Globe,
@@ -2918,9 +2917,58 @@ function DeveloperDashboard() {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="font-extrabold text-blue-500 bg-blue-500/10 border border-blue-500/30 px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1">
-                                <Users className="h-3.5 w-3.5" /> {sessParts.length} Students
-                              </span>
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="font-extrabold text-blue-500 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1 transition cursor-pointer"
+                                    title={`View students joined for ${s.title}`}
+                                    aria-label={`View ${sessParts.length} students joined for ${s.title}`}
+                                  >
+                                    <Users className="h-3.5 w-3.5" /> {sessParts.length} Students
+                                  </button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-base">
+                                      <Users className="h-4 w-4 text-primary" /> Students Joined —{" "}
+                                      {s.title} ({s.code})
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3 my-2">
+                                    <div className="text-xs text-muted-foreground">
+                                      Faculty Creator:{" "}
+                                      <strong className="text-foreground">{faculty.name}</strong>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-1">
+                                      {sessParts.length === 0 ? (
+                                        <div className="text-center py-6 text-xs text-muted-foreground italic">
+                                          No students joined this session yet.
+                                        </div>
+                                      ) : (
+                                        sessParts.map((p, pIdx) => (
+                                          <div
+                                            key={p.id}
+                                            className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50 text-xs"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className="h-5 w-5 rounded-full bg-primary/20 text-primary grid place-items-center text-[10px] font-bold">
+                                                {pIdx + 1}
+                                              </span>
+                                              <span className="font-bold text-foreground">
+                                                {p.name}
+                                              </span>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                              {new Date(p.joined_at).toLocaleTimeString()}
+                                            </span>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                             </td>
                             <td className="px-4 py-3">
                               <Dialog>
@@ -3059,59 +3107,6 @@ function DeveloperDashboard() {
                                 <Pencil className="h-3 w-3 text-primary" /> Rename
                               </Button>
 
-                              {/* View Student List Dialog */}
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 px-2 text-[11px] gap-1 text-primary"
-                                  >
-                                    <Eye className="h-3.5 w-3.5" /> View Students (
-                                    {sessParts.length})
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-md">
-                                  <DialogHeader>
-                                    <DialogTitle className="flex items-center gap-2 text-base">
-                                      <Users className="h-4 w-4 text-primary" /> Students Joined —{" "}
-                                      {s.title} ({s.code})
-                                    </DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-3 my-2">
-                                    <div className="text-xs text-muted-foreground">
-                                      Faculty Creator:{" "}
-                                      <strong className="text-foreground">{faculty.name}</strong>
-                                    </div>
-                                    <div className="max-h-[300px] overflow-y-auto space-y-1.5 pr-1">
-                                      {sessParts.length === 0 ? (
-                                        <div className="text-center py-6 text-xs text-muted-foreground italic">
-                                          No students joined this session yet.
-                                        </div>
-                                      ) : (
-                                        sessParts.map((p, pIdx) => (
-                                          <div
-                                            key={p.id}
-                                            className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/50 text-xs"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <span className="h-5 w-5 rounded-full bg-primary/20 text-primary grid place-items-center text-[10px] font-bold">
-                                                {pIdx + 1}
-                                              </span>
-                                              <span className="font-bold text-foreground">
-                                                {p.name}
-                                              </span>
-                                            </div>
-                                            <span className="text-[10px] text-muted-foreground font-mono">
-                                              {new Date(p.joined_at).toLocaleTimeString()}
-                                            </span>
-                                          </div>
-                                        ))
-                                      )}
-                                    </div>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
 
                               <Link
                                 to="/embed/$code"
