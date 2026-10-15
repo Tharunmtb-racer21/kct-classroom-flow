@@ -248,7 +248,7 @@ $$ LANGUAGE sql STABLE;
 | `/dashboard/reports` | Session Archival & PDF Analytical Reports | Authenticated Faculty |
 | `/join/$code` | Student Participation Screen (Polls, Word Clouds, Quizzes) | Public (Students) |
 | `/embed/$code` | Projector Embed View for PowerPoint & Google Slides | Public (Embedded) |
-| `/developer` | System Telemetry, Login Audit Trail & Database Health | Gated Passkey (`Pulse_2026`) |
+| `/developer` | System Telemetry, Login Audit Trail & Database Health | Verified @kct.ac.in administrator account |
 
 ---
 
@@ -286,12 +286,15 @@ VITE_FIREBASE_STORAGE_BUCKET="kct-classroom-flow.appspot.com"
 VITE_FIREBASE_MESSAGING_SENDER_ID="123456789"
 VITE_FIREBASE_APP_ID="1:123456789:web:abcdef"
 
-# Multi-Provider AI Inference Keys
-VITE_AI_PROVIDER="nvidia"
-VITE_NVIDIA_API_KEY="nvapi-..."
-VITE_GROQ_API_KEY="gsk_..."
-VITE_GOOGLE_AI_KEY="AIzaSy..."
-VITE_TOGETHER_API_KEY="together_..."
+# Multi-Provider AI Inference Keys (SERVER-ONLY)
+# Never prefix AI keys with VITE_: Vite inlines VITE_* variables into the browser bundle.
+# Each variable accepts one key or a comma-separated list for failover.
+GROQ_API_KEYS="..."
+GEMINI_API_KEYS="..."
+NVIDIA_API_KEYS="..."
+TOGETHER_API_KEYS="..."
+AI_PROVIDER_ORDER="groq,gemini,nvidia,together"   # optional
+FIREBASE_PROJECT_ID="kct-classroom-flow"           # used to verify Firebase ID tokens
 ```
 
 ### 3. Verify TypeScript & Build

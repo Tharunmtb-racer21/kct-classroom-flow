@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageSquare, X, Send, Bot, Loader2, Sparkles } from "lucide-react";
 import { generateChatResponse, type ChatMessage } from "@/lib/ai-service";
-import { findRelevantContext } from "@/lib/chatbot-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VoiceInputButton } from "@/components/voice-input-button";
@@ -60,32 +59,9 @@ export function ChatBot() {
     setLoading(true);
 
     try {
-      // Find relevant facts in local knowledge base based on keywords
-      const kbContext = findRelevantContext(userText);
-
-      // Build prompt payload with app-specific system instructions & dynamic context
-      const payload: ChatMessage[] = [
-        {
-          role: "system",
-          content: `You are PULSE AI, the virtual assistant for KCT PULSE (Kumaraguru College of Technology Classroom Flow). 
-KCT PULSE is an engagement platform that lets faculty host live lectures with quizzes (single/multiple correct options, live leaderboards), interactive polls (bar charts), word clouds, and PDF/Excel reports.
-Faculty register using their college institutional email (@kct.ac.in) via Firebase Auth. Student participation requires no login, they join using a 6-character shortcode (e.g. KCT123).
-
-Key App Features:
-- AI-Powered Question Generation: Construct questions automatically from uploaded PDF, Word (.docx), Excel (.xlsx), or Text (.txt) files.
-- Exam Integrity Mode: Prevents cheating by restricting copy-paste/right-clicks and tracking/limiting student fullscreen exits.
-- Faculty Co-hosting: Share session management, question controls, and live analytics with other faculty members.
-- Automation Guards: Active sessions automatically revert to 'draft' after 1 hour of inactivity. Faculty are logged out after 30 minutes of inactivity.
-- PowerPoint & Google Slides Embeds: Embed frameless live results directly inside slide presentations.
-- Real-time Student Telemetry: Displays latency (ms) in the header of the student answering view.
-- Protected by KCT SHIELD: A custom Web Application Firewall sitting on Port 3000 that filters SQLi, XSS, and rate limits. Do not mention any private developer paths or panels.
-
-${kbContext}
-Keep your responses highly helpful, friendly, concise, and focused on helping users navigate the app based on the facts provided above. Answer in 2-3 sentences max.`,
-        },
-        // Limit context depth to prevent token bloat
-        ...updatedMessages.slice(-6),
-      ];
+      // The server builds the system prompt and knowledge-base context.
+      // Only user and assistant turns are sent, limited to recent history.
+      const payload: ChatMessage[] = updatedMessages.slice(-6);
 
       const reply = await generateChatResponse(payload);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);

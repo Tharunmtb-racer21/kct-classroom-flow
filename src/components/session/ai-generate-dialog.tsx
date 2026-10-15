@@ -59,13 +59,6 @@ export function AIGenerateDialog({
 
   // Step 1 — upload state
   const [docFile, setDocFile] = useState<File | null>(null);
-  const [apiKey, setApiKey] = useState(
-    () =>
-      (import.meta as any).env?.VITE_NVIDIA_API_KEY ??
-      (import.meta as any).env?.VITE_GOOGLE_AI_KEY ??
-      (import.meta as any).env?.VITE_GROQ_API_KEY ??
-      "",
-  );
   const [numQuestions, setNumQuestions] = useState(5);
   const [selectedTypes, setSelectedTypes] = useState<AIQType[]>(["quiz", "poll", "wordcloud"]);
 
@@ -115,7 +108,6 @@ export function AIGenerateDialog({
         text,
         count: numQuestions,
         types: selectedTypes,
-        apiKey: apiKey.trim(),
       });
       setGeneratedQuestions(questions);
       setStep("preview");
@@ -293,8 +285,7 @@ export function AIGenerateDialog({
               className="w-full gradient-bg gap-2"
             >
               <Sparkles className="h-4 w-4" />
-              Generate {numQuestions} Questions{" "}
-              {apiKey.trim() ? "with AI" : "with Local Browser Fallback"}
+              Generate {numQuestions} Questions with AI
             </Button>
           </div>
         )}
@@ -312,8 +303,7 @@ export function AIGenerateDialog({
             <div className="text-center space-y-1">
               <div className="font-semibold text-lg">AI is reading your document...</div>
               <div className="text-sm text-muted-foreground">
-                Generating {numQuestions} questions using{" "}
-                <span className="text-primary font-mono">meta/llama-3.3-70b-instruct</span>
+                Generating {numQuestions} questions with the secure KCT PULSE AI service
               </div>
               <div className="text-xs text-muted-foreground mt-2">This may take 10–30 seconds</div>
             </div>

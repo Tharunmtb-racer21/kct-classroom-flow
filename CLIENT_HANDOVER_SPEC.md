@@ -33,7 +33,7 @@ Students join instantly from their smartphones using a 6-character shortcode or 
 
 #### 📊 Module C: Developer Telemetry & Faculty Monitoring Portal (`/developer`)
 
-- **Secure Password Gate**: Protected by institutional developer passkey (`Pulse_2026`).
+- **Secure Admin Gate**: Restricted to verified @kct.ac.in accounts with the administrator role. The former shared developer passkey is retired and no longer accepted.
 - **Faculty & Student Session Tracking**: Displays complete session history mapped with **Faculty Creator Names & Emails**, total student join counts, and interactive **Student List Modals**.
 - **Timeframe & Status Filters**: Filter overall lecture data by timeframes (`1D`, `7D`, `30D`, `ALL`) and session statuses (`🟢 Live`, `📝 Draft`, `🏁 Ended`).
 - **Database & System Health Suite**: Real-time API latency benchmarking, Supabase WebSocket health status, and Firebase Auth domain breakdown (`@kct.ac.in`, `@kongu.edu`).
@@ -83,7 +83,7 @@ Students join instantly from their smartphones using a 6-character shortcode or 
    - Live sessions automatically revert to `draft` status after 1 hour of activity to prevent unintended responses.
 
 3. **Role-Based Telemetry Access**:
-   - Developer telemetry and database metrics (`/developer`) are gated behind password security (`Pulse_2026`) and hidden from standard user navigation menus.
+   - Developer telemetry and database metrics (`/developer`) require a verified @kct.ac.in administrator account and are hidden from standard user navigation menus.
 
 ---
 
@@ -92,7 +92,7 @@ Students join instantly from their smartphones using a 6-character shortcode or 
 The platform has been built, stress-tested, and deployed to production.
 
 - **Production URL**: `https://kct-classroom-flow-pulse.vercel.app`
-- **Developer Telemetry**: `https://kct-classroom-flow-pulse.vercel.app/developer` _(Password: `Pulse_2026`)_
+- **Developer Telemetry**: `https://kct-classroom-flow-pulse.vercel.app/developer` _(requires a verified @kct.ac.in administrator account)_
 - **Build Status**: Verified 0 compilation errors (~900ms build time).
 
 ---

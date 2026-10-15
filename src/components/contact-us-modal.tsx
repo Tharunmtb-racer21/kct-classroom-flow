@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, Mail, MessageSquare, Send, User } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,10 +33,19 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    email?: string;
+    message?: string;
+  }>({});
+  /** Honeypot field — must remain empty for real users. Hidden via CSS. */
+  const [honeypot, setHoneypot] = useState("");
+  /** Unix timestamp (ms) when the form was opened, for minimum-time guard. */
+  const [openedAt, setOpenedAt] = useState<number>(0);
 
-  // Prefill details if user is logged in
   useEffect(() => {
     if (open) {
+      setOpenedAt(Date.now());
       import("@/lib/firebase")
         .then(({ auth }) => {
           const user = auth.currentUser;
@@ -59,87 +67,69 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
     setMessage("");
     setStatus("idle");
     setErrorMsg("");
+    setFieldErrors({});
+    setHoneypot("");
+    setOpenedAt(0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Simple Validation
-    if (!name.trim()) {
-      toast.error("Please enter your name.");
-      return;
-    }
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
-    if (!message.trim() || message.trim().length < 10) {
-      toast.error("Please write a message (at least 10 characters).");
+    if (status === "submitting") return;
+
+    if (honeypot) {
+      setStatus("success");
       return;
     }
 
+    const elapsedSec = (Date.now() - openedAt) / 1000;
+    if (openedAt > 0 && elapsedSec < 3) {
+      toast.error("Submission too fast. Please review your message and try again.");
+      return;
+    }
+
+    const { validateFeedbackPayload } = await import("@/lib/feedback-validator");
+    const result = validateFeedbackPayload({ name, email, message });
+
+    if (!result.ok) {
+      setFieldErrors(result.errors);
+      const firstError = result.errors.name ?? result.errors.email ?? result.errors.message;
+      if (firstError) toast.error(firstError);
+      return;
+    }
+
+    setFieldErrors({});
     setStatus("submitting");
     setErrorMsg("");
 
+    const safeNme = result.normalisedName!;
+    const safeEmail = result.normalisedEmail!;
+    const safeMsg = result.normalisedMessage!;
+
     try {
-      // 1. Save message to Supabase database
-      const { auth } = await import("@/lib/firebase");
-      const firebaseUser = auth.currentUser;
-      const { error: dbError } = await supabase.from("contact_messages").insert({
-        name: name.trim(),
-        email: email.trim(),
-        subject,
-        message: message.trim(),
-        user_id: firebaseUser?.uid || null,
-        status: "unread",
+      const { submitFeedbackServerFn } = await import("@/lib/feedback-server");
+      const res = await submitFeedbackServerFn({
+        data: {
+          name: safeNme,
+          email: safeEmail,
+          subject,
+          message: safeMsg,
+          honeypot,
+        },
       });
 
-      if (dbError) {
-        console.error("[ContactUs] Supabase insertion failed:", dbError);
-        throw new Error(dbError.message || "Failed to save message to the database.");
-      }
-
-      // 2. Send email via Web3Forms if access key is available
-      const web3FormsKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
-      if (web3FormsKey) {
-        try {
-          const emailResponse = await fetch("https://api.web3forms.com/submit", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              access_key: web3FormsKey,
-              name: name.trim(),
-              email: email.trim(),
-              subject: `[KCT PULSE Contact] ${subject} - from ${name.trim()}`,
-              message: message.trim(),
-              replyto: email.trim(),
-              from_name: "KCT PULSE Feedback System",
-            }),
-          });
-
-          if (!emailResponse.ok) {
-            const errData = await emailResponse.json();
-            console.warn("[ContactUs] Web3Forms email notification failed to send:", errData);
-          } else {
-            console.log("[ContactUs] Email notification successfully sent to Developer.");
-          }
-        } catch (mailErr) {
-          console.warn("[ContactUs] Web3Forms network error:", mailErr);
-          // Don't fail the entire submission if email notification fails, since it is saved in the DB
-        }
-      } else {
-        console.info("[ContactUs] VITE_WEB3FORMS_ACCESS_KEY is not defined. Saved to DB only.");
+      if (!res.success) {
+        throw new Error(res.message || "Failed to submit feedback.");
       }
 
       setStatus("success");
       toast.success("Message submitted successfully!");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "An unexpected error occurred. Please try again.";
       setStatus("error");
-      setErrorMsg(err.message || "An unexpected error occurred. Please try again.");
-      toast.error("Failed to send message. Please try again.");
+      setErrorMsg(msg);
+      toast.error(msg || "Failed to send message. Please try again.");
     }
   };
 
@@ -173,14 +163,14 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <DialogHeader>
               <div className="flex items-center gap-2 mb-1">
                 <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 border border-primary/30 text-primary">
                   <MessageSquare className="h-4 w-4" />
                 </div>
                 <DialogTitle className="text-xl font-black tracking-tight">
-                  Contact Us & Feedback
+                  Contact Us &amp; Feedback
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground text-left">
@@ -188,49 +178,98 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
               </DialogDescription>
             </DialogHeader>
 
+            {/* Honeypot — visually hidden, never filled by real users */}
+            <div
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", opacity: 0, pointerEvents: "none" }}
+            >
+              <label htmlFor="contact_url">URL (leave blank)</label>
+              <input
+                id="contact_url"
+                name="contact_url"
+                type="text"
+                autoComplete="off"
+                tabIndex={-1}
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+              />
+            </div>
+
             <div className="space-y-4 text-left">
               {/* Name */}
               <div className="space-y-1.5">
                 <Label
-                  htmlFor="name"
+                  htmlFor="contact-name"
                   className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5"
                 >
                   <User className="h-3.5 w-3.5" /> Full Name
                 </Label>
                 <Input
-                  id="name"
+                  id="contact-name"
                   placeholder="Enter your name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="bg-card/50 border-border"
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  className={`bg-card/50 border-border${fieldErrors.name ? " border-destructive focus-visible:ring-destructive" : ""}`}
                   disabled={status === "submitting"}
-                  required
+                  autoComplete="name"
+                  aria-describedby={fieldErrors.name ? "contact-name-error" : undefined}
+                  aria-invalid={!!fieldErrors.name}
                 />
+                {fieldErrors.name && (
+                  <p
+                    id="contact-name-error"
+                    className="text-xs text-destructive font-medium"
+                    role="alert"
+                  >
+                    {fieldErrors.name}
+                  </p>
+                )}
               </div>
 
               {/* Email */}
               <div className="space-y-1.5">
                 <Label
-                  htmlFor="email"
+                  htmlFor="contact-email"
                   className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5"
                 >
                   <Mail className="h-3.5 w-3.5" /> Email Address
                 </Label>
                 <Input
-                  id="email"
+                  id="contact-email"
                   type="email"
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-card/50 border-border"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email)
+                      setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  className={`bg-card/50 border-border${fieldErrors.email ? " border-destructive focus-visible:ring-destructive" : ""}`}
                   disabled={status === "submitting"}
-                  required
+                  autoComplete="email"
+                  aria-describedby={fieldErrors.email ? "contact-email-error" : undefined}
+                  aria-invalid={!!fieldErrors.email}
                 />
+                {fieldErrors.email && (
+                  <p
+                    id="contact-email-error"
+                    className="text-xs text-destructive font-medium"
+                    role="alert"
+                  >
+                    {fieldErrors.email}
+                  </p>
+                )}
               </div>
 
               {/* Subject */}
               <div className="space-y-1.5">
-                <Label htmlFor="subject" className="text-xs font-semibold text-muted-foreground">
+                <Label
+                  htmlFor="contact-subject"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
                   Subject / Category
                 </Label>
                 <Select
@@ -238,7 +277,7 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
                   onValueChange={setSubject}
                   disabled={status === "submitting"}
                 >
-                  <SelectTrigger id="subject" className="bg-card/50 border-border">
+                  <SelectTrigger id="contact-subject" className="bg-card/50 border-border">
                     <SelectValue placeholder="Select a topic" />
                   </SelectTrigger>
                   <SelectContent className="glass border-border">
@@ -253,23 +292,42 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
 
               {/* Message */}
               <div className="space-y-1.5">
-                <Label htmlFor="message" className="text-xs font-semibold text-muted-foreground">
+                <Label
+                  htmlFor="contact-message"
+                  className="text-xs font-semibold text-muted-foreground"
+                >
                   Your Message
                 </Label>
                 <Textarea
-                  id="message"
+                  id="contact-message"
                   placeholder="Write your message here (min. 10 characters)..."
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="min-h-[100px] bg-card/50 border-border resize-none"
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    if (fieldErrors.message)
+                      setFieldErrors((prev) => ({ ...prev, message: undefined }));
+                  }}
+                  className={`min-h-[100px] bg-card/50 border-border resize-none${fieldErrors.message ? " border-destructive focus-visible:ring-destructive" : ""}`}
                   disabled={status === "submitting"}
-                  required
+                  aria-describedby={fieldErrors.message ? "contact-message-error" : undefined}
+                  aria-invalid={!!fieldErrors.message}
                 />
+                {fieldErrors.message && (
+                  <p
+                    id="contact-message-error"
+                    className="text-xs text-destructive font-medium"
+                    role="alert"
+                  >
+                    {fieldErrors.message}
+                  </p>
+                )}
               </div>
             </div>
 
             {errorMsg && (
-              <p className="text-xs font-semibold text-destructive text-center">{errorMsg}</p>
+              <p className="text-xs font-semibold text-destructive text-center" role="alert">
+                {errorMsg}
+              </p>
             )}
 
             <div className="flex gap-3 justify-end pt-2">

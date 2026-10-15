@@ -11,6 +11,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test": "bun test tests",
+    "check:bundle-secrets": "node scripts/check-client-bundle-secrets.mjs",
     "format": "prettier --write .",
     "indexnow:notify": "node scripts/notify-indexnow.mjs"
   },

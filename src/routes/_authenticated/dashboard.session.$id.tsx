@@ -660,7 +660,8 @@ function SessionControl() {
   }
 
   const joinLink = joinUrl(session.code);
-  const previewWarning = isPrivatePreviewHost() && !(import.meta as any).env?.VITE_PUBLIC_APP_URL;
+  // Static env member read: Vite inlines only this value, not the whole env object.
+  const previewWarning = isPrivatePreviewHost() && !import.meta.env.VITE_PUBLIC_APP_URL;
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10 max-w-full overflow-x-hidden min-w-0">

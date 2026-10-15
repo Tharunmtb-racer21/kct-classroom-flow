@@ -87,15 +87,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn, formatDisplayName } from "@/lib/utils";
-import { verifyDevPassword } from "@/lib/dev-auth";
+import {
+  checkDeveloperAccess,
+  clearLegacyDeveloperStorage,
+  DEVELOPER_ACCESS_MESSAGES,
+} from "@/lib/developer-access";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import {
-  testGroqKey,
-  getGroqKeySignature,
-  testGeminiKey,
-  getGeminiKeySignature,
-  GEMINI_KEYS_COUNT,
+  testAiKey,
+  getAiKeySlotLabel,
+  getAiKeyInventory,
   recordKeyDiagnosticAttempt,
   recordKeyDiagnosticResult,
 } from "@/lib/ai-service";
@@ -248,7 +250,7 @@ export const Route = createFileRoute("/developer")({
 
 function DeveloperDashboard() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [passkey, setPasskey] = useState("");
+  const [checkingAccess, setCheckingAccess] = useState(false);
   const [contactMessages, setContactMessages] = useState<ContactMessageRow[]>([]);
   const [selectedContactMessage, setSelectedContactMessage] = useState<ContactMessageRow | null>(
     null,
@@ -261,31 +263,19 @@ function DeveloperDashboard() {
   const DEV_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
   const handleLockDeveloper = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("kct_dev_auth");
-      localStorage.removeItem("kct_dev_auth_time");
-      localStorage.removeItem("kct_dev_auth_hash");
-      sessionStorage.removeItem("kct_dev_auth_hash");
-    }
+    clearLegacyDeveloperStorage();
     setIsAuthenticated(false);
-    setPasskey("");
   };
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined") {
-      const isAuth = localStorage.getItem("kct_dev_auth") === "true";
-      const authTime = Number(localStorage.getItem("kct_dev_auth_time") || "0");
-      if (isAuth && authTime > 0 && Date.now() - authTime > DEV_TIMEOUT_MS) {
-        handleLockDeveloper();
-      } else if (isAuth && !passkey) {
-        // Plaintext developer passkey is never stored in persistent browser storage.
-        // Require re-authentication on full page reload to securely authorize the RPC.
-        handleLockDeveloper();
-      } else {
-        setIsAuthenticated(isAuth);
-      }
-    }
+    // Remove any flag or passkey left in browser storage by the retired passkey gate.
+    clearLegacyDeveloperStorage();
+    // Re-evaluate administrator access whenever the Firebase identity changes.
+    const unsubscribe = auth.onAuthStateChanged(() => {
+      void verifyDeveloperAccess({ silent: true });
+    });
+    return () => unsubscribe();
   }, []);
 
   // 30-Minute Inactivity Auto-Lock Listener
@@ -391,13 +381,37 @@ function DeveloperDashboard() {
         errorMsg?: string;
       }
     >
-  >({
-    0: { status: "unchecked" },
-    1: { status: "unchecked" },
-    2: { status: "unchecked" },
-    3: { status: "unchecked" },
-    4: { status: "unchecked" },
+  >({});
+
+  // Number of AI key slots configured in server environment variables.
+  // Keys never reach the browser; diagnostics require a signed-in admin account.
+  const [aiKeyCounts, setAiKeyCounts] = useState<{ groq: number; gemini: number }>({
+    groq: 0,
+    gemini: 0,
   });
+  const [aiKeyInventoryError, setAiKeyInventoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    getAiKeyInventory()
+      .then((counts) => {
+        if (cancelled) return;
+        setAiKeyCounts(counts);
+        setAiKeyInventoryError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAiKeyCounts({ groq: 0, gemini: 0 });
+        setAiKeyInventoryError(
+          err instanceof Error ? err.message : "AI key diagnostics are unavailable.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
   const [keyUsageData, setKeyUsageData] = useState<
     Record<string, { attempts: number; successes: number; failures: number; lastUsed: string }>
   >({});
@@ -408,7 +422,15 @@ function DeveloperDashboard() {
     if (typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem("kct_ai_key_usage") || "{}";
-        setKeyUsageData(JSON.parse(raw));
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        // Drop legacy entries keyed by partial API key text; keep only non-secret slot labels.
+        const cleaned = Object.fromEntries(
+          Object.entries(parsed).filter(([k]) => /^(Groq|Gemini) slot #d+$/.test(k)),
+        );
+        if (Object.keys(cleaned).length !== Object.keys(parsed).length) {
+          localStorage.setItem("kct_ai_key_usage", JSON.stringify(cleaned));
+        }
+        setKeyUsageData(cleaned as typeof keyUsageData);
       } catch (e) {
         console.error("Failed to parse key usage data:", e);
       }
@@ -420,7 +442,7 @@ function DeveloperDashboard() {
   }, []);
 
   const handleTestKey = async (idx: number) => {
-    const sig = getGroqKeySignature(idx);
+    const sig = getAiKeySlotLabel("groq", idx);
     recordKeyDiagnosticAttempt(sig);
     loadKeyUsage();
     setGroqKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
@@ -434,7 +456,7 @@ function DeveloperDashboard() {
     };
 
     try {
-      result = await testGroqKey(idx);
+      result = await testAiKey("groq", idx);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error";
       result = {
@@ -451,15 +473,15 @@ function DeveloperDashboard() {
 
   const handleTestAllKeys = async () => {
     setTestingAllKeys(true);
-    toast.info("Testing all Groq API keys...");
-    for (let i = 0; i < 5; i++) {
+    toast.info("Testing all Groq API key slots...");
+    for (let i = 0; i < aiKeyCounts.groq; i++) {
       await handleTestKey(i);
     }
     setTestingAllKeys(false);
     toast.success("Finished testing all Groq keys.");
   };
 
-  // Google Gemini API Keys Telemetry State (11 Keys)
+  // Google Gemini API key slot telemetry state
   const [geminiKeysStatus, setGeminiKeysStatus] = useState<
     Record<
       number,
@@ -468,15 +490,11 @@ function DeveloperDashboard() {
         errorMsg?: string;
       }
     >
-  >(() => {
-    const init: Record<number, { status: "unchecked" }> = {};
-    for (let i = 0; i < 11; i++) init[i] = { status: "unchecked" };
-    return init;
-  });
+  >({});
   const [testingAllGeminiKeys, setTestingAllGeminiKeys] = useState(false);
 
   const handleTestGeminiKey = async (idx: number) => {
-    const sig = getGeminiKeySignature(idx);
+    const sig = getAiKeySlotLabel("gemini", idx);
     recordKeyDiagnosticAttempt(sig);
     loadKeyUsage();
     setGeminiKeysStatus((prev) => ({ ...prev, [idx]: { status: "testing" } }));
@@ -490,7 +508,7 @@ function DeveloperDashboard() {
     };
 
     try {
-      result = await testGeminiKey(idx);
+      result = await testAiKey("gemini", idx);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error";
       result = {
@@ -507,8 +525,8 @@ function DeveloperDashboard() {
 
   const handleTestAllGeminiKeys = async () => {
     setTestingAllGeminiKeys(true);
-    toast.info("Testing all 11 Google Gemini API keys...");
-    for (let i = 0; i < GEMINI_KEYS_COUNT; i++) {
+    toast.info("Testing all Google Gemini API key slots...");
+    for (let i = 0; i < aiKeyCounts.gemini; i++) {
       await handleTestGeminiKey(i);
     }
     setTestingAllGeminiKeys(false);
@@ -674,8 +692,8 @@ function DeveloperDashboard() {
     const hasData = raw.some((d) => d.value > 0);
     if (!hasData) {
       return [
-        { name: "Gemini (11 Keys)", value: 45, color: "#06b6d4" },
-        { name: "Groq (5 Keys)", value: 35, color: "#f59e0b" },
+        { name: "Gemini", value: 45, color: "#06b6d4" },
+        { name: "Groq", value: 35, color: "#f59e0b" },
         { name: "NVIDIA NIM", value: 12, color: "#10b981" },
         { name: "Together AI", value: 8, color: "#a855f7" },
       ];
@@ -917,7 +935,7 @@ function DeveloperDashboard() {
   const handleClearFailedAttempts = async () => {
     try {
       const { error } = await (supabase.rpc as any)("clear_developer_access_logs", {
-        dev_passkey: passkey.trim(),
+        dev_passkey: null,
       });
       if (error) throw error;
       setFailedAttempts([]);
@@ -929,19 +947,27 @@ function DeveloperDashboard() {
     }
   };
 
-  // Passkey Login Handler (SHA-256 hash comparison — plaintext never in bundle)
-  const handleAuthenticate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const isValid = await verifyDevPassword(passkey);
-    if (isValid) {
-      setIsAuthenticated(true);
-      setErrorMsg("");
-      localStorage.setItem("kct_dev_auth", "true");
-      localStorage.setItem("kct_dev_auth_time", Date.now().toString());
-      loadData(passkey);
-    } else {
-      setErrorMsg("Access Denied: Incorrect developer password.");
-      recordFailedAttempt();
+  // Developer access requires a verified @kct.ac.in Firebase account with the admin role.
+  // This is a UI gate; every developer RPC re-checks public.is_platform_admin() in the
+  // database. The shared developer passkey is retired and accepted nowhere.
+  const verifyDeveloperAccess = async (opts: { silent?: boolean } = {}) => {
+    setCheckingAccess(true);
+    try {
+      const decision = await checkDeveloperAccess();
+      if (decision.allowed) {
+        setErrorMsg("");
+        setIsAuthenticated(true);
+        return;
+      }
+      setIsAuthenticated(false);
+      if (!opts.silent) {
+        setErrorMsg(DEVELOPER_ACCESS_MESSAGES[decision.reason]);
+        if (decision.reason === "not_admin" || decision.reason === "email_domain") {
+          recordFailedAttempt();
+        }
+      }
+    } finally {
+      setCheckingAccess(false);
     }
   };
 
@@ -970,10 +996,9 @@ function DeveloperDashboard() {
   };
 
   // Load All System Analytics & Records
-  const loadData = async (activePasskey?: string | React.MouseEvent | unknown) => {
+  const loadData = async (_trigger?: unknown) => {
     setLoading(true);
     const startPing = performance.now();
-    const keyToUse = (typeof activePasskey === "string" ? activePasskey : passkey).trim();
     try {
       // 1. Fetch Sessions
       const { data: sData } = await supabase
@@ -1002,9 +1027,10 @@ function DeveloperDashboard() {
       // 5. Fetch Profiles (using secure developer RPC, falling back to direct query)
       let profRows: ProfileRow[] = [];
       try {
+        // dev_passkey is omitted (it defaults to NULL and is ignored by the database).
         const { data: rpcProfiles, error: rpcErr } = await supabase.rpc(
           "get_developer_faculty_profiles",
-          { dev_passkey: keyToUse || undefined },
+          {},
         );
 
         if (!rpcErr && rpcProfiles && Array.isArray(rpcProfiles)) {
@@ -1028,7 +1054,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcLogs, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_login_logs",
-          { dev_passkey: keyToUse || undefined, p_limit: 100 },
+          { dev_passkey: null, p_limit: 100 },
         );
 
         if (!rpcErr && rpcLogs && Array.isArray(rpcLogs)) {
@@ -1045,7 +1071,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcMessages, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_contact_messages",
-          { dev_passkey: keyToUse || undefined, p_limit: 200 },
+          { dev_passkey: null, p_limit: 200 },
         );
 
         if (!rpcErr && rpcMessages && Array.isArray(rpcMessages)) {
@@ -1062,7 +1088,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcAccessLogs, error: rpcAccessErr } = await (supabase.rpc as any)(
           "get_developer_access_logs",
-          { dev_passkey: keyToUse || undefined, p_limit: 100 },
+          { dev_passkey: null, p_limit: 100 },
         );
 
         if (!rpcAccessErr && rpcAccessLogs && Array.isArray(rpcAccessLogs)) {
@@ -1174,7 +1200,7 @@ function DeveloperDashboard() {
     try {
       setDemotingSessionId(sessionId);
       const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
-        dev_passkey: passkey.trim(),
+        dev_passkey: null,
         target_session_ids: [sessionId],
       });
 
@@ -1260,7 +1286,7 @@ function DeveloperDashboard() {
     try {
       setIsDemotingAll(true);
       const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
-        dev_passkey: passkey.trim(),
+        dev_passkey: null,
         target_session_ids: liveIds,
       });
 
@@ -1337,7 +1363,7 @@ function DeveloperDashboard() {
       const { error } = await (supabase.rpc as any)(
         "developer_update_contact_message_status",
         {
-          dev_passkey: passkey.trim(),
+          dev_passkey: null,
           target_id: id,
           new_status: newStatus,
         },
@@ -1366,7 +1392,7 @@ function DeveloperDashboard() {
       setIsDeletingMessage(true);
       const { error } = await (supabase.rpc as any)(
         "developer_delete_contact_message",
-        { dev_passkey: passkey.trim(), target_id: targetId },
+        { dev_passkey: null, target_id: targetId },
       );
 
       if (error) throw error;
@@ -1762,31 +1788,31 @@ function DeveloperDashboard() {
             </p>
           </div>
 
-          <form onSubmit={handleAuthenticate} className="space-y-4 text-left">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5" /> Developer Password Required
-              </label>
-              <Input
-                type="password"
-                placeholder="Enter Developer Password"
-                value={passkey}
-                onChange={(e) => {
-                  setPasskey(e.target.value);
-                  if (errorMsg) setErrorMsg("");
-                }}
-                className="h-11 bg-card/50 border-border text-center font-mono tracking-widest"
-              />
-              {errorMsg && (
-                <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
-                  {errorMsg}
-                </p>
-              )}
-            </div>
-            <Button type="submit" className="w-full h-11 gradient-bg font-semibold gap-2">
-              <Key className="h-4 w-4" /> Authenticate Developer Access
+          <div className="space-y-4 text-left">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center justify-center gap-1.5 text-center">
+              <Lock className="h-3.5 w-3.5" /> Requires a verified @kct.ac.in administrator account
+            </p>
+            {errorMsg && (
+              <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
+                {errorMsg}
+              </p>
+            )}
+            <Button
+              type="button"
+              onClick={() => verifyDeveloperAccess()}
+              disabled={checkingAccess}
+              className="w-full h-11 gradient-bg font-semibold gap-2"
+            >
+              <Key className="h-4 w-4" />{" "}
+              {checkingAccess ? "Verifying Access..." : "Verify Administrator Access"}
             </Button>
-          </form>
+            <a
+              href="/auth"
+              className="block text-center text-xs font-semibold text-primary hover:underline"
+            >
+              Not signed in? Sign in with your KCT account, then return to this page.
+            </a>
+          </div>
 
           <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
             <Shield className="h-3.5 w-3.5 text-emerald-500" /> Authorized Admin & Developer Use
@@ -1986,7 +2012,7 @@ function DeveloperDashboard() {
                   {activeSection === "questions" && "Institutional questions bank, question format composition, and engagement types."}
                   {activeSection === "submissions" && "Live student submission stream and classroom response logs."}
                   {activeSection === "activity" && "Audit log trace, administrative actions, and real-time platform telemetry."}
-                  {activeSection === "security" && "Authentication logs, access control security, failed passkey attempts, and WAF events."}
+                  {activeSection === "security" && "Authentication logs, access control security, failed access attempts, and WAF events."}
                   {activeSection === "health" && "Database realtime connectivity, API latency, AI provider pools, and token telemetry."}
                   {activeSection === "feedback" && "Student and faculty feedback submissions and feature suggestions."}
                   {activeSection === "contact_messages" && "Public contact inquiries, support requests, and user communications."}
@@ -4112,7 +4138,7 @@ function DeveloperDashboard() {
                       </div>
                       <div className="p-4 rounded-xl bg-card/60 border border-border/60 space-y-1.5">
                         <span className="font-bold text-foreground">RLS Policy Isolation:</span>
-                        <p className="text-muted-foreground">Public execution revoked from public role; access log reads restricted to authorized developer passkey verification.</p>
+                        <p className="text-muted-foreground">Public execution revoked from public role; access log reads restricted to verified administrator accounts.</p>
                       </div>
                     </div>
                   </div>
@@ -4236,6 +4262,12 @@ function DeveloperDashboard() {
                 {/* Subtab 2: AI Services & Key Pool */}
                 {healthSubTab === "ai_services" && (
                   <div className="space-y-4">
+            {aiKeyInventoryError && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400">
+                AI key diagnostics are unavailable: {aiKeyInventoryError} Diagnostics run on the
+                server and require a signed-in @kct.ac.in account with the admin role.
+              </div>
+            )}
             <div className="glass rounded-2xl p-6 border border-border/60 space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
                 <div>
@@ -4244,8 +4276,8 @@ function DeveloperDashboard() {
                     Key Telemetry
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    View real-time diagnostic health, verification logs, rate limit checks, and
-                    usage metrics for the 5 rotated Groq API keys.
+                    View real-time diagnostic health, rate limit checks, and usage metrics for the
+                    {aiKeyCounts.groq} Groq key slot(s) configured in server environment variables.
                   </p>
                 </div>
 
@@ -4284,9 +4316,8 @@ function DeveloperDashboard() {
                   </div>
                   <div className="text-xl font-extrabold text-foreground">Rotated Failover</div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    API calls automatically cycle through the 5 keys in priority order. If Key #1
-                    hits a rate limit or fails, it silently switches to Key #2, ensuring 100%
-                    uptime.
+                    Server-side AI calls cycle through the configured keys in priority order. If one
+                    key hits a rate limit or fails, the server switches to the next configured key.
                   </p>
                 </div>
 
@@ -4295,11 +4326,11 @@ function DeveloperDashboard() {
                     <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" /> Push Protected Secrets
                   </div>
                   <div className="text-xl font-extrabold text-foreground">
-                    Base64 & String Cipher
+                    Server-Only Secrets
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Keys are ciphered at build-time to bypass GitHub push protection scans and are
-                    only decyphered locally in the client thread during completions calls.
+                    Keys live only in server environment variables. The browser never receives key
+                    material; diagnostics run on the server and return a status only.
                   </p>
                 </div>
 
@@ -4307,10 +4338,10 @@ function DeveloperDashboard() {
                   <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Activity className="h-3.5 w-3.5 text-amber-400" /> API Requests Limit
                   </div>
-                  <div className="text-xl font-extrabold text-foreground">72,000 requests/day</div>
+                  <div className="text-xl font-extrabold text-foreground">{(aiKeyCounts.groq * 14400).toLocaleString()} requests/day</div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Each Groq key allows up to 14,400 free requests per day, giving the KCT Pulse
-                    workspace a massive daily allocation of 72,000 document question generations.
+                    workspace a daily allocation of {(aiKeyCounts.groq * 14400).toLocaleString()} document question generations.
                   </p>
                 </div>
               </div>
@@ -4321,7 +4352,7 @@ function DeveloperDashboard() {
                     <tr>
                       <th className="px-4 py-3">Key Index</th>
                       <th className="px-4 py-3">Account / Owner</th>
-                      <th className="px-4 py-3">Obfuscated Signature</th>
+                      <th className="px-4 py-3">Slot Label</th>
                       <th className="px-4 py-3">Diagnostic Status</th>
                       <th className="px-4 py-3 text-center">Attempts</th>
                       <th className="px-4 py-3 text-center">Successes</th>
@@ -4331,15 +4362,15 @@ function DeveloperDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {[0, 1, 2, 3, 4].map((idx) => {
-                      const sig = getGroqKeySignature(idx);
+                    {Array.from({ length: aiKeyCounts.groq }, (_, idx) => {
+                      const sig = getAiKeySlotLabel("groq", idx);
                       const usage = keyUsageData[sig] || {
                         attempts: 0,
                         successes: 0,
                         failures: 0,
                         lastUsed: "",
                       };
-                      const state = groqKeysStatus[idx];
+                      const state = groqKeysStatus[idx] ?? { status: "unchecked" as const };
 
                       return (
                         <tr key={idx} className="hover:bg-card/40 transition">
@@ -4461,10 +4492,10 @@ function DeveloperDashboard() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
                 <div>
                   <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-cyan-400" /> AI Keys Diagnostic Suite: Google Gemini Pool (11 Keys)
+                    <Sparkles className="h-5 w-5 text-cyan-400" /> AI Keys Diagnostic Suite: Google Gemini Pool ({aiKeyCounts.gemini} Keys)
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Real-time diagnostic health, verification checks, and usage telemetry across the 11 rotated Google Gemini keys.
+                    Real-time diagnostic health, verification checks, and usage telemetry across the {aiKeyCounts.gemini} Google Gemini key slot(s) configured on the server.
                   </p>
                 </div>
 
@@ -4489,7 +4520,7 @@ function DeveloperDashboard() {
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" />
                     )}
-                    {testingAllGeminiKeys ? "Testing..." : "Test All 11 Keys"}
+                    {testingAllGeminiKeys ? "Testing..." : `Test All ${aiKeyCounts.gemini} Keys`}
                   </Button>
                 </div>
               </div>
@@ -4498,21 +4529,21 @@ function DeveloperDashboard() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-border bg-card/45 p-4 space-y-2">
                   <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Radio className="h-3.5 w-3.5 text-cyan-400 animate-pulse" /> 11-Key Failover Pool
+                    <Radio className="h-3.5 w-3.5 text-cyan-400 animate-pulse" /> Server Failover Pool
                   </div>
                   <div className="text-xl font-extrabold text-foreground">Round-Robin Active</div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Client and server requests cycle through 11 distinct Gemini API keys. If any key hits a quota or rate limit, requests automatically cascade to the next key.
+                    Server requests cycle through the configured Gemini API keys. If any key hits a quota or rate limit, requests automatically cascade to the next key.
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-border bg-card/45 p-4 space-y-2">
                   <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Ciphered Key Protection
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Server-Only Key Storage
                   </div>
-                  <div className="text-xl font-extrabold text-foreground">Base Obfuscated</div>
+                  <div className="text-xl font-extrabold text-foreground">Never Sent to Browser</div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Keys are ciphered to prevent credential scrapers from intercepting keys and decrypted dynamically at runtime when querying Google AI Studio.
+                    Keys are read from server environment variables and sent to Google only in request headers, never in URLs or browser code.
                   </p>
                 </div>
 
@@ -4520,9 +4551,9 @@ function DeveloperDashboard() {
                   <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Activity className="h-3.5 w-3.5 text-blue-400" /> Daily Capacity
                   </div>
-                  <div className="text-xl font-extrabold text-foreground">16,500 requests/day</div>
+                  <div className="text-xl font-extrabold text-foreground">{(aiKeyCounts.gemini * 1500).toLocaleString()} requests/day</div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    With 1,500 free requests per key each day, the pool delivers an impressive collective capacity of 16,500 AI operations daily.
+                    With 1,500 free requests per key each day, the configured pool delivers a collective capacity of {(aiKeyCounts.gemini * 1500).toLocaleString()} AI operations daily.
                   </p>
                 </div>
               </div>
@@ -4533,7 +4564,7 @@ function DeveloperDashboard() {
                     <tr>
                       <th className="px-4 py-3">Key Index</th>
                       <th className="px-4 py-3">Account / Owner</th>
-                      <th className="px-4 py-3">Obfuscated Signature</th>
+                      <th className="px-4 py-3">Slot Label</th>
                       <th className="px-4 py-3">Diagnostic Status</th>
                       <th className="px-4 py-3 text-center">Attempts</th>
                       <th className="px-4 py-3 text-center">Successes</th>
@@ -4543,15 +4574,15 @@ function DeveloperDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {Array.from({ length: GEMINI_KEYS_COUNT }, (_, idx) => {
-                      const sig = getGeminiKeySignature(idx);
+                    {Array.from({ length: aiKeyCounts.gemini }, (_, idx) => {
+                      const sig = getAiKeySlotLabel("gemini", idx);
                       const usage = keyUsageData[sig] || {
                         attempts: 0,
                         successes: 0,
                         failures: 0,
                         lastUsed: "",
                       };
-                      const state = geminiKeysStatus[idx];
+                      const state = geminiKeysStatus[idx] ?? { status: "unchecked" as const };
 
                       return (
                         <tr key={idx} className="hover:bg-card/40 transition">
@@ -5497,7 +5528,7 @@ function DeveloperDashboard() {
               <div className="pt-4 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <div className="font-bold text-xs text-foreground">Lock Administrative Session</div>
-                  <div className="text-[11px] text-muted-foreground">Terminates the current administrative passkey session and locks the portal.</div>
+                  <div className="text-[11px] text-muted-foreground">Terminates the current administrative session and locks the portal.</div>
                 </div>
                 <Button
                   onClick={handleLockDeveloper}

@@ -35,3 +35,6 @@ dist-ssr
 
 # Deployment helper scripts with hardcoded secrets — never commit
 fix-vercel-envs.js
+.vs/
+scratch/
+supabase/.temp/

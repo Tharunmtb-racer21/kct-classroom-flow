@@ -128,17 +128,14 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {/* Dark-only: always add the dark class before first paint to prevent FOUC */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('theme');
-                  if (theme === 'light') {
-                    document.documentElement.classList.remove('dark');
-                  } else {
-                    document.documentElement.classList.add('dark');
-                  }
+                  document.documentElement.classList.add('dark');
+                  localStorage.setItem('theme', 'dark');
                 } catch (e) {}
               })();
             `,
@@ -172,7 +169,8 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    applyTheme(getStoredTheme());
+    // Dark-only: always enforce dark theme on mount and clear any stale light preference
+    applyTheme("dark");
     document.title = "KCT PULSE";
   }, []);
 

@@ -1,61 +1,54 @@
-import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+﻿/**
+ * theme-toggle.tsx
+ * Dark-only theme enforcement for KCT PULSE.
+ *
+ * This application uses a dark-only design. Light mode is intentionally
+ * disabled. The "ThemeToggle" component still exists for backward compatibility
+ * with call sites throughout the codebase but renders nothing — it no longer
+ * presents a clickable control to the user.
+ *
+ * applyTheme() and getStoredTheme() are kept for the inline script in
+ * __root.tsx which must be able to import them.
+ */
 
-export type Theme = "light" | "dark";
+export type Theme = "dark";
 
+/** Always returns "dark". localStorage is normalised on first run. */
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem("theme");
-  if (stored === "light" || stored === "dark") return stored;
-  // Also check document root class if localStorage not set yet
-  if (document.documentElement.classList.contains("dark")) return "dark";
+  if (typeof window !== "undefined") {
+    // Overwrite any stored "light" preference so future page loads start dark.
+    try {
+      localStorage.setItem("theme", "dark");
+    } catch {
+      // Storage might be unavailable in some environments.
+    }
+  }
   return "dark";
 }
 
-export function applyTheme(theme: Theme) {
+/** Enforces the dark class on the document root and persists the preference. */
+export function applyTheme(_theme?: Theme) {
   if (typeof window === "undefined") return;
-  const root = document.documentElement;
-  if (theme === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
+  document.documentElement.classList.add("dark");
+  try {
+    localStorage.setItem("theme", "dark");
+  } catch {
+    // Ignore storage errors.
   }
-  localStorage.setItem("theme", theme);
-  window.dispatchEvent(new Event("theme-change"));
 }
 
+/** No-op: toggling to light is not supported. Returns "dark". */
 export function toggleTheme(): Theme {
-  const current = getStoredTheme();
-  const next: Theme = current === "dark" ? "light" : "dark";
-  applyTheme(next);
-  return next;
+  applyTheme("dark");
+  return "dark";
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>("dark");
-
-  useEffect(() => {
-    setThemeState(getStoredTheme());
-
-    const handleThemeChange = () => {
-      setThemeState(getStoredTheme());
-    };
-
-    window.addEventListener("theme-change", handleThemeChange);
-    window.addEventListener("storage", handleThemeChange);
-    return () => {
-      window.removeEventListener("theme-change", handleThemeChange);
-      window.removeEventListener("storage", handleThemeChange);
-    };
-  }, []);
-
   return {
-    theme,
+    theme: "dark" as Theme,
     setTheme: applyTheme,
     toggleTheme,
-    isDark: theme === "dark",
+    isDark: true,
   };
 }
 
@@ -66,34 +59,12 @@ interface ThemeToggleProps {
   className?: string;
 }
 
-export function ThemeToggle({
-  variant = "ghost",
-  size,
-  showLabel = false,
-  className,
-}: ThemeToggleProps) {
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === "dark";
-  const buttonSize = size || (showLabel ? "default" : "icon");
-
-  return (
-    <Button
-      type="button"
-      variant={variant}
-      size={buttonSize}
-      onClick={toggleTheme}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      className={cn("relative transition-all duration-300 cursor-pointer", className)}
-    >
-      {isDark ? (
-        <Sun className="h-4 w-4 text-amber-400 transition-transform duration-300 hover:rotate-45" />
-      ) : (
-        <Moon className="h-4 w-4 text-indigo-600 transition-transform duration-300 hover:-rotate-12" />
-      )}
-      {showLabel && (
-        <span className="ml-2 text-sm font-medium">{isDark ? "Light Mode" : "Dark Mode"}</span>
-      )}
-    </Button>
-  );
+/**
+ * ThemeToggle — renders nothing.
+ * The application is dark-only; no toggle is presented to the user.
+ * This component is retained so existing import sites do not break.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function ThemeToggle(_props: ThemeToggleProps) {
+  return null;
 }

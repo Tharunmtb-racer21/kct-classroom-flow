@@ -11,6 +11,17 @@ export function generateSessionCode(): string {
   return out;
 }
 
+function readPublicUrlEnv() {
+  // SECURITY: static env member reads only. Reading the whole env object makes Vite
+  // inline every VITE_* variable from the build environment into the browser bundle.
+  return {
+    VITE_PUBLIC_APP_URL: import.meta.env.VITE_PUBLIC_APP_URL as string | undefined,
+    VITE_VERCEL_PROJECT_PRODUCTION_URL: import.meta.env.VITE_VERCEL_PROJECT_PRODUCTION_URL as
+      string | undefined,
+    VITE_VERCEL_URL: import.meta.env.VITE_VERCEL_URL as string | undefined,
+  };
+}
+
 /**
  * Resolves the public base URL for student-facing join links & QR codes.
  *
@@ -24,7 +35,7 @@ export function generateSessionCode(): string {
  * handled in vite.config.ts or .env.
  */
 function getPublicBaseUrl(): string {
-  const env = (import.meta as any).env ?? {};
+  const env = readPublicUrlEnv();
 
   // 1. Explicit override — highest priority
   if (env.VITE_PUBLIC_APP_URL) {
@@ -62,7 +73,7 @@ export function isPrivatePreviewHost(): boolean {
   if (typeof window === "undefined") return false;
 
   // If an explicit public URL is configured, the QR is fine — no warning needed
-  const env = (import.meta as any).env ?? {};
+  const env = readPublicUrlEnv();
   if (env.VITE_PUBLIC_APP_URL || env.VITE_VERCEL_PROJECT_PRODUCTION_URL || env.VITE_VERCEL_URL) {
     return false;
   }

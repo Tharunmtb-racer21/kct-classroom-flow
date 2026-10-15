@@ -30,7 +30,12 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { verifyDevPassword } from "@/lib/dev-auth";
+import { auth } from "@/lib/firebase";
+import {
+  checkDeveloperAccess,
+  clearLegacyDeveloperStorage,
+  DEVELOPER_ACCESS_MESSAGES,
+} from "@/lib/developer-access";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -51,7 +56,7 @@ export const Route = createFileRoute("/developer-waf")({
 
 function WafMonitorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [passkey, setPasskey] = useState("");
+  const [checkingAccess, setCheckingAccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -93,59 +98,50 @@ function WafMonitorDashboard() {
     }
   };
 
-  const DEV_TIMEOUT_MS = 30 * 60 * 1000;
-
   const handleLockWaf = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("kct_dev_auth");
-      localStorage.removeItem("kct_dev_auth_time");
-      localStorage.removeItem("kct_dev_passkey");
-    }
+    clearLegacyDeveloperStorage();
     setIsAuthenticated(false);
-    setPasskey("");
+  };
+
+  // Access requires a verified @kct.ac.in Firebase account with the admin role. This is a
+  // UI gate; the WAF RPCs re-check public.is_platform_admin() in the database.
+  const verifyDeveloperAccess = async (opts: { silent?: boolean } = {}) => {
+    setCheckingAccess(true);
+    try {
+      const decision = await checkDeveloperAccess();
+      if (decision.allowed) {
+        setErrorMsg("");
+        setIsAuthenticated(true);
+        return;
+      }
+      setIsAuthenticated(false);
+      if (!opts.silent) setErrorMsg(DEVELOPER_ACCESS_MESSAGES[decision.reason]);
+    } finally {
+      setCheckingAccess(false);
+    }
   };
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined") {
-      const isAuth = localStorage.getItem("kct_dev_auth") === "true";
-      const authTime = Number(localStorage.getItem("kct_dev_auth_time") || "0");
-      if (isAuth && authTime > 0 && Date.now() - authTime > DEV_TIMEOUT_MS) {
-        handleLockWaf();
-      } else {
-        setIsAuthenticated(isAuth);
-      }
-      setEdgeWafActive(true);
-      setWafOffline(false);
-    }
+    // Remove the plaintext passkey and flags stored by the retired passkey gate.
+    clearLegacyDeveloperStorage();
+    setEdgeWafActive(true);
+    setWafOffline(false);
+    const unsubscribe = auth.onAuthStateChanged(() => {
+      void verifyDeveloperAccess({ silent: true });
+    });
+    return () => unsubscribe();
   }, []);
-
-  const handleAuthenticate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const isValid = await verifyDevPassword(passkey);
-    if (isValid) {
-      setIsAuthenticated(true);
-      setErrorMsg("");
-      localStorage.setItem("kct_dev_auth", "true");
-      localStorage.setItem("kct_dev_auth_time", Date.now().toString());
-      localStorage.setItem("kct_dev_passkey", passkey);
-    } else {
-      setErrorMsg("Access Denied: Incorrect developer password.");
-    }
-  };
 
   const fetchWafData = async () => {
     setLoading(true);
     try {
-      const storedKey =
-        (typeof window !== "undefined" ? localStorage.getItem("kct_dev_passkey") : null) || passkey;
-
       // 1. Fetch Aggregated Metrics
       let statsFound = false;
       try {
         const { data: statsData, error: statsErr } = await (supabase.rpc as any)(
           "get_developer_waf_stats",
-          { dev_passkey: storedKey || undefined },
+          { dev_passkey: null },
         );
 
         if (!statsErr && statsData) {
@@ -178,7 +174,7 @@ function WafMonitorDashboard() {
       try {
         const { data: logsData, error: logsErr } = await (supabase.rpc as any)(
           "get_developer_waf_logs",
-          { dev_passkey: storedKey || undefined, p_limit: 50 },
+          { dev_passkey: null, p_limit: 50 },
         );
 
         if (!logsErr && Array.isArray(logsData)) {
@@ -238,7 +234,7 @@ function WafMonitorDashboard() {
     fetchWafData();
     const interval = setInterval(fetchWafData, 10000);
     return () => clearInterval(interval);
-  }, [isAuthenticated, passkey]);
+  }, [isAuthenticated]);
 
   const handleAddWafIPRule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -290,34 +286,31 @@ function WafMonitorDashboard() {
             </p>
           </div>
 
-          <form onSubmit={handleAuthenticate} className="space-y-4 text-left">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5" /> Developer Password Required
-              </label>
-              <Input
-                type="password"
-                placeholder="Enter Developer Password"
-                value={passkey}
-                onChange={(e) => {
-                  setPasskey(e.target.value);
-                  if (errorMsg) setErrorMsg("");
-                }}
-                className="h-11 bg-background/50 border-border text-center font-mono tracking-widest"
-              />
-              {errorMsg && (
-                <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
-                  {errorMsg}
-                </p>
-              )}
-            </div>
+          <div className="space-y-4 text-left">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center justify-center gap-1.5 text-center">
+              <Lock className="h-3.5 w-3.5" /> Requires a verified @kct.ac.in administrator account
+            </p>
+            {errorMsg && (
+              <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
+                {errorMsg}
+              </p>
+            )}
             <Button
-              type="submit"
+              type="button"
+              onClick={() => verifyDeveloperAccess()}
+              disabled={checkingAccess}
               className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
             >
-              <Key className="h-4 w-4" /> Authenticate Firewall Access
+              <Key className="h-4 w-4" />{" "}
+              {checkingAccess ? "Verifying Access..." : "Verify Administrator Access"}
             </Button>
-          </form>
+            <a
+              href="/auth"
+              className="block text-center text-xs font-semibold text-primary hover:underline"
+            >
+              Not signed in? Sign in with your KCT account, then return to this page.
+            </a>
+          </div>
 
           <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
             <Shield className="h-3.5 w-3.5 text-red-500" /> Authorized Admin & Developer Use Only

@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { throttle } from "@/lib/utils";
+import { sanitiseParticipantDisplayName } from "@/lib/feedback-validator";
 
 export const Route = createFileRoute("/_authenticated/dashboard/intelligence")({
   component: ClassroomIntelligenceDashboard,
@@ -843,7 +844,7 @@ export default function ClassroomIntelligenceDashboard() {
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{s.name}</span>
+                          <span className="font-semibold text-sm">{sanitiseParticipantDisplayName(s.name)}</span>
                           <Badge
                             variant="outline"
                             className={

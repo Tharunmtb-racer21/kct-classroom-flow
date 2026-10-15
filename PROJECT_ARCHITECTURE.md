@@ -121,7 +121,7 @@ src/
 └── routes/
     ├── __root.tsx                   # Root router component, theme sync & global auto-draft timer
     ├── auth.tsx                     # Faculty login / registration page
-    ├── developer.tsx                # Password-gated telemetry portal (Password: Pulse_2026)
+    ├── developer.tsx                # Admin-gated telemetry portal (verified @kct.ac.in administrators only)
     ├── embed.$code.tsx              # Frameless slide embed view for PowerPoint / Google Slides
     ├── join.$code.tsx               # Student real-time response view
     └── _authenticated/
