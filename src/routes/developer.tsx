@@ -87,11 +87,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn, formatDisplayName } from "@/lib/utils";
-import {
-  checkDeveloperAccess,
-  clearLegacyDeveloperStorage,
-  DEVELOPER_ACCESS_MESSAGES,
-} from "@/lib/developer-access";
+import { verifyDevPassword } from "@/lib/dev-auth";
+import { checkDeveloperAccess } from "@/lib/developer-access";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import {
@@ -250,7 +247,8 @@ export const Route = createFileRoute("/developer")({
 
 function DeveloperDashboard() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [passkey, setPasskey] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
   const [contactMessages, setContactMessages] = useState<ContactMessageRow[]>([]);
   const [selectedContactMessage, setSelectedContactMessage] = useState<ContactMessageRow | null>(
     null,
@@ -263,19 +261,25 @@ function DeveloperDashboard() {
   const DEV_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
   const handleLockDeveloper = () => {
-    clearLegacyDeveloperStorage();
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("kct_dev_auth");
+      sessionStorage.removeItem("kct_dev_auth_time");
+    }
     setIsAuthenticated(false);
+    setPasskey("");
   };
 
   useEffect(() => {
     setMounted(true);
-    // Remove any flag or passkey left in browser storage by the retired passkey gate.
-    clearLegacyDeveloperStorage();
-    // Re-evaluate administrator access whenever the Firebase identity changes.
-    const unsubscribe = auth.onAuthStateChanged(() => {
-      void verifyDeveloperAccess({ silent: true });
-    });
-    return () => unsubscribe();
+    if (typeof window !== "undefined") {
+      const isAuth = sessionStorage.getItem("kct_dev_auth") === "true";
+      const authTime = Number(sessionStorage.getItem("kct_dev_auth_time") || "0");
+      if (isAuth && authTime > 0 && Date.now() - authTime > DEV_TIMEOUT_MS) {
+        handleLockDeveloper();
+      } else if (isAuth) {
+        setIsAuthenticated(true);
+      }
+    }
   }, []);
 
   // 30-Minute Inactivity Auto-Lock Listener
@@ -947,27 +951,26 @@ function DeveloperDashboard() {
     }
   };
 
-  // Developer access requires a verified @kct.ac.in Firebase account with the admin role.
-  // This is a UI gate; every developer RPC re-checks public.is_platform_admin() in the
-  // database. The shared developer passkey is retired and accepted nowhere.
-  const verifyDeveloperAccess = async (opts: { silent?: boolean } = {}) => {
-    setCheckingAccess(true);
+  // Passkey Login Handler (SHA-256 hash comparison - plaintext never in bundle)
+  const handleAuthenticate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthenticating(true);
     try {
-      const decision = await checkDeveloperAccess();
-      if (decision.allowed) {
-        setErrorMsg("");
+      const isValid = await verifyDevPassword(passkey);
+      if (isValid) {
         setIsAuthenticated(true);
-        return;
-      }
-      setIsAuthenticated(false);
-      if (!opts.silent) {
-        setErrorMsg(DEVELOPER_ACCESS_MESSAGES[decision.reason]);
-        if (decision.reason === "not_admin" || decision.reason === "email_domain") {
-          recordFailedAttempt();
+        setErrorMsg("");
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("kct_dev_auth", "true");
+          sessionStorage.setItem("kct_dev_auth_time", Date.now().toString());
         }
+        loadData();
+      } else {
+        setErrorMsg("Access Denied: Incorrect developer password.");
+        recordFailedAttempt();
       }
     } finally {
-      setCheckingAccess(false);
+      setAuthenticating(false);
     }
   };
 
@@ -1027,10 +1030,10 @@ function DeveloperDashboard() {
       // 5. Fetch Profiles (using secure developer RPC, falling back to direct query)
       let profRows: ProfileRow[] = [];
       try {
-        // dev_passkey is omitted (it defaults to NULL and is ignored by the database).
-        const { data: rpcProfiles, error: rpcErr } = await supabase.rpc(
+        // dev_passkey is null (it defaults to NULL and is ignored by the database).
+        const { data: rpcProfiles, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_faculty_profiles",
-          {},
+          { dev_passkey: null },
         );
 
         if (!rpcErr && rpcProfiles && Array.isArray(rpcProfiles)) {
@@ -1788,31 +1791,42 @@ function DeveloperDashboard() {
             </p>
           </div>
 
-          <div className="space-y-4 text-left">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center justify-center gap-1.5 text-center">
-              <Lock className="h-3.5 w-3.5" /> Requires a verified @kct.ac.in administrator account
-            </p>
-            {errorMsg && (
-              <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
-                {errorMsg}
-              </p>
-            )}
+          <form onSubmit={handleAuthenticate} className="space-y-4 text-left">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5" /> Developer Password Required
+              </label>
+              <Input
+                type="password"
+                placeholder="Enter Developer Password"
+                value={passkey}
+                onChange={(e) => {
+                  setPasskey(e.target.value);
+                  if (errorMsg) setErrorMsg("");
+                }}
+                className="h-11 bg-card/50 border-border text-center font-mono tracking-widest"
+              />
+              {errorMsg && (
+                <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
+                  {errorMsg}
+                </p>
+              )}
+            </div>
             <Button
-              type="button"
-              onClick={() => verifyDeveloperAccess()}
-              disabled={checkingAccess}
+              type="submit"
+              disabled={authenticating}
               className="w-full h-11 gradient-bg font-semibold gap-2"
             >
               <Key className="h-4 w-4" />{" "}
-              {checkingAccess ? "Verifying Access..." : "Verify Administrator Access"}
+              {authenticating ? "Authenticating..." : "Authenticate Developer Access"}
             </Button>
-            <a
-              href="/auth"
-              className="block text-center text-xs font-semibold text-primary hover:underline"
+            <Link
+              to="/dashboard"
+              className="block text-center text-xs text-muted-foreground hover:text-foreground transition-colors pt-1"
             >
-              Not signed in? Sign in with your KCT account, then return to this page.
-            </a>
-          </div>
+              Return to Faculty Dashboard
+            </Link>
+          </form>
 
           <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
             <Shield className="h-3.5 w-3.5 text-emerald-500" /> Authorized Admin & Developer Use
