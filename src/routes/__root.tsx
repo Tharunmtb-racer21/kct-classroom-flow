@@ -248,8 +248,9 @@ function RootComponent() {
     };
   }, []);
 
-  const showChatBot = pathname.startsWith("/dashboard");
-  const isDeveloperRoute = pathname.startsWith("/developer");
+  const isDeveloperRoute =
+    pathname.startsWith("/developer") || pathname.startsWith("/dashboard/developer");
+  const showChatBot = pathname.startsWith("/dashboard") && !isDeveloperRoute;
   const showEmergencyServerDownScreen = isServerDown && !isDeveloperRoute;
 
   return (

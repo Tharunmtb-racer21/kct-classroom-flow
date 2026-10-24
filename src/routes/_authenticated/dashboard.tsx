@@ -18,6 +18,11 @@ const mobileNavItems = [
 
 function DashboardLayout() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const isDeveloperRoute = pathname.startsWith("/dashboard/developer");
+
+  if (isDeveloperRoute) {
+    return <Outlet />;
+  }
 
   return (
     <div className="relative flex h-dvh w-full flex-col md:flex-row overflow-hidden bg-background">

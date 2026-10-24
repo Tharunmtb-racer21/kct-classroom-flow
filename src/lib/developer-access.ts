@@ -49,8 +49,21 @@ export async function checkDeveloperAccess(): Promise<DeveloperAccessDecision> {
 
   let emailVerified = user.emailVerified;
   try {
-    const token = await user.getIdTokenResult();
+    let token = await user.getIdTokenResult();
     emailVerified = token.claims.email_verified === true;
+
+    // If cached claims indicate the email is not verified, reload the Firebase
+    // user and force-refresh the ID token once to pick up any recent out-of-band verification.
+    if (!emailVerified) {
+      try {
+        await user.reload();
+        token = await user.getIdTokenResult(true);
+        emailVerified = token.claims.email_verified === true;
+      } catch (reloadErr) {
+        console.warn("[developer-access] Could not refresh user verification status:", reloadErr);
+        // Refresh failure must NOT be treated as verification.
+      }
+    }
   } catch {
     return evaluateDeveloperAccess({
       signedIn: true,
@@ -68,8 +81,27 @@ export async function checkDeveloperAccess(): Promise<DeveloperAccessDecision> {
       .eq("user_id", user.uid)
       .eq("role", "admin")
       .maybeSingle();
-    isAdmin = error ? null : !!data;
-  } catch {
+
+    if (error) {
+      const errStr = (error.message || "").toLowerCase();
+      if (
+        errStr.includes("issued at future") ||
+        errStr.includes("not yet valid") ||
+        (errStr.includes("jwt") && errStr.includes("future"))
+      ) {
+        console.warn(
+          "[developer-access] JWT timestamp verification failed ('JWT issued at future'). " +
+            "Your system clock may be drifting behind network time. Please synchronize device time with NTP.",
+        );
+      } else {
+        console.warn("[developer-access] Supabase role verification failed:", error.message);
+      }
+      isAdmin = null;
+    } else {
+      isAdmin = !!data;
+    }
+  } catch (err) {
+    console.warn("[developer-access] Unexpected error during role verification:", err);
     isAdmin = null;
   }
 
