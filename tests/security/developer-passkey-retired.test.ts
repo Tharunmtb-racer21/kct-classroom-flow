@@ -51,11 +51,16 @@ describe("developer portal password authentication", () => {
   });
 
   test("developer portal UI contains restored password login form", () => {
-    const code = read(join(SRC, "routes", "developer.tsx"));
+    const code = read(join(SRC, "routes", "_authenticated", "dashboard.developer.tsx"));
     expect(code).toContain("verifyDevPassword");
     expect(code).toContain('placeholder="Enter Developer Password"');
     expect(code).toContain("Developer Password Required");
     expect(code).toContain("Authenticate Developer Access");
+  });
+
+  test("legacy /developer route safely redirects to /dashboard/developer", () => {
+    const legacyCode = read(join(SRC, "routes", "developer.tsx"));
+    expect(legacyCode).toContain('redirect({ to: "/dashboard/developer" })');
   });
 });
 

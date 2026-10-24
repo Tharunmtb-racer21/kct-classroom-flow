@@ -401,7 +401,7 @@ function WafMonitorDashboard() {
             <Lock className="h-3.5 w-3.5" /> Lock Console
           </Button>
 
-          <Link to="/developer">
+          <Link to="/dashboard/developer">
             <Button variant="outline" size="sm" className="gap-2 text-xs border-border bg-card/60">
               <ArrowLeft className="h-3.5 w-3.5" /> Developer Portal
             </Button>
