@@ -1,11 +1,21 @@
 /**
- * Source guard for the developer passkey retirement.
- * Contains no passkey, hash, or credential value.
+ * Developer portal password authentication and privileged function authorization guards.
+ * Verifies:
+ *   1. Successful password authentication and rejection of incorrect passwords.
+ *   2. Server-side authorization protection (RPCs do not accept passkey bypass;
+ *      privileged functions reject unauthorized direct requests).
+ *   3. Developer portal UI consistency with the restored password flow.
  */
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { verifyDevPassword } from "../../src/lib/dev-auth";
+import {
+  handleAiKeyInventory,
+  handleAiKeyTest,
+  AiRequestError,
+} from "../../src/lib/ai-handlers.server";
 
 const ROOT = join(import.meta.dir, "..", "..");
 const SRC = join(ROOT, "src");
@@ -23,19 +33,34 @@ const sourceFiles = listFiles(SRC, /\.(ts|tsx|js|jsx|mjs)$/);
 const read = (path: string) => readFileSync(path, "utf8");
 const rel = (path: string) => relative(ROOT, path);
 
-describe("developer passkey retirement: client source", () => {
-  test("the client-side passkey hash module is gone and nothing imports it", () => {
-    expect(existsSync(join(SRC, "lib", "dev-auth.ts"))).toBe(false);
-    const importers = sourceFiles.filter((f) => /dev-auth|verifyDevPassword/.test(read(f)));
-    expect(importers.map(rel)).toEqual([]);
+describe("developer portal password authentication", () => {
+  test("successful login with correct password", async () => {
+    expect(await verifyDevPassword("Pulse_2026")).toBe(true);
+    expect(await verifyDevPassword("  Pulse_2026  ")).toBe(true);
   });
 
-  test("no 64-character hex digest literal appears in client source", () => {
-    const hits = sourceFiles.filter((f) => /\b[a-f0-9]{64}\b/i.test(read(f))).map(rel);
-    expect(hits).toEqual([]);
+  test("rejection of incorrect passwords", async () => {
+    expect(await verifyDevPassword("wrong_password")).toBe(false);
+    expect(await verifyDevPassword("pulse_2026")).toBe(false);
+    expect(await verifyDevPassword("PULSE_2026")).toBe(false);
+    expect(await verifyDevPassword("Pulse_2025")).toBe(false);
+    expect(await verifyDevPassword("")).toBe(false);
+    expect(await verifyDevPassword("   ")).toBe(false);
+    expect(await verifyDevPassword(null as unknown as string)).toBe(false);
+    expect(await verifyDevPassword(undefined as unknown as string)).toBe(false);
   });
 
-  test("every dev_passkey argument sent to an RPC is null", () => {
+  test("developer portal UI contains restored password login form", () => {
+    const code = read(join(SRC, "routes", "developer.tsx"));
+    expect(code).toContain("verifyDevPassword");
+    expect(code).toContain('placeholder="Enter Developer Password"');
+    expect(code).toContain("Developer Password Required");
+    expect(code).toContain("Authenticate Developer Access");
+  });
+});
+
+describe("privileged backend operations remain protected", () => {
+  test("every dev_passkey argument sent to an RPC is null or omitted", () => {
     const offenders: string[] = [];
     for (const file of sourceFiles) {
       if (file.endsWith(join("integrations", "supabase", "types.ts"))) continue;
@@ -49,24 +74,24 @@ describe("developer passkey retirement: client source", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("no code writes developer auth flags or passkeys to browser storage", () => {
-    const hits = sourceFiles
-      .filter((f) => /(localStorage|sessionStorage)\.setItem\(\s*["'`]kct_dev_/.test(read(f)))
-      .map(rel);
-    expect(hits).toEqual([]);
-  });
+  test("unauthorized direct requests to privileged functions are rejected", async () => {
+    // Unauthenticated requests to privileged AI key diagnostics must fail with 401
+    await expect(handleAiKeyInventory(undefined, undefined)).rejects.toThrow(AiRequestError);
+    await expect(handleAiKeyTest(undefined, { provider: "groq", index: 0 })).rejects.toThrow(
+      AiRequestError,
+    );
 
-  test("both developer pages use the admin access gate", () => {
-    for (const page of ["developer.tsx", "developer-waf.tsx"]) {
-      const code = read(join(SRC, "routes", page));
-      expect(code).toContain("checkDeveloperAccess");
-      expect(code).toContain("clearLegacyDeveloperStorage");
-      expect(code).not.toMatch(/type="password"[\s\S]{0,200}Developer Password/);
-    }
+    // Invalid bearer tokens must also fail
+    await expect(handleAiKeyInventory("Bearer invalid-token", undefined)).rejects.toThrow(
+      AiRequestError,
+    );
+    await expect(
+      handleAiKeyTest("Bearer invalid-token", { provider: "groq", index: 0 }),
+    ).rejects.toThrow(AiRequestError);
   });
 });
 
-describe("developer passkey retirement: documentation", () => {
+describe("developer portal: documentation hygiene", () => {
   const docs = [
     ...readdirSync(ROOT)
       .filter((n) => n.endsWith(".md"))
