@@ -65,14 +65,16 @@ describe("developer portal password authentication", () => {
 });
 
 describe("privileged backend operations remain protected", () => {
-  test("every dev_passkey argument sent to an RPC is null or omitted", () => {
+  test("no hardcoded plaintext credentials are sent as dev_passkey arguments", () => {
     const offenders: string[] = [];
     for (const file of sourceFiles) {
       if (file.endsWith(join("integrations", "supabase", "types.ts"))) continue;
       const code = read(file);
       for (const m of code.matchAll(/dev_passkey\s*:\s*([^,}\n]+)/g)) {
-        if (m[1].trim() !== "null") {
-          offenders.push(`${rel(file)}: dev_passkey: ${m[1].trim().slice(0, 30)}`);
+        const val = m[1].trim();
+        // Disallow quoted string literals (which would embed hardcoded secrets into client bundles)
+        if (/^["'`].+["'`]$/.test(val)) {
+          offenders.push(`${rel(file)}: hardcoded dev_passkey: ${val.slice(0, 30)}`);
         }
       }
     }

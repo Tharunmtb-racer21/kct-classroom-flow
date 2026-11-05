@@ -54,6 +54,7 @@ import { generateSessionPDF } from "@/lib/pdf-generator";
 import { exportSessionToCSV, exportSessionToExcel } from "@/lib/export-utils";
 
 import type { Response, Question, Participant, Row } from "@/types/reports.types";
+import { fetchFacultyReports } from "@/services/reports/report-service";
 import { SessionDetailPanel } from "@/components/reports/session-detail-panel";
 import { QuestionAnalyticsCard } from "@/components/reports/question-analytics-card";
 
@@ -141,64 +142,13 @@ function ReportsPage() {
     }
     setLoadError(null);
     try {
-      const { data, error } = await supabase
-        .from("sessions")
-        .select(
-          `
-          id,
-          title,
-          code,
-          status,
-          created_at,
-          participants (
-            id,
-            name,
-            joined_at
-          ),
-          questions!session_id (
-            id,
-            title,
-            type,
-            options,
-            correct_answer,
-            order_index,
-            points,
-            responses (
-              id,
-              answer,
-              participant_id,
-              created_at
-            )
-          )
-        `,
-        )
-        .eq("creator_id", user.uid)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Supabase error fetching reports:", error);
-        setLoadError(error.message);
-        const { toast } = await import("sonner");
-        toast.error("Failed to load reports: " + error.message);
-        return;
-      }
-
-      // Ensure questions are sorted by order_index and normalized with marks from points
-      const formattedData =
-        (data as unknown as Row[])?.map((session) => ({
-          ...session,
-          questions: [...(session.questions ?? [])]
-            .sort((a, b) => a.order_index - b.order_index)
-            .map((q) => ({
-              ...q,
-              marks: q.points ?? 0,
-            })),
-        })) ?? [];
-
+      const formattedData = await fetchFacultyReports(user.uid);
       setRows(formattedData);
     } catch (err: any) {
       console.error("Failed to load reports:", err);
       setLoadError(err?.message || "Failed to load reports and responses");
+      const { toast } = await import("sonner");
+      toast.error("Failed to load reports: " + (err?.message || "Network error"));
     } finally {
       setLoading(false);
     }
