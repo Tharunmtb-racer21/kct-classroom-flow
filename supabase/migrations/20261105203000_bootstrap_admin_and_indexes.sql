@@ -72,3 +72,4 @@ ON CONFLICT (user_id, role) DO NOTHING;
 
 -- 4. Reload schema cache for PostgREST
 NOTIFY pgrst, 'reload schema';
+

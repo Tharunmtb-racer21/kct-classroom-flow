@@ -16,6 +16,7 @@ import {
   Download,
   ExternalLink,
   FileEdit,
+  FileText,
   Flame,
   Globe,
   HardDrive,
@@ -113,6 +114,7 @@ import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-g
 import { AdminSection, DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SecurityIntelligenceView } from "@/components/developer/security-intelligence-view";
+import { FacultySessionsModal } from "@/components/developer/faculty-sessions-modal";
 
 type SessionRow = {
   id: string;
@@ -620,6 +622,13 @@ function DeveloperDashboard() {
     creatorId: string;
     currentName: string;
     currentEmail: string;
+  } | null>(null);
+
+  const [selectedFacultyForReports, setSelectedFacultyForReports] = useState<{
+    creator_id: string;
+    name: string;
+    email: string;
+    isOnline?: boolean;
   } | null>(null);
   const [editingFacultyName, setEditingFacultyName] = useState("");
   const [editingFacultyEmail, setEditingFacultyEmail] = useState("");
@@ -3340,22 +3349,40 @@ function DeveloperDashboard() {
                                 <td className="py-3 px-4 font-bold text-foreground">{item.count}</td>
                                 <td className="py-3 px-4 font-bold text-primary">{item.totalStudents}</td>
                                 <td className="py-3 px-4 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingFacultyModal({
-                                        creatorId: item.creator_id,
-                                        currentName: info.name,
-                                        currentEmail: info.email !== "No email synced" ? info.email : "",
-                                      });
-                                      setEditingFacultyName(info.name);
-                                      setEditingFacultyEmail(info.email !== "No email synced" ? info.email : "");
-                                    }}
-                                    className="h-7 text-xs gap-1 border-border/70"
-                                  >
-                                    <Pencil className="h-3 w-3" /> Edit
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setSelectedFacultyForReports({
+                                          creator_id: item.creator_id,
+                                          name: info.name,
+                                          email: info.email,
+                                          isOnline: false,
+                                        });
+                                      }}
+                                      className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                                      title="View Sessions & Download Reports"
+                                    >
+                                      <FileText className="h-3 w-3" /> Reports
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingFacultyModal({
+                                          creatorId: item.creator_id,
+                                          currentName: info.name,
+                                          currentEmail: info.email !== "No email synced" ? info.email : "",
+                                        });
+                                        setEditingFacultyName(info.name);
+                                        setEditingFacultyEmail(info.email !== "No email synced" ? info.email : "");
+                                      }}
+                                      className="h-7 text-xs gap-1 border-border/70"
+                                    >
+                                      <Pencil className="h-3 w-3" /> Edit
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -3391,7 +3418,16 @@ function DeveloperDashboard() {
                 return (
                   <div
                     key={item.creator_id}
-                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden"
+                    onClick={() => {
+                      const facultyInfo = getFacultyInfo(item.creator_id);
+                      setSelectedFacultyForReports({
+                        creator_id: item.creator_id,
+                        name: facultyInfo.name,
+                        email: facultyInfo.email,
+                        isOnline,
+                      });
+                    }}
+                    className="glass rounded-2xl p-5 border border-border/60 space-y-3 relative overflow-hidden cursor-pointer hover:border-primary/60 hover:shadow-lg transition group"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
@@ -3404,11 +3440,12 @@ function DeveloperDashboard() {
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <h4 className="font-bold text-sm truncate">
+                                  <h4 className="font-bold text-sm truncate group-hover:text-primary transition-colors">
                                     {facultyInfo.name}
                                   </h4>
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setEditingFacultyName(facultyInfo.name);
                                       setEditingFacultyEmail(facultyInfo.email);
                                       setEditingFacultyModal({
@@ -3459,12 +3496,13 @@ function DeveloperDashboard() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleMakeFacultyLiveSessionsDraft(
                                   item.creator_id,
                                   item.profile?.full_name,
-                                )
-                              }
+                                );
+                              }}
                               className="h-5 px-1.5 text-[10px] font-bold text-amber-500 hover:text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 gap-1"
                               title="Demote all live sessions for this faculty to draft"
                             >
@@ -3498,6 +3536,27 @@ function DeveloperDashboard() {
                           {facultyResponsesCount} Resp.
                         </strong>
                       </div>
+                    </div>
+
+                    <div className="pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const facultyInfo = getFacultyInfo(item.creator_id);
+                          setSelectedFacultyForReports({
+                            creator_id: item.creator_id,
+                            name: facultyInfo.name,
+                            email: facultyInfo.email,
+                            isOnline,
+                          });
+                        }}
+                        className="w-full h-8 text-xs font-bold gap-1.5 border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground transition shadow-sm"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        View Sessions & Download Reports
+                      </Button>
                     </div>
                   </div>
                 );
@@ -5786,6 +5845,13 @@ function DeveloperDashboard() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Faculty Sessions & Download Reports Dialog */}
+        <FacultySessionsModal
+          isOpen={!!selectedFacultyForReports}
+          onClose={() => setSelectedFacultyForReports(null)}
+          faculty={selectedFacultyForReports}
+        />
 
         {/* Contact Message Details Dialog */}
         <Dialog
