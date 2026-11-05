@@ -17,6 +17,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchFacultyReports } from "@/services/reports/report-service";
 import { Button } from "@/components/ui/button";
 import { cn, throttle } from "@/lib/utils";
 import { auth } from "@/lib/firebase";
@@ -62,38 +63,8 @@ function DashboardHome() {
 
     try {
       // 1. Fetch logged in faculty's sessions with detailed participants and questions/responses
-      const { data, error } = await supabase
-        .from("sessions")
-        .select(
-          `
-          id,
-          title,
-          code,
-          status,
-          created_at,
-          participants (
-            id,
-            name,
-            joined_at
-          ),
-          questions!session_id (
-            id,
-            title,
-            type,
-            responses (
-              id
-            )
-          )
-        `,
-        )
-        .eq("creator_id", user.uid)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error loading faculty dashboard:", error);
-      } else {
-        setSessions((data as unknown as Session[]) ?? []);
-      }
+      const facultySessions = await fetchFacultyReports(user.uid);
+      setSessions(facultySessions as unknown as Session[]);
 
       // 2. Fetch last login record from login_logs
       const { data: logsData } = await supabase

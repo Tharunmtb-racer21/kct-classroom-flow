@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusPill } from "./dashboard.index";
 import { auth } from "@/lib/firebase";
@@ -132,17 +132,25 @@ function ReportsPage() {
   const [customMarksMap, setCustomMarksMap] = useState<Record<string, number>>({});
   const [isSavingCustomMarks, setIsSavingCustomMarks] = useState(false);
 
-  // Use user from the route context (loaded securely in _authenticated beforeLoad)
-  const { user } = Route.useRouteContext() as { user: any };
+  // Use user from route context with Firebase auth fallback to handle page refreshes reliably
+  const routeContext = Route.useRouteContext() as { user?: any };
+  const [currentUser, setCurrentUser] = useState<any>(routeContext?.user || auth.currentUser);
 
-  const loadReports = async () => {
-    if (!user) {
-      setLoading(false);
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      if (u) setCurrentUser(u);
+    });
+    return () => unsub();
+  }, []);
+
+  const loadReports = useCallback(async () => {
+    const activeUser = currentUser || auth.currentUser;
+    if (!activeUser?.uid) {
       return;
     }
     setLoadError(null);
     try {
-      const formattedData = await fetchFacultyReports(user.uid);
+      const formattedData = await fetchFacultyReports(activeUser.uid);
       setRows(formattedData);
     } catch (err: any) {
       console.error("Failed to load reports:", err);
@@ -152,20 +160,21 @@ function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   useEffect(() => {
-    loadReports();
+    const activeUser = currentUser || auth.currentUser;
+    if (!activeUser?.uid) return;
 
-    if (!user) return;
+    loadReports();
 
     const throttledLoadReports = throttle(loadReports, 10000);
 
     const channel = supabase
-      .channel(`reports-live-sync-${user.uid}`)
+      .channel(`reports-live-sync-${activeUser.uid}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${user.uid}` },
+        { event: "*", schema: "public", table: "sessions", filter: `creator_id=eq.${activeUser.uid}` },
         () => {
           throttledLoadReports();
         },
@@ -181,7 +190,7 @@ function ReportsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [currentUser, loadReports]);
 
   const toggleExpand = (id: string) => {
     setExpandedSessionId(expandedSessionId === id ? null : id);

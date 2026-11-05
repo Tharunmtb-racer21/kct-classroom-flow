@@ -4,6 +4,14 @@ import type { Row, Participant, Question, Response } from "@/types/reports.types
 const SESSION_CHUNK_SIZE = 50;
 const QUESTION_CHUNK_SIZE = 100;
 
+export type EnrichedParticipant = Participant & { session_id?: string };
+export type EnrichedResponse = Response & { question_id?: string };
+export type EnrichedQuestion = Question & { responses: EnrichedResponse[] };
+export type EnrichedRow = Omit<Row, "participants" | "questions"> & {
+  participants: EnrichedParticipant[];
+  questions: EnrichedQuestion[];
+};
+
 /**
  * Fetches and hydrates session reports for a given creator.
  *
@@ -12,15 +20,24 @@ const QUESTION_CHUNK_SIZE = 100;
  * and responses), this service fetches sessions, participants, questions, and responses
  * using performant parallel batch queries, and hydrates the relational tree in-memory.
  */
-export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
+export async function fetchFacultyReports(
+  creatorId: string,
+  sessionId?: string
+): Promise<EnrichedRow[]> {
   if (!creatorId) return [];
 
-  // 1. Fetch all sessions for this creator ordered by created_at DESC
-  const { data: sessions, error: sessionsError } = await supabase
+  // 1. Fetch sessions for this creator ordered by created_at DESC
+  let sessionsQuery = supabase
     .from("sessions")
     .select("id, title, code, status, created_at")
     .eq("creator_id", creatorId)
     .order("created_at", { ascending: false });
+
+  if (sessionId && sessionId !== "all") {
+    sessionsQuery = sessionsQuery.eq("id", sessionId);
+  }
+
+  const { data: sessions, error: sessionsError } = await sessionsQuery;
 
   if (sessionsError) {
     console.error("[ReportService] Error fetching sessions:", sessionsError);
@@ -111,7 +128,7 @@ export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
   }
 
   // 4. Assemble relational tree in O(N) time with Maps
-  const responsesByQuestion = new Map<string, Response[]>();
+  const responsesByQuestion = new Map<string, EnrichedResponse[]>();
   for (const r of allResponses) {
     let list = responsesByQuestion.get(r.question_id);
     if (!list) {
@@ -120,13 +137,14 @@ export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
     }
     list.push({
       id: r.id,
+      question_id: r.question_id,
       answer: r.answer,
       participant_id: r.participant_id,
       created_at: r.created_at,
     });
   }
 
-  const questionsBySession = new Map<string, Question[]>();
+  const questionsBySession = new Map<string, EnrichedQuestion[]>();
   for (const q of allQuestions) {
     let list = questionsBySession.get(q.session_id);
     if (!list) {
@@ -146,7 +164,7 @@ export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
     });
   }
 
-  const participantsBySession = new Map<string, Participant[]>();
+  const participantsBySession = new Map<string, EnrichedParticipant[]>();
   for (const p of allParticipants) {
     let list = participantsBySession.get(p.session_id);
     if (!list) {
@@ -155,6 +173,7 @@ export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
     }
     list.push({
       id: p.id,
+      session_id: p.session_id,
       name: p.name,
       joined_at: p.joined_at,
     });
@@ -173,4 +192,3 @@ export async function fetchFacultyReports(creatorId: string): Promise<Row[]> {
     ),
   }));
 }
-

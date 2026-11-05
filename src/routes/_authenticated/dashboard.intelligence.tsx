@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchFacultyReports } from "@/services/reports/report-service";
 import { auth } from "@/lib/firebase";
 import {
   calculateStudentEngagement,
@@ -127,47 +128,8 @@ export default function ClassroomIntelligenceDashboard() {
     setLoadError(null);
 
     try {
-      // Scoped reports-style embedded query — resolves parent + children in a single scoped request
-      let query = supabase
-        .from("sessions")
-        .select(`
-          id,
-          title,
-          code,
-          created_at,
-          participants (
-            id,
-            name,
-            session_id,
-            joined_at
-          ),
-          questions!session_id (
-            id,
-            title,
-            type,
-            correct_answer,
-            options,
-            responses (
-              id,
-              answer,
-              participant_id,
-              question_id
-            )
-          )
-        `)
-        .eq("creator_id", facultyUid)
-        .order("created_at", { ascending: false });
-
-      if (selectedSessionId !== "all") {
-        query = query.eq("id", selectedSessionId);
-      }
-
-      const { data: scopedSessions, error: queryErr } = await query;
-
-      if (queryErr) {
-        console.error("[Classroom Intelligence] Query failure:", queryErr);
-        throw new Error(queryErr.message);
-      }
+      // Scoped reports-style query — resolved via performant parallel batch hydration to prevent timeouts
+      const scopedSessions = await fetchFacultyReports(facultyUid, selectedSessionId);
 
       if (!scopedSessions || scopedSessions.length === 0) {
         setStudentAnalyses([]);
