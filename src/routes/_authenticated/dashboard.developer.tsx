@@ -48,6 +48,7 @@ import {
   User,
   UserCheck,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -1758,16 +1759,58 @@ function DeveloperDashboard() {
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (s) =>
-          (s.title || "").toLowerCase().includes(q) ||
-          (s.code || "").toLowerCase().includes(q) ||
-          (s.creator_id || "").toLowerCase().includes(q) ||
-          (getFacultyInfo(s.creator_id)?.name || "").toLowerCase().includes(q),
-      );
+      result = result.filter((s) => {
+        const fac = getFacultyInfo(s.creator_id);
+        const matchesTitle = (s.title || "").toLowerCase().includes(q);
+        const matchesCode = (s.code || "").toLowerCase().includes(q);
+        const matchesCreator = (s.creator_id || "").toLowerCase().includes(q);
+        const matchesFacName = (fac?.name || "").toLowerCase().includes(q);
+        const matchesFacEmail = (fac?.email || "").toLowerCase().includes(q);
+        const matchesQuestion = questions.some(
+          (qItem) => qItem.session_id === s.id && (qItem.title || "").toLowerCase().includes(q)
+        );
+        const matchesParticipant = participants.some(
+          (p) => p.session_id === s.id && (p.name || "").toLowerCase().includes(q)
+        );
+        return (
+          matchesTitle ||
+          matchesCode ||
+          matchesCreator ||
+          matchesFacName ||
+          matchesFacEmail ||
+          matchesQuestion ||
+          matchesParticipant
+        );
+      });
     }
     return result;
-  }, [filteredSessionsByTime, searchQuery, statusFilter, profiles]);
+  }, [
+    filteredSessionsByTime,
+    searchQuery,
+    statusFilter,
+    profiles,
+    facultyNameOverrides,
+    questions,
+    participants,
+  ]);
+
+  // Filtered Faculty for Search Input (matches name, email, creator_id, and session metadata)
+  const searchedFaculty = useMemo(() => {
+    if (!searchQuery.trim()) return uniqueCreators;
+    const q = searchQuery.toLowerCase();
+    return uniqueCreators.filter((item) => {
+      const info = getFacultyInfo(item.creator_id);
+      const matchesName = (info.name || "").toLowerCase().includes(q);
+      const matchesEmail = (info.email || "").toLowerCase().includes(q);
+      const matchesId = (item.creator_id || "").toLowerCase().includes(q);
+      const matchesSession = sessions.some(
+        (s) =>
+          s.creator_id === item.creator_id &&
+          ((s.title || "").toLowerCase().includes(q) || (s.code || "").toLowerCase().includes(q))
+      );
+      return matchesName || matchesEmail || matchesId || matchesSession;
+    });
+  }, [uniqueCreators, searchQuery, sessions, profiles, facultyNameOverrides]);
 
   // Filtered Questions for Questions Tab & Type Filters
   const searchedQuestions = useMemo(() => {
@@ -1785,12 +1828,53 @@ function DeveloperDashboard() {
           (q.type || "").toLowerCase().includes(qStr) ||
           (parentSession?.title || "").toLowerCase().includes(qStr) ||
           (parentSession?.code || "").toLowerCase().includes(qStr) ||
-          (faculty?.name || "").toLowerCase().includes(qStr)
+          (faculty?.name || "").toLowerCase().includes(qStr) ||
+          (faculty?.email || "").toLowerCase().includes(qStr)
         );
       });
     }
     return result;
-  }, [filteredQuestionsByTime, questionTypeFilter, searchQuery, sessions, profiles]);
+  }, [
+    filteredQuestionsByTime,
+    questionTypeFilter,
+    searchQuery,
+    sessions,
+    profiles,
+    facultyNameOverrides,
+  ]);
+
+  // Filtered Submissions for Search Input
+  const searchedResponses = useMemo(() => {
+    let result = filteredResponsesByTime;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((r) => {
+        const answerText = typeof r.answer === "string" ? r.answer : JSON.stringify(r.answer || "");
+        const qItem = questions.find((item) => item.id === r.question_id);
+        const pItem = participants.find((item) => item.id === r.participant_id);
+        const sItem = qItem ? sessions.find((s) => s.id === qItem.session_id) : null;
+        const fac = sItem ? getFacultyInfo(sItem.creator_id) : null;
+        return (
+          answerText.toLowerCase().includes(q) ||
+          (pItem?.name || "").toLowerCase().includes(q) ||
+          (qItem?.title || "").toLowerCase().includes(q) ||
+          (sItem?.title || "").toLowerCase().includes(q) ||
+          (sItem?.code || "").toLowerCase().includes(q) ||
+          (fac?.name || "").toLowerCase().includes(q) ||
+          (fac?.email || "").toLowerCase().includes(q)
+        );
+      });
+    }
+    return result;
+  }, [
+    filteredResponsesByTime,
+    searchQuery,
+    questions,
+    participants,
+    sessions,
+    profiles,
+    facultyNameOverrides,
+  ]);
 
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
@@ -2077,15 +2161,72 @@ function DeveloperDashboard() {
 
               {/* Header Right: Global Search & Admin Profile Status */}
               <div className="flex items-center gap-2.5 flex-wrap">
-                <div className="relative w-full sm:w-64">
+                <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
                     placeholder="Search sessions, faculty, queries..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8.5 h-9 text-xs bg-card/60 border-border rounded-xl"
+                    className="pl-8.5 pr-8 h-9 text-xs bg-card/60 border-border rounded-xl"
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded transition"
+                      title="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
+
+                {searchQuery.trim() && (
+                  <div className="flex items-center gap-1 text-[11px] bg-card/60 border border-border/60 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("sessions")}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg font-bold border transition text-[10px]",
+                        activeSection === "sessions"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/40 border-border/40 text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                      title="View matching sessions"
+                    >
+                      {searchedSessions.length} Sessions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSection("faculty");
+                        if (facultySubTab === "overview") setFacultySubTab("breakdown");
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg font-bold border transition text-[10px]",
+                        activeSection === "faculty"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/40 border-border/40 text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                      title="View matching faculty"
+                    >
+                      {searchedFaculty.length} Faculty
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection("questions")}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg font-bold border transition text-[10px]",
+                        activeSection === "questions"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/40 border-border/40 text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                      title="View matching questions"
+                    >
+                      {searchedQuestions.length} Questions
+                    </button>
+                  </div>
+                )}
 
                 <Button
                   onClick={() => loadData()}
@@ -2992,10 +3133,28 @@ function DeveloperDashboard() {
                               </span>
                             </td>
                             <td className="px-4 py-3 max-w-[180px] truncate">
-                              <div className="font-bold text-foreground">{faculty.name}</div>
-                              <div className="text-[10px] text-muted-foreground truncate">
-                                {faculty.email}
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (s?.creator_id) {
+                                    setSelectedFacultyForReports({
+                                      creator_id: s.creator_id,
+                                      name: faculty.name,
+                                      email: faculty.email,
+                                      isOnline: false,
+                                    });
+                                  }
+                                }}
+                                className="text-left group/fac block w-full truncate focus:outline-none"
+                                title="Click to view all sessions and download reports for this faculty"
+                              >
+                                <div className="font-bold text-foreground group-hover/fac:text-primary transition truncate">
+                                  {faculty.name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {faculty.email}
+                                </div>
+                              </button>
                             </td>
                             <td className="px-4 py-3">
                               <Dialog>
@@ -3188,6 +3347,24 @@ function DeveloperDashboard() {
                                 <Pencil className="h-3 w-3 text-primary" /> Rename
                               </Button>
 
+                              {/* Session Reports Download Button */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedFacultyForReports({
+                                    creator_id: s.creator_id,
+                                    name: faculty.name,
+                                    email: faculty.email,
+                                    isOnline: false,
+                                  });
+                                }}
+                                className="h-7 px-2 text-[11px] gap-1 text-primary border-primary/30 hover:bg-primary/10 font-bold"
+                                title="View sessions and download reports for this faculty"
+                              >
+                                <FileText className="h-3 w-3" /> Reports
+                              </Button>
+
 
                               <Link
                                 to="/embed/$code"
@@ -3277,10 +3454,10 @@ function DeveloperDashboard() {
 
                     <div className="glass rounded-2xl p-5 border border-border/60 space-y-3">
                       <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">
-                        Top Faculty by Session Volume & Engagement
+                        {searchQuery.trim() ? `Faculty Matching "${searchQuery}" (${searchedFaculty.length})` : "Top Faculty by Session Volume & Engagement"}
                       </h4>
                       <div className="space-y-2">
-                        {uniqueCreators.slice(0, 5).map((fac, idx) => {
+                        {(searchQuery.trim() ? searchedFaculty : uniqueCreators.slice(0, 5)).map((fac, idx) => {
                           const info = getFacultyInfo(fac.creator_id);
                           return (
                             <div key={fac.creator_id} className="flex items-center justify-between p-3 rounded-xl bg-card/50 border border-border/40 text-xs">
@@ -3323,8 +3500,18 @@ function DeveloperDashboard() {
                   <div className="glass rounded-2xl overflow-hidden border border-border/60">
                     <div className="p-4 bg-card/40 border-b border-border/60 flex items-center justify-between gap-3">
                       <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
-                        Faculty Directory & Contact Mapping ({uniqueCreators.length})
+                        Faculty Directory & Contact Mapping ({searchedFaculty.length}{searchQuery.trim() ? ` / ${uniqueCreators.length}` : ""})
                       </span>
+                      {searchQuery.trim() && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSearchQuery("")}
+                          className="h-6 text-xs text-primary hover:bg-primary/10"
+                        >
+                          Clear Search
+                        </Button>
+                      )}
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
@@ -3339,7 +3526,25 @@ function DeveloperDashboard() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/30">
-                          {uniqueCreators.map((item) => {
+                          {searchedFaculty.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                  <Users className="h-6 w-6 opacity-40 text-muted-foreground" />
+                                  <span>No faculty found matching "{searchQuery}".</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSearchQuery("")}
+                                    className="h-7 text-xs text-primary hover:bg-primary/10"
+                                  >
+                                    Clear search
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            searchedFaculty.map((item) => {
                             const info = getFacultyInfo(item.creator_id);
                             return (
                               <tr key={item.creator_id} className="hover:bg-accent/30 transition-colors">
@@ -3386,8 +3591,9 @@ function DeveloperDashboard() {
                                 </td>
                               </tr>
                             );
-                          })}
-                        </tbody>
+                          })
+                        )}
+                      </tbody>
                       </table>
                     </div>
                   </div>
@@ -3395,8 +3601,41 @@ function DeveloperDashboard() {
 
                 {/* Subtab 3: Faculty Analytics & Breakdown */}
                 {facultySubTab === "breakdown" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {uniqueCreators.map((item) => {
+                  <div className="space-y-3">
+                    {searchQuery.trim() && (
+                      <div className="flex items-center justify-between text-xs bg-card/40 border border-border/40 p-2.5 rounded-xl">
+                        <span className="text-muted-foreground">
+                          Showing <strong className="text-foreground">{searchedFaculty.length}</strong> of{" "}
+                          <strong className="text-foreground">{uniqueCreators.length}</strong> faculty matching "
+                          <span className="text-primary font-bold">{searchQuery}</span>"
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSearchQuery("")}
+                          className="h-6 text-xs text-primary hover:bg-primary/10"
+                        >
+                          Clear Search
+                        </Button>
+                      </div>
+                    )}
+
+                    {searchedFaculty.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground glass rounded-2xl p-8 border border-border/60">
+                        <Users className="h-8 w-8 mx-auto mb-2 opacity-40 text-muted-foreground" />
+                        <p className="font-semibold text-sm">No faculty members found matching "{searchQuery}"</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSearchQuery("")}
+                          className="mt-3 text-xs"
+                        >
+                          Clear Search
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {searchedFaculty.map((item) => {
                 const facultySessions = filteredSessionsByTime.filter(
                   (s) => s.creator_id === item.creator_id,
                 );
@@ -3562,9 +3801,11 @@ function DeveloperDashboard() {
                 );
               })}
             </div>
-                )}
-              </div>
-            )}
+          )}
+        </div>
+      )}
+    </div>
+  )}
 
             {/* VIEW 4: QUESTIONS MANAGEMENT & ANALYTICS */}
             {activeSection === "questions" && (
@@ -3753,10 +3994,28 @@ function DeveloperDashboard() {
                               )}
                             </td>
                             <td className="px-4 py-3 max-w-[180px] truncate">
-                              <div className="font-bold text-foreground">{faculty.name}</div>
-                              <div className="text-[10px] text-muted-foreground truncate">
-                                {faculty.email}
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (parentSession?.creator_id) {
+                                    setSelectedFacultyForReports({
+                                      creator_id: parentSession.creator_id,
+                                      name: faculty.name,
+                                      email: faculty.email,
+                                      isOnline: false,
+                                    });
+                                  }
+                                }}
+                                className="text-left group/fac block w-full truncate focus:outline-none"
+                                title="Click to view all sessions and download reports for this faculty"
+                              >
+                                <div className="font-bold text-foreground group-hover/fac:text-primary transition truncate">
+                                  {faculty.name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {faculty.email}
+                                </div>
+                              </button>
                             </td>
                             <td className="px-4 py-3 max-w-[280px]">
                               {optionsList.length > 0 ? (
@@ -3831,30 +4090,60 @@ function DeveloperDashboard() {
                 </div>
 
                 <div className="glass rounded-2xl p-5 border border-border/60 space-y-4">
-                  <h3 className="font-bold text-sm flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers (
-                    {filteredResponsesByTime.length})
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-sm flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-purple-500" /> Recent Student Answers (
+                      {searchedResponses.length}{searchQuery.trim() ? ` / ${filteredResponsesByTime.length}` : ""})
+                    </h3>
+                    {searchQuery.trim() && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSearchQuery("")}
+                        className="h-6 text-xs text-primary hover:bg-primary/10"
+                      >
+                        Clear Search
+                      </Button>
+                    )}
+                  </div>
 
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                    {filteredResponsesByTime.map((r) => (
-                      <div
-                        key={r.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 text-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2.5 py-1 rounded-lg text-xs">
-                            {r.answer}
-                          </span>
-                          <span className="text-muted-foreground truncate max-w-[250px]">
-                            Participant ID: {r.participant_id.slice(0, 8)}...
-                          </span>
-                        </div>
-                        <span className="text-muted-foreground text-[11px] font-mono">
-                          {new Date(r.created_at).toLocaleTimeString()}
-                        </span>
+                    {searchedResponses.length === 0 ? (
+                      <div className="text-center py-8 text-xs text-muted-foreground italic">
+                        No submissions found matching "{searchQuery}".
                       </div>
-                    ))}
+                    ) : (
+                      searchedResponses.map((r) => {
+                        const part = participants.find((p) => p.id === r.participant_id);
+                        const qItem = questions.find((q) => q.id === r.question_id);
+                        const sItem = qItem ? sessions.find((s) => s.id === qItem.session_id) : null;
+                        const fac = sItem ? getFacultyInfo(sItem.creator_id) : null;
+
+                        return (
+                          <div
+                            key={r.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-card/60 border border-border/40 text-xs"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="font-bold text-primary font-mono bg-primary/10 border border-primary/30 px-2.5 py-1 rounded-lg text-xs shrink-0">
+                                {r.answer}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-foreground truncate">
+                                  {part?.name ? part.name : `Participant ${r.participant_id.slice(0, 8)}...`}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate">
+                                  {qItem?.title || "Question"} {sItem ? `• ${sItem.title} (${sItem.code})` : ""} {fac ? `• ${fac.name}` : ""}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-muted-foreground text-[10px] font-mono shrink-0">
+                              {new Date(r.created_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
