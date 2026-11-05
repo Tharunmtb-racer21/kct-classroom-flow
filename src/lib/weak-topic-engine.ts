@@ -61,33 +61,87 @@ export interface WeakTopicAnalysis {
 function extractTopicFromQuestion(title: string): string {
   const cleanTitle = title.trim();
 
-  // Known computer science / generic domain topic mapping rules
+  // Known engineering, computer science, mathematics, and curriculum taxonomy
   const topicKeywords: Array<{ name: string; pattern: RegExp }> = [
-    { name: "Trees & Binary Trees", pattern: /tree|bst|binary tree|trie|heap/i },
-    { name: "Graphs & Traversal", pattern: /graph|bfs|dfs|dijkstra|shortest path|adjacency/i },
-    { name: "Linked Lists", pattern: /linked list|singly|doubly|pointer|head|tail/i },
-    { name: "Arrays & Strings", pattern: /array|string|substring|matrix|indexing/i },
-    { name: "Sorting & Searching", pattern: /sort|search|binary search|bubble|quick|merge/i },
+    {
+      name: "Data Engineering & ETL",
+      pattern: /\b(etl|elt|data warehouse|data warehousing|olap|oltp|star schema|snowflake schema|lakehouse|data lake|cdc|ingestion|pipeline|data pipeline)\b/i,
+    },
+    {
+      name: "Computer Architecture & OS",
+      pattern: /\b(memory hierarchy|cache|cache memory|processor|cpu|locality|temporal locality|spatial locality|transistor|sram|dram|operating system|\bos\b|process|thread|mutex|semaphore|deadlock|mutual exclusion|scheduling|paging|virtual memory|context switch)\b/i,
+    },
+    {
+      name: "Electrical & Power Systems",
+      pattern: /\b(grid|gridstress|power system|power grid|voltage|current|transformer|circuit|impedance|resistance|frequency|motor|generator|transmission|phasor|ac resistive|inductor|capacitor)\b/i,
+    },
+    {
+      name: "Control Systems & Signals",
+      pattern: /\b(root locus|bode plot|transfer function|nyquist|stability analysis|feedback|pid|control system|poles|zeros)\b/i,
+    },
+    {
+      name: "Digital Electronics & VLSI",
+      pattern: /\b(semiconductor|transistor|diode|logic gate|cmos|amplifier|microcontroller|microprocessor|vlsi|flip flop|combinational|sequential)\b/i,
+    },
+    {
+      name: "Computer Networks & Protocols",
+      pattern: /\b(network|tcp|udp|ip|dns|http|https|routing|router|packet|socket|osi|ethernet|subnet|lan|wan|bandwidth)\b/i,
+    },
+    {
+      name: "Software Engineering & Git",
+      pattern: /\b(git|github|version control|staging|commit|branch|repository|merge conflict|agile|scrum|refactor|ci\/cd|deployment)\b/i,
+    },
+    {
+      name: "Cybersecurity & Cryptography",
+      pattern: /\b(security|cipher|encryption|decryption|crypto|hash|attack|firewall|vulnerability|auth|ssl|tls|malware|phishing)\b/i,
+    },
+    {
+      name: "Artificial Intelligence & ML",
+      pattern: /\b(neural|ai|machine learning|classification|regression|dataset|supervised|unsupervised|deep learning|clustering|perceptron|feature engineering)\b/i,
+    },
+    {
+      name: "Database & SQL",
+      pattern: /\b(sql|database|query|table|join|select|where|rdbms|normalization|primary key|foreign key|acid|indexing)\b/i,
+    },
+    {
+      name: "Trees & Binary Trees",
+      pattern: /\b(tree|bst|binary tree|trie|heap|traversal|inorder|preorder|postorder)\b/i,
+    },
+    {
+      name: "Graphs & Traversal",
+      pattern: /\b(graph|bfs|dfs|dijkstra|shortest path|adjacency|topological)\b/i,
+    },
+    {
+      name: "Linked Lists",
+      pattern: /\b(linked list|singly|doubly|pointer|head node|tail node)\b/i,
+    },
+    {
+      name: "Arrays & Strings",
+      pattern: /\b(array|string|substring|matrix|indexing|vector|prefix sum)\b/i,
+    },
+    {
+      name: "Sorting & Searching",
+      pattern: /\b(sort|binary search|bubble sort|quick sort|merge sort|linear search|insertion sort)\b/i,
+    },
     {
       name: "Recursion & Dynamic Programming",
-      pattern: /recurse|recursion|dp|memoization|fibonacci/i,
+      pattern: /\b(recurse|recursion|dynamic programming|\bdp\b|memoization|fibonacci)\b/i,
     },
-    { name: "Database & SQL", pattern: /sql|database|query|table|join|select|where/i },
     {
       name: "Object Oriented Programming",
-      pattern: /oop|class|object|inheritance|polymorphism|encapsulation/i,
+      pattern: /\b(oop|class|object|inheritance|polymorphism|encapsulation|constructor|method)\b/i,
     },
     {
       name: "Calculus & Differential Equations",
-      pattern: /pde|derivative|integral|calculus|equation|differential/i,
-    },
-    {
-      name: "Chemistry & Reactions",
-      pattern: /element|compound|reaction|atom|molecule|acid|base|pH/i,
+      pattern: /\b(pde|ode|derivative|integral|calculus|differential|differentiation|integration|total derivative)\b/i,
     },
     {
       name: "Physics & Mechanics",
-      pattern: /force|mass|velocity|acceleration|gravity|energy|work/i,
+      pattern: /\b(force|mass|velocity|acceleration|gravity|energy|work|momentum|friction|torque)\b/i,
+    },
+    {
+      name: "Chemistry & Reactions",
+      pattern: /\b(element|compound|reaction|atom|molecule|acid|base|ph|oxidation|reduction|titration)\b/i,
     },
   ];
 
@@ -97,16 +151,43 @@ function extractTopicFromQuestion(title: string): string {
     }
   }
 
-  // Fallback topic extraction: take first 2 meaningful words
-  const words = cleanTitle
+  // Detect keyboard mash strings (e.g. cvbnm,., asdfgh, etc.)
+  if (/^[asdfghjklqwertyuiopzxcvbnm,./';\s\-]+$/i.test(cleanTitle) && !/\b(the|is|and|or|not|in|on|at|to)\b/i.test(cleanTitle)) {
+    return "Interactive Classroom Concept";
+  }
+
+  // Fallback extraction: strip procedural question boilerplate
+  const stripped = cleanTitle
+    .replace(/^according to the document,?\s*/i, "")
+    .replace(/^according to the,?\s*/i, "")
+    .replace(/^what is the fundamental problem of\s+/i, "")
+    .replace(/^what is the primary purpose of\s+/i, "")
+    .replace(/^what is the primary reason for\s+/i, "")
+    .replace(/^what single word best describes\s+/i, "")
+    .replace(/^what role does\s+/i, "")
+    .replace(/^what does\s+/i, "")
+    .replace(/^how does\s+/i, "")
+    .replace(/^which of the following best describes\s+/i, "")
+    .replace(/^which of the following\s+/i, "")
+    .replace(/^which aspect of\s+/i, "")
+    .replace(/^describe\s+/i, "")
+    .replace(/^how well do you understand\s+/i, "")
+    .replace(/^what comes to mind when you think of\s+/i, "")
+    .replace(/^if you move\s+/i, "")
+    .trim();
+
+  const words = stripped
     .replace(/[^\w\s]/gi, "")
     .split(/\s+/)
     .filter(
       (w) =>
         w.length > 2 &&
-        !["what", "which", "how", "where", "when", "does", "is", "are", "the"].includes(
-          w.toLowerCase(),
-        ),
+        ![
+          "what", "which", "how", "where", "when", "does", "is", "are",
+          "the", "and", "for", "with", "from", "that", "this", "related",
+          "concept", "document", "mentions", "find", "most", "describe",
+          "fundamental", "primary", "purpose", "problem", "reason", "stand"
+        ].includes(w.toLowerCase()),
     );
 
   if (words.length >= 2) {
@@ -114,6 +195,8 @@ function extractTopicFromQuestion(title: string): string {
       .slice(0, 2)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(" ");
+  } else if (words.length === 1) {
+    return words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
   }
 
   return cleanTitle.length > 25 ? cleanTitle.substring(0, 25) + "..." : cleanTitle;
@@ -201,7 +284,11 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
           )
         : 0;
 
-    // Sample size sufficiency: N < 5 is insufficient, 5 <= N < 15 is preliminary, N >= 15 is reliable
+    // Sample size sufficiency:
+    // stats.attemptedCount === 0: unattempted (0 submissions)
+    // 1 <= stats.attemptedCount < 5: insufficient (small sample)
+    // 5 <= stats.attemptedCount < 15: preliminary
+    // stats.attemptedCount >= 15: reliable
     let sampleSufficiency: SampleSufficiency = "insufficient";
     let sampleSufficiencyLabel = "Insufficient Sample (N < 5)";
     let isReliable = false;
@@ -214,12 +301,22 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
       sampleSufficiency = "preliminary";
       sampleSufficiencyLabel = "Preliminary (N: 5–14)";
       isReliable = true;
+    } else if (stats.attemptedCount === 0) {
+      sampleSufficiencyLabel = "Not Attempted (0 Submissions)";
     }
 
     let status: "good" | "moderate" | "weak" = "good";
     let statusBadge: "🟢" | "🟡" | "🔴" = "🟢";
 
-    if (accuracy < 60) {
+    if (stats.attemptedCount === 0) {
+      // If 0 students attempted this question, do NOT falsely alarm as a failed/weak topic
+      status = "moderate";
+      statusBadge = "🟡";
+    } else if (stats.attemptedCount < 5) {
+      // If sample is insufficient (< 5 attempts), flag as preliminary/gathering data, not failing
+      status = "moderate";
+      statusBadge = "🟡";
+    } else if (accuracy < 60) {
       status = "weak";
       statusBadge = "🔴";
     } else if (accuracy < 80) {
@@ -244,8 +341,21 @@ export function analyzeWeakTopics(questions: QuestionPerformanceData[]): WeakTop
     });
   });
 
-  // Sort topics by accuracy ascending (weakest topics first)
-  topicsResult.sort((a, b) => a.accuracyPercentage - b.accuracyPercentage);
+  // Sort topics:
+  // 1. Validated topics with >= 5 attempts (weakest accuracy first so genuine student struggles are highlighted)
+  // 2. Preliminary topics with 1–4 attempts
+  // 3. Unattempted topics (0 attempts) at the bottom
+  topicsResult.sort((a, b) => {
+    const aHasAttempts = a.attemptedCount > 0 ? 1 : 0;
+    const bHasAttempts = b.attemptedCount > 0 ? 1 : 0;
+    if (aHasAttempts !== bHasAttempts) return bHasAttempts - aHasAttempts;
+
+    const aReliable = a.isReliable ? 1 : 0;
+    const bReliable = b.isReliable ? 1 : 0;
+    if (aReliable !== bReliable) return bReliable - aReliable;
+
+    return a.accuracyPercentage - b.accuracyPercentage;
+  });
 
   const weakTopics = topicsResult.filter((t) => t.status === "weak");
 

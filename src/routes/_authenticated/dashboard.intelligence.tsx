@@ -403,17 +403,21 @@ export default function ClassroomIntelligenceDashboard() {
     return weakTopicData.topics.map((t) => ({
       name: t.topicName.length > 14 ? `${t.topicName.slice(0, 14)}…` : t.topicName,
       fullName: t.topicName,
-      accuracy: t.accuracyPercentage,
+      accuracy: t.attemptedCount === 0 ? 0 : t.accuracyPercentage,
       coverage: t.responseCoveragePercentage,
       attemptedCount: t.attemptedCount,
       questionCount: t.questionCount,
       sampleSufficiencyLabel: t.sampleSufficiencyLabel,
       color:
-        t.status === "weak"
-          ? "#f43f5e"
-          : t.status === "moderate"
-            ? "#f59e0b"
-            : "#10b981",
+        t.attemptedCount === 0
+          ? "#64748b"
+          : t.sampleSufficiency === "insufficient"
+            ? "#94a3b8"
+            : t.status === "weak"
+              ? "#f43f5e"
+              : t.status === "moderate"
+                ? "#f59e0b"
+                : "#10b981",
     }));
   }, [weakTopicData]);
 
@@ -731,36 +735,46 @@ export default function ClassroomIntelligenceDashboard() {
                         <Badge
                           variant="outline"
                           className={
-                            t.sampleSufficiency === "reliable"
-                              ? "border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 text-[10px]"
-                              : t.sampleSufficiency === "preliminary"
-                                ? "border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/20 text-[10px]"
-                                : "border-border text-muted-foreground text-[10px]"
+                            t.attemptedCount === 0
+                              ? "border-border text-muted-foreground bg-muted/40 text-[10px]"
+                              : t.sampleSufficiency === "reliable"
+                                ? "border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 text-[10px]"
+                                : t.sampleSufficiency === "preliminary"
+                                  ? "border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/20 text-[10px]"
+                                  : "border-border text-muted-foreground text-[10px]"
                           }
                         >
-                          {t.sampleSufficiencyLabel}
+                          {t.attemptedCount === 0 ? "Not Attempted" : t.sampleSufficiencyLabel}
                         </Badge>
                         <span
                           className={`text-sm font-extrabold ${
-                            t.status === "weak"
-                              ? "text-rose-500"
-                              : t.status === "moderate"
-                                ? "text-amber-500"
-                                : "text-emerald-500"
+                            t.attemptedCount === 0
+                              ? "text-muted-foreground"
+                              : !t.isReliable
+                                ? "text-muted-foreground"
+                                : t.status === "weak"
+                                  ? "text-rose-500"
+                                  : t.status === "moderate"
+                                    ? "text-amber-500"
+                                    : "text-emerald-500"
                           }`}
                         >
-                          {t.accuracyPercentage}%
+                          {t.attemptedCount === 0 ? "—" : `${t.accuracyPercentage}%`}
                         </span>
                       </div>
                     </div>
                     <Progress
-                      value={t.accuracyPercentage}
+                      value={t.attemptedCount === 0 ? 0 : t.accuracyPercentage}
                       className={`h-2 ${
-                        t.status === "weak"
-                          ? "[&>div]:bg-rose-500"
-                          : t.status === "moderate"
-                            ? "[&>div]:bg-amber-500"
-                            : "[&>div]:bg-emerald-500"
+                        t.attemptedCount === 0
+                          ? "[&>div]:bg-muted/40"
+                          : !t.isReliable
+                            ? "[&>div]:bg-slate-400/40"
+                            : t.status === "weak"
+                              ? "[&>div]:bg-rose-500"
+                              : t.status === "moderate"
+                                ? "[&>div]:bg-amber-500"
+                                : "[&>div]:bg-emerald-500"
                       }`}
                     />
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
