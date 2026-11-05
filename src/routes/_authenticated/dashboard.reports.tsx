@@ -209,7 +209,7 @@ function ReportsPage() {
     setCourseSelection("B.E. Computer Science and Engineering");
     setCourseName("B.E. Computer Science and Engineering");
     setSubject(session.title);
-    setFacultyName(formatDisplayName(user?.displayName, user?.email));
+    setFacultyName(formatDisplayName(currentUser?.displayName, currentUser?.email));
 
     // Initialize marks allocation for each question from persisted marks
     const overrides: Record<string, { marks: number; feedback: string }> = {};

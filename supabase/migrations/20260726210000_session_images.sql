@@ -1,2 +1,2 @@
--- Add image_url column to sessions
-ALTER TABLE public.sessions ADD COLUMN image_url TEXT;
+-- Add image_url column to sessions (idempotent)
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS image_url TEXT;

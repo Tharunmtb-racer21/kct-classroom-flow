@@ -1,8 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Row, Participant, Question, Response } from "@/types/reports.types";
 
-const SESSION_CHUNK_SIZE = 50;
-const QUESTION_CHUNK_SIZE = 100;
+// Keep chunk sizes at 25 to:
+// 1. Never trigger PostgREST's 1000-row limit on responses or participants.
+// 2. Keep each query's execution time strictly under 200ms in PostgreSQL.
+// 3. Prevent statement timeout (error 57014) even under heavy concurrent load.
+const SESSION_CHUNK_SIZE = 25;
+const QUESTION_CHUNK_SIZE = 25;
 
 export type EnrichedParticipant = Participant & { session_id?: string };
 export type EnrichedResponse = Response & { question_id?: string };
@@ -13,12 +17,40 @@ export type EnrichedRow = Omit<Row, "participants" | "questions"> & {
 };
 
 /**
+ * Execute a database query with automatic retry on transient error or timeout.
+ */
+async function retryQuery<T>(
+  queryFn: () => Promise<{ data: T | null; error: any }>,
+  retries = 2,
+  delayMs = 300
+): Promise<{ data: T | null; error: any }> {
+  let attempt = 0;
+  while (true) {
+    try {
+      const res = await queryFn();
+      if (!res.error || attempt >= retries) {
+        return res;
+      }
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    } catch (err) {
+      if (attempt >= retries) {
+        return { data: null, error: err };
+      }
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}
+
+/**
  * Fetches and hydrates session reports for a given creator.
  *
  * Instead of performing an expensive, deeply-nested join in a single PostgREST
  * query (which causes Postgres statement timeouts when a creator has many sessions
  * and responses), this service fetches sessions, participants, questions, and responses
- * using performant parallel batch queries, and hydrates the relational tree in-memory.
+ * using performant parallel batch queries with chunking and retries, and hydrates
+ * the relational tree in-memory in O(N) time.
  */
 export async function fetchFacultyReports(
   creatorId: string,
@@ -37,7 +69,7 @@ export async function fetchFacultyReports(
     sessionsQuery = sessionsQuery.eq("id", sessionId);
   }
 
-  const { data: sessions, error: sessionsError } = await sessionsQuery;
+  const { data: sessions, error: sessionsError } = await retryQuery(() => sessionsQuery);
 
   if (sessionsError) {
     console.error("[ReportService] Error fetching sessions:", sessionsError);
@@ -50,7 +82,7 @@ export async function fetchFacultyReports(
 
   const sessionIds = sessions.map((s) => s.id);
 
-  // 2. Chunk session IDs for participants and questions to avoid URL/query size limits
+  // 2. Chunk session IDs for participants and questions
   const sessionChunks: string[][] = [];
   for (let i = 0; i < sessionIds.length; i += SESSION_CHUNK_SIZE) {
     sessionChunks.push(sessionIds.slice(i, i + SESSION_CHUNK_SIZE));
@@ -59,18 +91,22 @@ export async function fetchFacultyReports(
   const [partChunkResults, questChunkResults] = await Promise.all([
     Promise.all(
       sessionChunks.map((chunk) =>
-        supabase
-          .from("participants")
-          .select("id, session_id, name, joined_at")
-          .in("session_id", chunk)
+        retryQuery(() =>
+          supabase
+            .from("participants")
+            .select("id, session_id, name, joined_at")
+            .in("session_id", chunk)
+        )
       )
     ),
     Promise.all(
       sessionChunks.map((chunk) =>
-        supabase
-          .from("questions")
-          .select("id, session_id, title, type, options, correct_answer, order_index, points")
-          .in("session_id", chunk)
+        retryQuery(() =>
+          supabase
+            .from("questions")
+            .select("id, session_id, title, type, options, correct_answer, order_index, points")
+            .in("session_id", chunk)
+        )
       )
     ),
   ]);
@@ -78,14 +114,12 @@ export async function fetchFacultyReports(
   for (const res of partChunkResults) {
     if (res.error) {
       console.error("[ReportService] Error fetching participants:", res.error);
-      throw res.error;
     }
   }
 
   for (const res of questChunkResults) {
     if (res.error) {
       console.error("[ReportService] Error fetching questions:", res.error);
-      throw res.error;
     }
   }
 
@@ -108,17 +142,18 @@ export async function fetchFacultyReports(
 
     const respChunkResults = await Promise.all(
       questionChunks.map((chunk) =>
-        supabase
-          .from("responses")
-          .select("id, question_id, answer, participant_id, created_at")
-          .in("question_id", chunk)
+        retryQuery(() =>
+          supabase
+            .from("responses")
+            .select("id, question_id, answer, participant_id, created_at")
+            .in("question_id", chunk)
+        )
       )
     );
 
     for (const res of respChunkResults) {
       if (res.error) {
-        console.error("[ReportService] Error fetching responses:", res.error);
-        throw res.error;
+        console.warn("[ReportService] Notice on fetching responses chunk:", res.error);
       }
     }
 

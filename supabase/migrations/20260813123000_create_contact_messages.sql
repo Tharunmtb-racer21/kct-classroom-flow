@@ -15,13 +15,15 @@ CREATE TABLE IF NOT EXISTS public.contact_messages (
 -- Enable RLS
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
--- 1. Anyone can insert contact messages (so anonymous visitors or authenticated faculty can contact us)
+-- 1. Anyone can insert contact messages (idempotent)
+DROP POLICY IF EXISTS "Anyone can insert contact messages" ON public.contact_messages;
 CREATE POLICY "Anyone can insert contact messages"
     ON public.contact_messages
     FOR INSERT
     WITH CHECK (true);
 
--- 2. Only admin users can read contact messages
+-- 2. Only admin users can read contact messages (idempotent)
+DROP POLICY IF EXISTS "Only admins can view contact messages" ON public.contact_messages;
 CREATE POLICY "Only admins can view contact messages"
     ON public.contact_messages
     FOR SELECT
@@ -29,7 +31,8 @@ CREATE POLICY "Only admins can view contact messages"
         public.has_role(public.auth_uid(), 'admin')
     );
 
--- 3. Only admin users can update contact messages (e.g. mark read/unread)
+-- 3. Only admin users can update contact messages (idempotent)
+DROP POLICY IF EXISTS "Only admins can update contact messages" ON public.contact_messages;
 CREATE POLICY "Only admins can update contact messages"
     ON public.contact_messages
     FOR UPDATE
@@ -37,7 +40,8 @@ CREATE POLICY "Only admins can update contact messages"
         public.has_role(public.auth_uid(), 'admin')
     );
 
--- 4. Only admin users can delete contact messages
+-- 4. Only admin users can delete contact messages (idempotent)
+DROP POLICY IF EXISTS "Only admins can delete contact messages" ON public.contact_messages;
 CREATE POLICY "Only admins can delete contact messages"
     ON public.contact_messages
     FOR DELETE
