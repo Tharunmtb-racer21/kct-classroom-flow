@@ -264,6 +264,7 @@ function DeveloperDashboard() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("kct_dev_auth");
       sessionStorage.removeItem("kct_dev_auth_time");
+      sessionStorage.removeItem("kct_dev_passkey");
     }
     setIsAuthenticated(false);
     setPasskey("");
@@ -278,6 +279,10 @@ function DeveloperDashboard() {
         handleLockDeveloper();
       } else if (isAuth) {
         setIsAuthenticated(true);
+        const storedPass = sessionStorage.getItem("kct_dev_passkey");
+        if (storedPass) {
+          setPasskey(storedPass);
+        }
       }
     }
   }, []);
@@ -936,10 +941,20 @@ function DeveloperDashboard() {
     }
   };
 
+  const getActivePasskey = (override?: string): string | null => {
+    if (typeof override === "string" && override.trim()) return override.trim();
+    if (passkey && passkey.trim()) return passkey.trim();
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("kct_dev_passkey");
+      if (stored && stored.trim()) return stored.trim();
+    }
+    return null;
+  };
+
   const handleClearFailedAttempts = async () => {
     try {
       const { error } = await (supabase.rpc as any)("clear_developer_access_logs", {
-        dev_passkey: null,
+        dev_passkey: getActivePasskey(),
       });
       if (error) throw error;
       setFailedAttempts([]);
@@ -956,15 +971,17 @@ function DeveloperDashboard() {
     e.preventDefault();
     setAuthenticating(true);
     try {
-      const isValid = await verifyDevPassword(passkey);
+      const cleanPasskey = passkey.trim();
+      const isValid = await verifyDevPassword(cleanPasskey);
       if (isValid) {
         setIsAuthenticated(true);
         setErrorMsg("");
         if (typeof window !== "undefined") {
           sessionStorage.setItem("kct_dev_auth", "true");
           sessionStorage.setItem("kct_dev_auth_time", Date.now().toString());
+          sessionStorage.setItem("kct_dev_passkey", cleanPasskey);
         }
-        loadData();
+        loadData(cleanPasskey);
       } else {
         setErrorMsg("Access Denied: Incorrect developer password.");
         recordFailedAttempt();
@@ -999,9 +1016,11 @@ function DeveloperDashboard() {
   };
 
   // Load All System Analytics & Records
-  const loadData = async (_trigger?: unknown) => {
+  const loadData = async (triggerOrPasskey?: unknown) => {
     setLoading(true);
     const startPing = performance.now();
+    const activePasskey =
+      typeof triggerOrPasskey === "string" ? getActivePasskey(triggerOrPasskey) : getActivePasskey();
     try {
       // 1. Fetch Sessions
       const { data: sData } = await supabase
@@ -1030,10 +1049,9 @@ function DeveloperDashboard() {
       // 5. Fetch Profiles (using secure developer RPC, falling back to direct query)
       let profRows: ProfileRow[] = [];
       try {
-        // dev_passkey is null (it defaults to NULL and is ignored by the database).
         const { data: rpcProfiles, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_faculty_profiles",
-          { dev_passkey: null },
+          { dev_passkey: activePasskey },
         );
 
         if (!rpcErr && rpcProfiles && Array.isArray(rpcProfiles)) {
@@ -1057,7 +1075,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcLogs, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_login_logs",
-          { dev_passkey: null, p_limit: 100 },
+          { dev_passkey: activePasskey, p_limit: 100 },
         );
 
         if (!rpcErr && rpcLogs && Array.isArray(rpcLogs)) {
@@ -1074,7 +1092,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcMessages, error: rpcErr } = await (supabase.rpc as any)(
           "get_developer_contact_messages",
-          { dev_passkey: null, p_limit: 200 },
+          { dev_passkey: activePasskey, p_limit: 200 },
         );
 
         if (!rpcErr && rpcMessages && Array.isArray(rpcMessages)) {
@@ -1091,7 +1109,7 @@ function DeveloperDashboard() {
       try {
         const { data: rpcAccessLogs, error: rpcAccessErr } = await (supabase.rpc as any)(
           "get_developer_access_logs",
-          { dev_passkey: null, p_limit: 100 },
+          { dev_passkey: activePasskey, p_limit: 100 },
         );
 
         if (!rpcAccessErr && rpcAccessLogs && Array.isArray(rpcAccessLogs)) {
@@ -1203,7 +1221,7 @@ function DeveloperDashboard() {
     try {
       setDemotingSessionId(sessionId);
       const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
-        dev_passkey: null,
+        dev_passkey: getActivePasskey(),
         target_session_ids: [sessionId],
       });
 
@@ -1289,7 +1307,7 @@ function DeveloperDashboard() {
     try {
       setIsDemotingAll(true);
       const { data, error } = await (supabase.rpc as any)("developer_demote_live_sessions", {
-        dev_passkey: null,
+        dev_passkey: getActivePasskey(),
         target_session_ids: liveIds,
       });
 
@@ -1366,7 +1384,7 @@ function DeveloperDashboard() {
       const { error } = await (supabase.rpc as any)(
         "developer_update_contact_message_status",
         {
-          dev_passkey: null,
+          dev_passkey: getActivePasskey(),
           target_id: id,
           new_status: newStatus,
         },
@@ -1395,7 +1413,7 @@ function DeveloperDashboard() {
       setIsDeletingMessage(true);
       const { error } = await (supabase.rpc as any)(
         "developer_delete_contact_message",
-        { dev_passkey: null, target_id: targetId },
+        { dev_passkey: getActivePasskey(), target_id: targetId },
       );
 
       if (error) throw error;
@@ -1497,6 +1515,11 @@ function DeveloperDashboard() {
       return { name: "Faculty (Unknown)", email: "unknown@kct.ac.in" };
     }
 
+    // Guard against showing premature unlinked placeholders while initial data load is pending
+    if (loading && profiles.length === 0) {
+      return { name: "Loading...", email: "Loading..." };
+    }
+
     // 0. Check Developer Custom Overrides / Named Mapping
     if (facultyNameOverrides[creatorId]) {
       return {
@@ -1505,18 +1528,21 @@ function DeveloperDashboard() {
       };
     }
 
-    // 1. Check Profiles table
+    // 1. Check Profiles table (exact full Firebase UID match)
     const prof = profiles.find((p) => p.id === creatorId);
-    if (prof && (prof.full_name || prof.email)) {
-      const email = prof.email || "No email synced";
+    if (prof) {
+      const email = prof.email && prof.email.trim() ? prof.email.trim() : null;
       const name = formatDisplayName(prof.full_name, email, creatorId);
-      return { name, email };
+      return {
+        name,
+        email: email || "No email synced",
+      };
     }
 
     // 2. Check Login Logs table
     const logMatch = loginLogs.find((l) => l.user_id === creatorId);
-    if (logMatch && logMatch.email) {
-      const email = logMatch.email;
+    if (logMatch && logMatch.email && logMatch.email.trim()) {
+      const email = logMatch.email.trim();
       const name = formatDisplayName(null, email, creatorId);
       return { name, email };
     }
@@ -1524,9 +1550,15 @@ function DeveloperDashboard() {
     // 3. Check Current Logged In Firebase User
     const currentFirebaseUser = auth.currentUser;
     if (currentFirebaseUser && currentFirebaseUser.uid === creatorId) {
-      const email = currentFirebaseUser.email || "No email synced";
+      const email =
+        currentFirebaseUser.email && currentFirebaseUser.email.trim()
+          ? currentFirebaseUser.email.trim()
+          : null;
       const name = formatDisplayName(currentFirebaseUser.displayName, email, creatorId);
-      return { name, email };
+      return {
+        name,
+        email: email || "No email synced",
+      };
     }
 
     // 4. Honest fallback for unlinked historical test sessions
