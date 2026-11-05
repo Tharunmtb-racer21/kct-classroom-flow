@@ -19,8 +19,8 @@ export type EnrichedRow = Omit<Row, "participants" | "questions"> & {
 /**
  * Execute a database query with automatic retry on transient error or timeout.
  */
-async function retryQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+async function retryQuery<T = any>(
+  queryFn: () => PromiseLike<{ data: T | null; error: any }>,
   retries = 2,
   delayMs = 300
 ): Promise<{ data: T | null; error: any }> {
@@ -59,7 +59,7 @@ export async function fetchFacultyReports(
   if (!creatorId) return [];
 
   // 1. Fetch sessions for this creator ordered by created_at DESC
-  let sessionsQuery = supabase
+  let sessionsQuery: any = supabase
     .from("sessions")
     .select("id, title, code, status, created_at")
     .eq("creator_id", creatorId)
@@ -69,7 +69,8 @@ export async function fetchFacultyReports(
     sessionsQuery = sessionsQuery.eq("id", sessionId);
   }
 
-  const { data: sessions, error: sessionsError } = await retryQuery(() => sessionsQuery);
+  const { data: rawSessions, error: sessionsError } = await retryQuery(() => sessionsQuery);
+  const sessions = (rawSessions || []) as Array<{ id: string; title: string; code: string; status: string; created_at: string }>;
 
   if (sessionsError) {
     console.error("[ReportService] Error fetching sessions:", sessionsError);

@@ -50,6 +50,7 @@ export interface StudentEngagementAnalysis {
   attemptedQuestions: number;
   totalSessionQuestions: number;
   attemptedQuizQuestions: number;
+  totalQuizQuestions: number;
   correctAnswers: number;
   avgResponseTimeMs: number; // Currently 0 (unrecorded in schema)
   quizAccuracyPercentage: number;
@@ -118,6 +119,7 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
       attemptedQuestions: 0,
       totalSessionQuestions,
       attemptedQuizQuestions: 0,
+      totalQuizQuestions: totalQuizQuestions || 0,
       correctAnswers: 0,
       avgResponseTimeMs: 0,
       quizAccuracyPercentage: 0,
@@ -231,6 +233,7 @@ export function calculateStudentEngagement(data: StudentRawData): StudentEngagem
     attemptedQuestions,
     totalSessionQuestions,
     attemptedQuizQuestions: actualAttemptedQuizzes,
+    totalQuizQuestions: totalQuizQuestions || 0,
     correctAnswers,
     avgResponseTimeMs: Math.round(avgResponseTime),
     quizAccuracyPercentage: quizAccuracy,

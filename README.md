@@ -87,19 +87,25 @@ The project includes thorough technical and governance documentation located in 
 ### 🧠 5. Classroom Intelligence & Pedagogical ML (`/dashboard/intelligence`)
 - **Engagement Scoring Algorithm:** Real-time engagement scoring (0–100) combining submission velocity, attendance persistence, and response completeness.
 - **Engagement Tiers:** Categorizes student cohorts into 🟢 *Highly Engaged*, 🟡 *Moderately Engaged*, and 🔴 *Needs Attention*.
-- **Weak Topic Detection:** Automated identification of concept gaps based on quiz accuracy distributions.
+- **Discussion vs. Graded Quiz Scoring:** Distinct evaluation models ensuring discussion and poll sessions highlight participant activity rates (`Activity: X/Y Responses`) rather than misleading zero-accuracy quiz marks.
+- **Academic Concept Extraction:** Real-time concept parsing and error clustering using punctuation-sanitized keyword extraction and academic stop-word filtering.
+- **Statistical Insufficient Sample Guard:** Built-in sample thresholding (`N < 5`) with neutral pedagogical alerts to prevent premature classification before statistically reliable observations are recorded.
+- **Participant Identity & Roll Number Badging:** Automatic extraction of institutional roll numbers (e.g., `25BIT057`) rendered in highlighted badge chips alongside deterministic color-coded initials avatars.
 
 ### 🛡️ 6. Security Intelligence & WAF Telemetry (`/dashboard/security`)
 - **Layered Defense Telemetry:** Behavioral anomaly detection, rapid response velocity traps, and rate limiting metrics.
 - **Edge Security Headers:** Strict CSP, HSTS, X-Content-Type-Options, and frame ancestor restrictions.
 
 ### 👨‍💻 7. Developer Telemetry & Faculty Monitoring (`/developer`)
-- **Password-Gated Access:** Protected by institutional passkey.
+- **Password-Gated Access:** Protected by institutional passkey and role verification.
 - **Real-Time Login Telemetry:** Comprehensive audit trail of faculty logins, devices, browsers, and session durations.
 - **System Health Diagnostics:** Live Supabase database ping latencies, channel subscription metrics, and authentication breakdown.
+- **Faculty Session Drill-Down & Reports:** Clickable faculty profiles that dynamically open complete session archives, student headcounts, question inventories, and direct report download capabilities.
+- **Global Multi-Entity Search:** Unified search bar instantly filtering across lecture titles, session shortcodes, faculty names, and student query strings.
 
-### 📈 8. PDF Analytical Reports (`/dashboard/reports`)
-- **Exportable Lecture Archives:** Generates high-fidelity PDF documents detailing question distributions, participant attendance lists, and individual score breakdowns.
+### 📈 8. Analytical Reports & Exports (`/dashboard/reports`)
+- **Exportable Lecture Archives:** Generates high-fidelity PDF, CSV, and Excel exports detailing question distributions, participant attendance lists, and individual score breakdowns.
+- **Aggregated Analytics:** Cross-faculty summaries calculating total students taught, sessions conducted, questions authored, and response engagement ratios.
 
 ---
 
