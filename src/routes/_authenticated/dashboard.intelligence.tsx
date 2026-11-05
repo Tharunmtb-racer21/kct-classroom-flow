@@ -62,7 +62,53 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { throttle } from "@/lib/utils";
-import { sanitiseParticipantDisplayName } from "@/lib/feedback-validator";
+
+function parseParticipantName(rawName?: string | null, participantId?: string) {
+  if (!rawName || /^[.\-_,;:\s]+$/.test(rawName.trim())) {
+    const idSuffix = participantId ? participantId.slice(0, 4).toUpperCase() : "";
+    return {
+      displayName: idSuffix ? `Student #${idSuffix}` : "Student",
+      rollNumber: null as string | null,
+      initials: "ST",
+    };
+  }
+
+  const trimmed = rawName.trim();
+
+  // Match common college roll numbers: e.g. 25BIT057, 23BCS041, 22ME101, 23CS001, etc.
+  const rollMatch = trimmed.match(/\b([0-9]{2}[A-Za-z]{2,4}[0-9]{2,4})\b/i);
+  let rollNumber: string | null = null;
+  let cleanName = trimmed;
+
+  if (rollMatch) {
+    rollNumber = rollMatch[1].toUpperCase();
+    cleanName = trimmed.replace(rollMatch[0], "").trim();
+  }
+
+  // If cleanName is empty after removing roll number, use the roll number as name
+  if (!cleanName || cleanName.length < 2) {
+    cleanName = rollNumber ? rollNumber : trimmed;
+    rollNumber = null;
+  }
+
+  // Capitalize name words cleanly
+  const displayName = cleanName
+    .split(/\s+/)
+    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : ""))
+    .join(" ");
+
+  const words = displayName.split(/\s+/).filter(Boolean);
+  const initials =
+    words.length >= 2
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : displayName.slice(0, 2).toUpperCase() || "ST";
+
+  return {
+    displayName,
+    rollNumber,
+    initials,
+  };
+}
 
 export const Route = createFileRoute("/_authenticated/dashboard/intelligence")({
   component: ClassroomIntelligenceDashboard,
@@ -798,44 +844,70 @@ export default function ClassroomIntelligenceDashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                  {studentAnalyses.map((s) => (
-                    <div
-                      key={s.participantId}
-                      className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background hover:bg-accent/30 transition"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{sanitiseParticipantDisplayName(s.name)}</span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              s.engagementLevel === "highly_engaged"
-                                ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-                                : s.engagementLevel === "moderately_engaged"
-                                  ? "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/30"
-                                  : "border-rose-500 text-rose-600 bg-rose-50 dark:bg-rose-950/30"
-                            }
-                          >
-                            {s.engagementLabel}
-                          </Badge>
+                <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                  {studentAnalyses.map((s) => {
+                    const { displayName, rollNumber, initials } = parseParticipantName(
+                      s.name,
+                      s.participantId,
+                    );
+                    return (
+                      <div
+                        key={s.participantId}
+                        className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-background hover:bg-accent/30 transition group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 border border-primary/20 text-primary font-bold text-xs shrink-0">
+                            {initials}
+                          </div>
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm text-foreground truncate max-w-[220px]">
+                                {displayName}
+                              </span>
+                              {rollNumber && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold bg-blue-500/10 text-blue-400 border border-blue-500/30 shrink-0">
+                                  {rollNumber}
+                                </span>
+                              )}
+                              <Badge
+                                variant="outline"
+                                className={
+                                  s.engagementLevel === "highly_engaged"
+                                    ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-[10px] font-bold"
+                                    : s.engagementLevel === "moderately_engaged"
+                                      ? "border-amber-500/40 text-amber-400 bg-amber-500/10 text-[10px] font-bold"
+                                      : "border-slate-500/40 text-slate-400 bg-slate-500/10 text-[10px] font-bold"
+                                }
+                              >
+                                {s.engagementLabel}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {s.totalQuizQuestions > 0 ? (
+                                <>
+                                  Attempt Rate: {s.attemptRatePercentage}% | Quiz Score: {s.accuracyPercentage}% ({s.correctAnswers}/{s.attemptedQuizQuestions || s.totalQuizQuestions} {s.attemptedQuizQuestions > 0 ? "correct" : "attempted"})
+                                </>
+                              ) : (
+                                <>
+                                  Attempt Rate: {s.attemptRatePercentage}% | Activity: {s.attemptedQuestions}/{s.totalSessionQuestions} Responses (Discussion Session)
+                                </>
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Attempt Rate: {s.attemptRatePercentage}% | Accuracy: {s.accuracyPercentage}% ({s.correctAnswers}/{s.attemptedQuizQuestions})
-                        </p>
-                      </div>
 
-                      <div className="text-right">
-                        <div className="font-extrabold text-base text-primary">
-                          {s.engagementScore}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">/100</span>
-                        </div>
-                        <div className="text-xs font-medium text-muted-foreground flex items-center justify-end gap-1">
-                          <span>Trend: {s.trendIcon}</span>
+                        <div className="text-right shrink-0 pl-2">
+                          <div className="font-extrabold text-base text-primary">
+                            {s.engagementScore}{" "}
+                            <span className="text-xs font-normal text-muted-foreground">/100</span>
+                          </div>
+                          <div className="text-xs font-medium text-muted-foreground flex items-center justify-end gap-1">
+                            <span>Trend: {s.trendIcon}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
