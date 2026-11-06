@@ -77,11 +77,23 @@ function EmbedPage() {
     })();
   }, [upperCode]);
 
-  // 2. Realtime Session Updates
+  // 2. Consolidated Realtime Synchronization (Session, Participants, Responses)
+  // Combines 3 previously separate WebSocket channels into 1 multiplexed channel to conserve Supabase connection quotas
   useEffect(() => {
     if (!session?.id) return;
-    const ch = supabase
-      .channel(`embed-session-${session.id}`)
+
+    const loadCount = async () => {
+      const { count } = await supabase
+        .from("participants")
+        .select("*", { count: "exact", head: true })
+        .eq("session_id", session.id);
+      setParticipantCount(count ?? 0);
+    };
+
+    loadCount();
+
+    let ch = supabase
+      .channel(`embed-live-${session.id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
@@ -89,12 +101,38 @@ function EmbedPage() {
           setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
         },
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "participants",
+          filter: `session_id=eq.${session.id}`,
+        },
+        loadCount,
+      );
+
+    if (question?.id) {
+      ch = ch.on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "responses",
+          filter: `question_id=eq.${question.id}`,
+        },
+        (payload) => {
+          setResponses((prev) => [...prev, payload.new as Response]);
+        },
+      );
+    }
+
+    ch.subscribe();
 
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [session?.id]);
+  }, [session?.id, question?.id]);
 
   // 3. Fetch Active Question
   useEffect(() => {
@@ -117,7 +155,7 @@ function EmbedPage() {
     })();
   }, [session?.current_question_id]);
 
-  // 4. Fetch & Realtime Responses for Current Question
+  // 4. Fetch Responses for Current Question
   useEffect(() => {
     if (!question?.id) {
       setResponses([]);
@@ -132,59 +170,7 @@ function EmbedPage() {
 
       if (data) setResponses(data as Response[]);
     })();
-
-    const ch = supabase
-      .channel(`embed-responses-${question.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "responses",
-          filter: `question_id=eq.${question.id}`,
-        },
-        (payload) => {
-          setResponses((prev) => [...prev, payload.new as Response]);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
   }, [question?.id]);
-
-  // 5. Realtime Participants Count
-  useEffect(() => {
-    if (!session?.id) return;
-    const loadCount = async () => {
-      const { count } = await supabase
-        .from("participants")
-        .select("*", { count: "exact", head: true })
-        .eq("session_id", session.id);
-      setParticipantCount(count ?? 0);
-    };
-
-    loadCount();
-
-    const ch = supabase
-      .channel(`embed-participants-${session.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "participants",
-          filter: `session_id=eq.${session.id}`,
-        },
-        loadCount,
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [session?.id]);
 
   const joinLink = useMemo(() => (session ? joinUrl(session.code) : ""), [session]);
 

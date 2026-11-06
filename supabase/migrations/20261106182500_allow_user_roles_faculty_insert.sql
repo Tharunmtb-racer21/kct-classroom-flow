@@ -11,3 +11,4 @@ WITH CHECK (
   public.auth_uid() = user_id
   AND role = 'faculty'::public.app_role
 );
+

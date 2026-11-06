@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { CheckCircle2, Eye, Loader2, Upload, Timer, Lock, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -119,6 +119,10 @@ function JoinPage() {
   }, [name]);
   const [joining, setJoining] = useState(false);
   const [question, setQuestion] = useState<Question | null>(null);
+  const questionRef = useRef<Question | null>(null);
+  useEffect(() => {
+    questionRef.current = question;
+  }, [question]);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [answer, setAnswer] = useState("");
   const [submittedFor, setSubmittedFor] = useState<Set<string>>(new Set());
@@ -220,28 +224,87 @@ function JoinPage() {
     })();
   }, [upperCode]);
 
-  // realtime updates
+  // Consolidated Realtime synchronization (Session updates, Question updates, and Participant responses)
+  // Combines 3 previously separate WebSocket channels into 1 multiplexed channel per student
+  // to avoid hitting the Supabase free peak connection limit.
   useEffect(() => {
-    if (!session) return;
-    console.log(`Subscribing to realtime updates for session: ${session.id}`);
-    const ch = supabase
-      .channel(`join-${session.id}`)
+    if (!session?.id) return;
+
+    const channelName = participantId
+      ? `join-live-${session.id}-${participantId}`
+      : `join-live-${session.id}-lobby`;
+
+    let ch = supabase
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
         (payload) => {
-          console.log("Realtime update received for session:", payload.new);
           setSession((s) => (s ? { ...s, ...(payload.new as Partial<Session>) } : s));
         },
       )
-      .subscribe((status) => {
-        console.log(`Realtime subscription status for session ${session.id}: ${status}`);
-      });
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "questions", filter: `session_id=eq.${session.id}` },
+        (payload) => {
+          const updated = payload.new as Partial<Question>;
+          if (updated.id) {
+            setQuestion((q) => (q && q.id === updated.id ? { ...q, ...updated } : q));
+            setAllQuestions((prev) =>
+              prev.map((q) => (q.id === updated.id ? { ...q, ...updated } : q)),
+            );
+          }
+        },
+      );
+
+    if (participantId) {
+      ch = ch.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "responses",
+          filter: `participant_id=eq.${participantId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedQid = (payload.old as any)?.question_id;
+            if (deletedQid) {
+              setSubmittedFor((prev) => {
+                const next = new Set(prev);
+                next.delete(deletedQid);
+                return next;
+              });
+              setSubmittedAnswers((prev) => {
+                const next = { ...prev };
+                delete next[deletedQid];
+                return next;
+              });
+              if (questionRef.current && questionRef.current.id === deletedQid) {
+                setAnswer("");
+              }
+              setAllQuestionsComplete(false);
+            }
+          } else if (payload.eventType === "INSERT") {
+            const newResp = payload.new as any;
+            if (newResp?.question_id) {
+              setSubmittedFor((prev) => new Set([...prev, newResp.question_id]));
+              setSubmittedAnswers((prev) => ({
+                ...prev,
+                [newResp.question_id]: newResp.answer ?? "",
+              }));
+            }
+          }
+        },
+      );
+    }
+
+    ch.subscribe();
+
     return () => {
-      console.log(`Unsubscribing from realtime updates for session: ${session.id}`);
       supabase.removeChannel(ch);
     };
-  }, [session?.id]);
+  }, [session?.id, participantId]);
 
   // load current question OR all questions in ALL mode OR multi-selected active questions
   useEffect(() => {
@@ -331,73 +394,6 @@ function JoinPage() {
     session?.active_question_ids?.join(","),
   ]);
 
-  // realtime question updates
-  useEffect(() => {
-    if (!question?.id) return;
-    const ch = supabase
-      .channel(`join-question-${question.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "questions", filter: `id=eq.${question.id}` },
-        (payload) => {
-          setQuestion((q) => (q ? { ...q, ...(payload.new as Partial<Question>) } : q));
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [question?.id]);
-
-  // realtime responses updates (to support real-time Retake/Reset)
-  useEffect(() => {
-    if (!participantId || !session?.id) return;
-
-    const ch = supabase
-      .channel(`join-responses-${participantId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "responses",
-          filter: `participant_id=eq.${participantId}`,
-        },
-        (payload) => {
-          if (payload.eventType === "DELETE") {
-            const deletedQid = (payload.old as any).question_id;
-            if (deletedQid) {
-              setSubmittedFor((prev) => {
-                const next = new Set(prev);
-                next.delete(deletedQid);
-                return next;
-              });
-              setSubmittedAnswers((prev) => {
-                const next = { ...prev };
-                delete next[deletedQid];
-                return next;
-              });
-              if (question && question.id === deletedQid) {
-                setAnswer("");
-              }
-              setAllQuestionsComplete(false);
-            }
-          } else if (payload.eventType === "INSERT") {
-            const newResp = payload.new as any;
-            setSubmittedFor((prev) => new Set([...prev, newResp.question_id]));
-            setSubmittedAnswers((prev) => ({
-              ...prev,
-              [newResp.question_id]: newResp.answer ?? "",
-            }));
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [participantId, session?.id, question?.id]);
 
   // countdown timer state
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
