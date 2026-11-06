@@ -96,3 +96,4 @@ WHERE lower(p.email) IN (
     'tharun.23cs@kct.ac.in'
 )
 ON CONFLICT (user_id, role) DO NOTHING;
+
