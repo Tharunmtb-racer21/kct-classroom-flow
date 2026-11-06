@@ -112,7 +112,13 @@ import {
 } from "@/lib/token-tracker";
 import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
-import { AdminSection, DeveloperSidebar, DeveloperSidebarContent } from "@/components/developer-sidebar";
+import {
+  AdminSection,
+  CustomDateRange,
+  DeveloperSidebar,
+  DeveloperSidebarContent,
+  TimeframeOption,
+} from "@/components/developer-sidebar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SecurityIntelligenceView } from "@/components/developer/security-intelligence-view";
 import { FacultySessionsModal } from "@/components/developer/faculty-sessions-modal";
@@ -322,7 +328,8 @@ function DeveloperDashboard() {
   const [responses, setResponses] = useState<ResponseRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loginLogs, setLoginLogs] = useState<LoginLogRow[]>([]);
-  const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "ALL">("ALL");
+  const [timeframe, setTimeframe] = useState<TimeframeOption>("ALL");
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange | null>(null);
   const [timeframeCounts, setTimeframeCounts] = useState<{
     participants: number;
     responses: number;
@@ -826,7 +833,55 @@ function DeveloperDashboard() {
         const todayUtcStr = now.toISOString().slice(0, 10);
         const intervals: { start: string; end: string; dateStr: string; label: string; isToday: boolean }[] = [];
 
-        if (timeframe === "1D") {
+        if (timeframe === "CUSTOM" && customDateRange) {
+          const diffMs = Math.max(0, customDateRange.end.getTime() - customDateRange.start.getTime());
+          const diffDays = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+
+          if (diffDays <= 2) {
+            // Divide custom window into 6 sub-intervals
+            const bucketMs = Math.max(60000, Math.floor(diffMs / 6));
+            for (let i = 0; i < 6; i++) {
+              const bStart = new Date(customDateRange.start.getTime() + i * bucketMs);
+              const bEnd = new Date(
+                i === 5
+                  ? customDateRange.end.getTime()
+                  : customDateRange.start.getTime() + (i + 1) * bucketMs,
+              );
+              const label = bEnd.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+              intervals.push({
+                start: bStart.toISOString(),
+                end: bEnd.toISOString(),
+                dateStr: bEnd.toISOString().slice(0, 10),
+                label,
+                isToday: bEnd.toISOString().slice(0, 10) === todayUtcStr,
+              });
+            }
+          } else {
+            const numBuckets = Math.min(diffDays, 30);
+            const stepDays = Math.max(1, Math.ceil(diffDays / numBuckets));
+            for (let i = 0; i < numBuckets; i++) {
+              const bStart = new Date(customDateRange.start);
+              bStart.setUTCDate(bStart.getUTCDate() + i * stepDays);
+              const bEnd = new Date(bStart);
+              bEnd.setUTCDate(bEnd.getUTCDate() + stepDays);
+              if (bEnd.getTime() > customDateRange.end.getTime() || i === numBuckets - 1) {
+                bEnd.setTime(customDateRange.end.getTime());
+              }
+              const start = bStart.toISOString();
+              const end = bEnd.toISOString();
+              const dateStr = start.slice(0, 10);
+              const isToday = dateStr === todayUtcStr;
+              const label = bStart.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                weekday: numBuckets <= 7 ? "short" : undefined,
+                timeZone: "UTC",
+              });
+              intervals.push({ start, end, dateStr, label, isToday });
+              if (bEnd.getTime() >= customDateRange.end.getTime()) break;
+            }
+          }
+        } else if (timeframe === "1D") {
           // Last 24 hours divided into 6 4-hour intervals
           for (let i = 5; i >= 0; i--) {
             const end = new Date(now.getTime() - i * 4 * 60 * 60 * 1000);
@@ -927,7 +982,7 @@ function DeveloperDashboard() {
     return () => {
       isCancelled = true;
     };
-  }, [timeframe, isAuthenticated, sessions.length, activityTrendRetryCount]);
+  }, [timeframe, customDateRange, isAuthenticated, sessions.length, activityTrendRetryCount]);
 
   const recordFailedAttempt = async () => {
     if (typeof window === "undefined") return;
@@ -1589,9 +1644,20 @@ function DeveloperDashboard() {
     return questions.filter((q) => q.session_id === sessionId);
   };
 
-  // Filter Data by Timeframe (1D, 7D, 30D, ALL)
+  // Filter Data by Timeframe (1D, 7D, 30D, ALL, CUSTOM)
   const filterByTimeframe = <T extends { created_at?: string; joined_at?: string }>(items: T[]) => {
     if (timeframe === "ALL") return items;
+    if (timeframe === "CUSTOM") {
+      if (!customDateRange) return items;
+      const startMs = customDateRange.start.getTime();
+      const endMs = customDateRange.end.getTime();
+      return items.filter((item) => {
+        const dateStr = item.created_at || item.joined_at;
+        if (!dateStr) return true;
+        const t = new Date(dateStr).getTime();
+        return t >= startMs && t <= endMs;
+      });
+    }
     const now = Date.now();
     const limits: Record<string, number> = {
       "1D": 24 * 60 * 60 * 1000,
@@ -1607,28 +1673,36 @@ function DeveloperDashboard() {
     });
   };
 
-  const filteredSessionsByTime = useMemo(() => filterByTimeframe(sessions), [sessions, timeframe]);
+  const filteredSessionsByTime = useMemo(
+    () => filterByTimeframe(sessions),
+    [sessions, timeframe, customDateRange],
+  );
   const filteredQuestionsByTime = useMemo(
     () => filterByTimeframe(questions),
-    [questions, timeframe],
+    [questions, timeframe, customDateRange],
   );
   const filteredParticipantsByTime = useMemo(
     () => filterByTimeframe(participants),
-    [participants, timeframe],
+    [participants, timeframe, customDateRange],
   );
   const filteredResponsesByTime = useMemo(
     () => filterByTimeframe(responses),
-    [responses, timeframe],
+    [responses, timeframe, customDateRange],
   );
 
   // Fetch Uncapped Exact PostgreSQL Database Counts for selected timeframe
   useEffect(() => {
     if (!isAuthenticated) return;
     const fetchExactTimeframeCounts = async () => {
-      let dateIso: string | null = null;
-      if (timeframe !== "ALL") {
+      let startDateIso: string | null = null;
+      let endDateIso: string | null = null;
+
+      if (timeframe === "CUSTOM" && customDateRange) {
+        startDateIso = customDateRange.start.toISOString();
+        endDateIso = customDateRange.end.toISOString();
+      } else if (timeframe !== "ALL") {
         const days = timeframe === "1D" ? 1 : timeframe === "7D" ? 7 : 30;
-        dateIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+        startDateIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       }
 
       let pQuery = supabase.from("participants").select("id", { count: "exact", head: true });
@@ -1648,14 +1722,24 @@ function DeveloperDashboard() {
         .select("id", { count: "exact", head: true })
         .eq("type", "quiz");
 
-      if (dateIso) {
-        pQuery = pQuery.gte("joined_at", dateIso);
-        rQuery = rQuery.gte("created_at", dateIso);
-        qQuery = qQuery.gte("created_at", dateIso);
-        sQuery = sQuery.gte("created_at", dateIso);
-        pollQuery = pollQuery.gte("created_at", dateIso);
-        wordcloudQuery = wordcloudQuery.gte("created_at", dateIso);
-        quizQuery = quizQuery.gte("created_at", dateIso);
+      if (startDateIso) {
+        pQuery = pQuery.gte("joined_at", startDateIso);
+        rQuery = rQuery.gte("created_at", startDateIso);
+        qQuery = qQuery.gte("created_at", startDateIso);
+        sQuery = sQuery.gte("created_at", startDateIso);
+        pollQuery = pollQuery.gte("created_at", startDateIso);
+        wordcloudQuery = wordcloudQuery.gte("created_at", startDateIso);
+        quizQuery = quizQuery.gte("created_at", startDateIso);
+      }
+
+      if (endDateIso) {
+        pQuery = pQuery.lte("joined_at", endDateIso);
+        rQuery = rQuery.lte("created_at", endDateIso);
+        qQuery = qQuery.lte("created_at", endDateIso);
+        sQuery = sQuery.lte("created_at", endDateIso);
+        pollQuery = pollQuery.lte("created_at", endDateIso);
+        wordcloudQuery = wordcloudQuery.lte("created_at", endDateIso);
+        quizQuery = quizQuery.lte("created_at", endDateIso);
       }
 
       const [pRes, rRes, qRes, sRes, pollRes, wordcloudRes, quizRes] = await Promise.all([
@@ -1685,12 +1769,17 @@ function DeveloperDashboard() {
     fetchExactTimeframeCounts();
   }, [
     timeframe,
+    customDateRange,
     isAuthenticated,
     sessions.length,
     participants.length,
     responses.length,
     questions.length,
   ]);
+
+  // Current Display Label for Active Timeframe
+  const timeframeDisplay =
+    timeframe === "CUSTOM" && customDateRange ? customDateRange.label : timeframe;
 
   // Metrics Computations
   const liveSessionsCount = useMemo(
@@ -2004,8 +2093,10 @@ function DeveloperDashboard() {
                 timeframe={timeframe}
                 setTimeframe={(tf) => {
                   setTimeframe(tf);
-                  setMobileDrawerOpen(false);
+                  if (tf !== "CUSTOM") setMobileDrawerOpen(false);
                 }}
+                customDateRange={customDateRange}
+                setCustomDateRange={setCustomDateRange}
                 onRunCleanup={() => {
                   handleRunCleanup();
                   setMobileDrawerOpen(false);
@@ -2078,6 +2169,8 @@ function DeveloperDashboard() {
           onToggleServerDown={handleToggleServerDown}
           timeframe={timeframe}
           setTimeframe={setTimeframe}
+          customDateRange={customDateRange}
+          setCustomDateRange={setCustomDateRange}
           onRunCleanup={handleRunCleanup}
           onPurgeEmptySessions={handlePurgeEmptySessions}
           onRefresh={loadData}
@@ -2263,8 +2356,8 @@ function DeveloperDashboard() {
                     className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-primary/50 transition hover:shadow-md group relative overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                        Classroom Sessions ({timeframe})
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[200px]" title={timeframeDisplay}>
+                        Classroom Sessions ({timeframeDisplay})
                       </span>
                       <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/30 grid place-items-center text-primary group-hover:scale-110 transition-transform">
                         <Layers className="h-5 w-5" />
@@ -2293,8 +2386,8 @@ function DeveloperDashboard() {
                     className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-purple-500/50 transition hover:shadow-md group relative overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                        Active Faculty ({timeframe})
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[200px]" title={timeframeDisplay}>
+                        Active Faculty ({timeframeDisplay})
                       </span>
                       <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/30 grid place-items-center text-purple-500 group-hover:scale-110 transition-transform">
                         <UserCheck className="h-5 w-5" />
@@ -2318,8 +2411,8 @@ function DeveloperDashboard() {
                     className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-blue-500/50 transition hover:shadow-md group relative overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                        Total Submissions ({timeframe})
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[200px]" title={timeframeDisplay}>
+                        Total Submissions ({timeframeDisplay})
                       </span>
                       <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/30 grid place-items-center text-blue-500 group-hover:scale-110 transition-transform">
                         <MessageSquare className="h-5 w-5" />
@@ -2346,8 +2439,8 @@ function DeveloperDashboard() {
                     className="glass rounded-2xl p-5 border border-border/60 space-y-3 cursor-pointer hover:border-cyan-500/50 transition hover:shadow-md group relative overflow-hidden"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                        Questions Added ({timeframe})
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[200px]" title={timeframeDisplay}>
+                        Questions Added ({timeframeDisplay})
                       </span>
                       <div className="h-9 w-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 grid place-items-center text-cyan-500 group-hover:scale-110 transition-transform">
                         <HelpCircle className="h-5 w-5" />
@@ -2376,8 +2469,14 @@ function DeveloperDashboard() {
                         <h3 className="text-sm font-black tracking-tight text-foreground">
                           Platform Activity Trends
                         </h3>
-                        <span className="text-[11px] font-bold text-muted-foreground">
-                          ({timeframe === "1D" ? "Past 24 Hours (4h Buckets)" : timeframe === "7D" ? "Past 7 Days (Daily)" : "Past 30 Days (Daily)"})
+                        <span className="text-[11px] font-bold text-muted-foreground truncate max-w-xs" title={timeframeDisplay}>
+                          ({timeframe === "1D"
+                            ? "Past 24 Hours (4h Buckets)"
+                            : timeframe === "7D"
+                              ? "Past 7 Days (Daily)"
+                              : timeframe === "CUSTOM"
+                                ? `Custom: ${customDateRange?.label || "Window"}`
+                                : "Past 30 Days (Daily)"})
                         </span>
                         {activityTrendLoading && (
                           <Loader2 className="h-3 w-3 text-primary animate-spin" />

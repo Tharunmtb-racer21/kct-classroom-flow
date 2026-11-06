@@ -1,8 +1,14 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import {
   Activity,
   AlertOctagon,
   ArrowLeft,
+  Calendar as CalendarIcon,
+  Check,
+  Clock,
   Flame,
   HelpCircle,
   Layers,
@@ -11,6 +17,7 @@ import {
   Mail,
   MessageSquare,
   RefreshCw,
+  RotateCcw,
   Settings,
   Shield,
   Trash2,
@@ -20,6 +27,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 export type AdminSection =
   | "dashboard"
@@ -34,13 +44,26 @@ export type AdminSection =
   | "contact_messages"
   | "settings";
 
+export type TimeframeOption = "1D" | "7D" | "30D" | "ALL" | "CUSTOM";
+
+export interface CustomDateRange {
+  start: Date;
+  end: Date;
+  startTime?: string;
+  endTime?: string;
+  hasCustomTime?: boolean;
+  label: string;
+}
+
 export interface DeveloperSidebarProps {
   activeSection?: AdminSection;
   onSelectSection?: (section: AdminSection) => void;
   isServerDown: boolean;
   onToggleServerDown: () => void;
-  timeframe: "1D" | "7D" | "30D" | "ALL";
-  setTimeframe: (tf: "1D" | "7D" | "30D" | "ALL") => void;
+  timeframe: TimeframeOption;
+  setTimeframe: (tf: TimeframeOption) => void;
+  customDateRange?: CustomDateRange | null;
+  setCustomDateRange?: (range: CustomDateRange | null) => void;
   onRunCleanup: () => void;
   onPurgeEmptySessions: () => void;
   onRefresh: () => void;
@@ -129,12 +152,121 @@ export function DeveloperSidebarContent({
   onToggleServerDown,
   timeframe,
   setTimeframe,
+  customDateRange,
+  setCustomDateRange,
   onRefresh,
   loading,
   onLockPortal,
   badgeCounts,
   onClose,
 }: DeveloperSidebarProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>(() => {
+    if (customDateRange) {
+      return { from: customDateRange.start, to: customDateRange.end };
+    }
+    const today = new Date();
+    return { from: today, to: today };
+  });
+  const [enableTimeFilter, setEnableTimeFilter] = useState<boolean>(() => !!customDateRange?.hasCustomTime);
+  const [draftStartTime, setDraftStartTime] = useState<string>(() => customDateRange?.startTime || "00:00");
+  const [draftEndTime, setDraftEndTime] = useState<string>(() => customDateRange?.endTime || "23:59");
+
+  const handleOpenCalendar = (open: boolean) => {
+    if (open) {
+      if (customDateRange) {
+        setDraftRange({ from: customDateRange.start, to: customDateRange.end });
+        setDraftStartTime(customDateRange.startTime || "00:00");
+        setDraftEndTime(customDateRange.endTime || "23:59");
+        setEnableTimeFilter(!!customDateRange.hasCustomTime);
+      } else {
+        const today = new Date();
+        setDraftRange({ from: today, to: today });
+      }
+    }
+    setCalendarOpen(open);
+  };
+
+  const setQuickPreset = (type: "today" | "yesterday" | "last7" | "thisMonth") => {
+    const now = new Date();
+    if (type === "today") {
+      setDraftRange({ from: now, to: now });
+    } else if (type === "yesterday") {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      setDraftRange({ from: y, to: y });
+    } else if (type === "last7") {
+      const past = new Date();
+      past.setDate(past.getDate() - 6);
+      setDraftRange({ from: past, to: now });
+    } else if (type === "thisMonth") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setDraftRange({ from: firstDay, to: now });
+    }
+  };
+
+  const handleApplyCustomRange = () => {
+    const fromDate = draftRange?.from || new Date();
+    const toDate = draftRange?.to || fromDate;
+
+    const earlier = fromDate.getTime() <= toDate.getTime() ? fromDate : toDate;
+    const later = fromDate.getTime() <= toDate.getTime() ? toDate : fromDate;
+
+    let start: Date;
+    let end: Date;
+
+    if (enableTimeFilter && draftStartTime && draftEndTime) {
+      const [sH, sM] = draftStartTime.split(":").map(Number);
+      const [eH, eM] = draftEndTime.split(":").map(Number);
+
+      start = new Date(
+        earlier.getFullYear(),
+        earlier.getMonth(),
+        earlier.getDate(),
+        isNaN(sH) ? 0 : sH,
+        isNaN(sM) ? 0 : sM,
+        0,
+        0,
+      );
+      end = new Date(
+        later.getFullYear(),
+        later.getMonth(),
+        later.getDate(),
+        isNaN(eH) ? 23 : eH,
+        isNaN(eM) ? 59 : eM,
+        59,
+        999,
+      );
+    } else {
+      start = new Date(earlier.getFullYear(), earlier.getMonth(), earlier.getDate(), 0, 0, 0, 0);
+      end = new Date(later.getFullYear(), later.getMonth(), later.getDate(), 23, 59, 59, 999);
+    }
+
+    const isSameDay =
+      earlier.getFullYear() === later.getFullYear() &&
+      earlier.getMonth() === later.getMonth() &&
+      earlier.getDate() === later.getDate();
+
+    let labelStr = isSameDay
+      ? format(earlier, "MMM d, yyyy")
+      : `${format(earlier, "MMM d")} - ${format(later, "MMM d, yyyy")}`;
+
+    if (enableTimeFilter && draftStartTime && draftEndTime) {
+      labelStr += ` (${draftStartTime} - ${draftEndTime})`;
+    }
+
+    setCustomDateRange?.({
+      start,
+      end,
+      startTime: draftStartTime,
+      endTime: draftEndTime,
+      hasCustomTime: enableTimeFilter,
+      label: labelStr,
+    });
+    setTimeframe("CUSTOM");
+    setCalendarOpen(false);
+  };
+
   const handleItemClick = (sectionId: AdminSection) => {
     if (onSelectSection) {
       onSelectSection(sectionId);
@@ -232,15 +364,23 @@ export function DeveloperSidebarContent({
 
         {/* Global Controls: Timeframe Selector */}
         <div className="space-y-1.5 pt-2 border-t border-border/40">
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70 px-3 pb-0.5">
-            Window
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70 px-3 pb-0.5 flex items-center justify-between">
+            <span>Window</span>
+            {timeframe === "CUSTOM" && (
+              <span className="text-[9px] font-bold text-primary tracking-normal uppercase bg-primary/15 px-1.5 py-0.2 rounded">
+                Custom
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-4 gap-1 p-1 bg-card/60 border border-border/60 rounded-xl">
+          <div className="grid grid-cols-5 gap-1 p-1 bg-card/60 border border-border/60 rounded-xl">
             {(["1D", "7D", "30D", "ALL"] as const).map((tf) => (
               <button
                 key={tf}
                 type="button"
-                onClick={() => setTimeframe(tf)}
+                onClick={() => {
+                  setTimeframe(tf);
+                  setCustomDateRange?.(null);
+                }}
                 className={cn(
                   "py-1 text-[11px] rounded-lg font-bold transition text-center",
                   timeframe === tf
@@ -251,7 +391,228 @@ export function DeveloperSidebarContent({
                 {tf}
               </button>
             ))}
+
+            {/* Custom Monthly Calendar & Optional Time Picker Trigger */}
+            <Popover open={calendarOpen} onOpenChange={handleOpenCalendar}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  title="Pick custom monthly date & optional time window"
+                  className={cn(
+                    "py-1 text-[11px] rounded-lg font-bold transition flex items-center justify-center",
+                    timeframe === "CUSTOM"
+                      ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                  )}
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                sideOffset={10}
+                className="w-[320px] p-3.5 bg-popover/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl z-50 text-popover-foreground space-y-3"
+              >
+                {/* Popover Header */}
+                <div className="flex items-center justify-between pb-1 border-b border-border/40">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarIcon className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold tracking-tight text-foreground">
+                      Telemetry Date Window
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Monthly
+                  </span>
+                </div>
+
+                {/* Quick Date Presets */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setQuickPreset("today")}
+                    className="px-2 py-0.5 rounded-md bg-muted/70 hover:bg-muted text-foreground transition shrink-0 font-medium"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPreset("yesterday")}
+                    className="px-2 py-0.5 rounded-md bg-muted/70 hover:bg-muted text-foreground transition shrink-0 font-medium"
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPreset("last7")}
+                    className="px-2 py-0.5 rounded-md bg-muted/70 hover:bg-muted text-foreground transition shrink-0 font-medium"
+                  >
+                    Last 7D
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPreset("thisMonth")}
+                    className="px-2 py-0.5 rounded-md bg-muted/70 hover:bg-muted text-foreground transition shrink-0 font-medium"
+                  >
+                    This Month
+                  </button>
+                </div>
+
+                {/* Interactive Monthly Calendar (Single or Range) */}
+                <div className="flex justify-center border border-border/50 rounded-xl bg-card/40 p-1">
+                  <CalendarUI
+                    mode="range"
+                    selected={draftRange}
+                    onSelect={setDraftRange}
+                    initialFocus
+                    className="p-1 pointer-events-auto"
+                  />
+                </div>
+
+                {/* Optional Time Filter Section */}
+                <div className="space-y-2 pt-1 border-t border-border/40">
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="enable-time-filter"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-foreground cursor-pointer select-none"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-primary" />
+                      <span>Optional Time Filter</span>
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        id="enable-time-filter"
+                        checked={enableTimeFilter}
+                        onChange={(e) => setEnableTimeFilter(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary/40 cursor-pointer accent-primary"
+                      />
+                      <label
+                        htmlFor="enable-time-filter"
+                        className="text-[11px] text-muted-foreground cursor-pointer select-none font-medium"
+                      >
+                        {enableTimeFilter ? "Enabled" : "Off (Full Day)"}
+                      </label>
+                    </div>
+                  </div>
+
+                  {enableTimeFilter ? (
+                    <div className="space-y-2 p-2 rounded-xl bg-card/60 border border-border/50 animate-in fade-in-50 duration-150">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">
+                            Start Time
+                          </span>
+                          <input
+                            type="time"
+                            value={draftStartTime}
+                            onChange={(e) => setDraftStartTime(e.target.value)}
+                            className="w-full px-2 py-1 text-xs font-mono rounded-lg bg-background border border-border/70 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">
+                            End Time
+                          </span>
+                          <input
+                            type="time"
+                            value={draftEndTime}
+                            onChange={(e) => setDraftEndTime(e.target.value)}
+                            className="w-full px-2 py-1 text-xs font-mono rounded-lg bg-background border border-border/70 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftStartTime("00:00");
+                            setDraftEndTime("23:59");
+                          }}
+                          className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded bg-muted/60 hover:bg-muted transition"
+                        >
+                          00:00 - 23:59
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftStartTime("08:30");
+                            setDraftEndTime("16:30");
+                          }}
+                          className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded bg-muted/60 hover:bg-muted transition"
+                        >
+                          College Hours
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground leading-relaxed px-0.5">
+                      Default: Queries cover all activity from <span className="font-mono text-foreground font-semibold">00:00:00</span> to <span className="font-mono text-foreground font-semibold">23:59:59</span> on selected dates.
+                    </p>
+                  )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimeframe("ALL");
+                      setCustomDateRange?.(null);
+                      setCalendarOpen(false);
+                    }}
+                    className="text-[11px] text-muted-foreground hover:text-foreground font-medium transition"
+                  >
+                    Reset to ALL
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCalendarOpen(false)}
+                      className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleApplyCustomRange}
+                      className="h-7 text-xs px-3 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                    >
+                      <Check className="h-3 w-3 mr-1" />
+                      Apply Window
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
+
+          {/* Active Custom Range Badge */}
+          {timeframe === "CUSTOM" && customDateRange && (
+            <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-primary/10 border border-primary/25 text-[11px] text-primary animate-in fade-in-50 duration-150">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CalendarIcon className="h-3 w-3 shrink-0 text-primary" />
+                <span className="truncate font-semibold text-[11px] text-primary" title={customDateRange.label}>
+                  {customDateRange.label}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeframe("ALL");
+                  setCustomDateRange?.(null);
+                }}
+                className="p-0.5 hover:bg-primary/20 rounded-md text-primary/70 hover:text-primary shrink-0 transition"
+                title="Clear custom window and reset to ALL"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Server Down Mode Status / Emergency Action */}
