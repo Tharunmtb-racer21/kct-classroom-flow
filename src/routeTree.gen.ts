@@ -19,6 +19,7 @@ import { Route as EmbedCodeRouteImport } from './routes/embed.$code'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as AuthenticatedDashboardDeveloperRouteImport } from './routes/_authenticated/dashboard.developer'
+import { Route as AuthenticatedDashboardDeveloperWafRouteImport } from './routes/_authenticated/dashboard.developer-waf'
 import { Route as AuthenticatedDashboardGuideRouteImport } from './routes/_authenticated/dashboard.guide'
 import { Route as AuthenticatedDashboardIntelligenceRouteImport } from './routes/_authenticated/dashboard.intelligence'
 import { Route as AuthenticatedDashboardProfileRouteImport } from './routes/_authenticated/dashboard.profile'
@@ -78,6 +79,12 @@ const AuthenticatedDashboardDeveloperRoute =
     path: '/developer',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardDeveloperWafRoute =
+  AuthenticatedDashboardDeveloperWafRouteImport.update({
+    id: '/developer-waf',
+    path: '/developer-waf',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardGuideRoute =
   AuthenticatedDashboardGuideRouteImport.update({
     id: '/guide',
@@ -130,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/developer': typeof AuthenticatedDashboardDeveloperRoute
+  '/dashboard/developer-waf': typeof AuthenticatedDashboardDeveloperWafRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
@@ -147,6 +155,7 @@ export interface FileRoutesByTo {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/dashboard/developer': typeof AuthenticatedDashboardDeveloperRoute
+  '/dashboard/developer-waf': typeof AuthenticatedDashboardDeveloperWafRoute
   '/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
@@ -167,6 +176,7 @@ export interface FileRoutesById {
   '/embed/$code': typeof EmbedCodeRoute
   '/join/$code': typeof JoinCodeRoute
   '/_authenticated/dashboard/developer': typeof AuthenticatedDashboardDeveloperRoute
+  '/_authenticated/dashboard/developer-waf': typeof AuthenticatedDashboardDeveloperWafRoute
   '/_authenticated/dashboard/guide': typeof AuthenticatedDashboardGuideRoute
   '/_authenticated/dashboard/intelligence': typeof AuthenticatedDashboardIntelligenceRoute
   '/_authenticated/dashboard/profile': typeof AuthenticatedDashboardProfileRoute
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/dashboard/developer'
+    | '/dashboard/developer-waf'
     | '/dashboard/guide'
     | '/dashboard/intelligence'
     | '/dashboard/profile'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/dashboard/developer'
+    | '/dashboard/developer-waf'
     | '/dashboard/guide'
     | '/dashboard/intelligence'
     | '/dashboard/profile'
@@ -223,6 +235,7 @@ export interface FileRouteTypes {
     | '/embed/$code'
     | '/join/$code'
     | '/_authenticated/dashboard/developer'
+    | '/_authenticated/dashboard/developer-waf'
     | '/_authenticated/dashboard/guide'
     | '/_authenticated/dashboard/intelligence'
     | '/_authenticated/dashboard/profile'
@@ -315,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardDeveloperRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/dashboard/developer-waf': {
+      id: '/_authenticated/dashboard/developer-waf'
+      path: '/developer-waf'
+      fullPath: '/dashboard/developer-waf'
+      preLoaderRoute: typeof AuthenticatedDashboardDeveloperWafRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/dashboard/guide': {
       id: '/_authenticated/dashboard/guide'
       path: '/guide'
@@ -369,6 +389,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardDeveloperRoute: typeof AuthenticatedDashboardDeveloperRoute
+  AuthenticatedDashboardDeveloperWafRoute: typeof AuthenticatedDashboardDeveloperWafRoute
   AuthenticatedDashboardGuideRoute: typeof AuthenticatedDashboardGuideRoute
   AuthenticatedDashboardIntelligenceRoute: typeof AuthenticatedDashboardIntelligenceRoute
   AuthenticatedDashboardProfileRoute: typeof AuthenticatedDashboardProfileRoute
@@ -382,6 +403,8 @@ interface AuthenticatedDashboardRouteChildren {
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
     AuthenticatedDashboardDeveloperRoute: AuthenticatedDashboardDeveloperRoute,
+    AuthenticatedDashboardDeveloperWafRoute:
+      AuthenticatedDashboardDeveloperWafRoute,
     AuthenticatedDashboardGuideRoute: AuthenticatedDashboardGuideRoute,
     AuthenticatedDashboardIntelligenceRoute:
       AuthenticatedDashboardIntelligenceRoute,

@@ -52,8 +52,11 @@ describe("developer portal route migration", () => {
     );
   });
 
-  test("developer WAF portal links to /dashboard/developer instead of legacy /developer", () => {
-    const wafRoute = readFileSync(join(SRC, "routes", "developer-waf.tsx"), "utf-8");
+  test("developer WAF portal is routed under /dashboard/developer-waf and links to /dashboard/developer", () => {
+    const legacyWafRoute = readFileSync(join(SRC, "routes", "developer-waf.tsx"), "utf-8");
+    expect(legacyWafRoute).toContain('to: "/dashboard/developer-waf"');
+
+    const wafRoute = readFileSync(join(SRC, "routes", "_authenticated", "dashboard.developer-waf.tsx"), "utf-8");
     expect(wafRoute).toContain('<Link to="/dashboard/developer">');
     expect(wafRoute).not.toContain('<Link to="/developer">');
   });

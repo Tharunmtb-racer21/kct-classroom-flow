@@ -4659,7 +4659,7 @@ function DeveloperDashboard() {
                         </p>
                       </div>
                       <Button asChild size="sm" className="gradient-bg text-white rounded-xl text-xs font-bold gap-1.5 shadow-sm">
-                        <Link to="/developer-waf">
+                        <Link to="/dashboard/developer-waf">
                           Manage WAF Config
                         </Link>
                       </Button>

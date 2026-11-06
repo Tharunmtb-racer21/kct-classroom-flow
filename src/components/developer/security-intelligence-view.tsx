@@ -397,7 +397,7 @@ export function SecurityIntelligenceView() {
           </Badge>
 
           <Button asChild size="sm" variant="outline" className="text-xs font-bold gap-1.5 h-8 border-border/60">
-            <Link to="/developer-waf">
+            <Link to="/dashboard/developer-waf">
               <Shield className="h-3.5 w-3.5 text-primary" /> WAF Portal <ExternalLink className="h-3 w-3" />
             </Link>
           </Button>
