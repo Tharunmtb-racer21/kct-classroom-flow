@@ -1,5 +1,6 @@
+/// <reference types="bun-types" />
 import { describe, expect, it } from "bun:test";
-import type { CustomDateRange, TimeframeOption } from "@/components/developer-sidebar";
+import type { CustomDateRange, TimeframeOption } from "../../src/components/developer-sidebar";
 
 // Reusable pure implementation of filterByTimeframe matching src/routes/_authenticated/dashboard.developer.tsx
 function filterItemsByTimeframe<T extends { created_at?: string; joined_at?: string }>(
