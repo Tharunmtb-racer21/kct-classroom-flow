@@ -128,21 +128,18 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
         const clientKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
         if (clientKey) {
           try {
+            const formData = new FormData();
+            formData.append("access_key", clientKey);
+            formData.append("name", safeNme);
+            formData.append("email", safeEmail);
+            formData.append("subject", `[KCT PULSE Contact] ${subject} - from ${safeNme}`);
+            formData.append("message", safeMsg);
+            formData.append("replyto", safeEmail);
+            formData.append("from_name", "KCT PULSE Feedback System");
+
             await fetch("https://api.web3forms.com/submit", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              body: JSON.stringify({
-                access_key: clientKey,
-                name: safeNme,
-                email: safeEmail,
-                subject: `[KCT PULSE Contact] ${subject} - from ${safeNme}`,
-                message: safeMsg,
-                replyto: safeEmail,
-                from_name: "KCT PULSE Feedback System",
-              }),
+              body: formData,
             });
           } catch (clientDeliveryErr) {
             console.warn("[ContactUs] Browser fallback delivery to Web3Forms failed:", clientDeliveryErr);
