@@ -36,6 +36,7 @@ import {
   clearLegacyDeveloperStorage,
   DEVELOPER_ACCESS_MESSAGES,
 } from "@/lib/developer-access";
+import { verifyDevPassword } from "@/lib/dev-auth";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -56,6 +57,8 @@ export const Route = createFileRoute("/developer-waf")({
 
 function WafMonitorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [passkey, setPasskey] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -99,12 +102,44 @@ function WafMonitorDashboard() {
   };
 
   const handleLockWaf = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("kct_waf_auth");
+      sessionStorage.removeItem("kct_waf_auth_time");
+      sessionStorage.removeItem("kct_dev_auth");
+      sessionStorage.removeItem("kct_dev_auth_time");
+      sessionStorage.removeItem("kct_dev_passkey");
+    }
     clearLegacyDeveloperStorage();
     setIsAuthenticated(false);
+    setPasskey("");
   };
 
-  // Access requires a verified @kct.ac.in Firebase account with the admin role. This is a
-  // UI gate; the WAF RPCs re-check public.is_platform_admin() in the database.
+  const handleAuthenticate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthenticating(true);
+    try {
+      const cleanPasskey = passkey.trim();
+      const isValid = await verifyDevPassword(cleanPasskey);
+      if (isValid) {
+        setIsAuthenticated(true);
+        setErrorMsg("");
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("kct_waf_auth", "true");
+          sessionStorage.setItem("kct_waf_auth_time", Date.now().toString());
+          sessionStorage.setItem("kct_dev_auth", "true");
+          sessionStorage.setItem("kct_dev_auth_time", Date.now().toString());
+          sessionStorage.setItem("kct_dev_passkey", cleanPasskey);
+        }
+        toast.success("Administrator access granted.");
+      } else {
+        setErrorMsg("Access Denied: Incorrect administrator password.");
+      }
+    } finally {
+      setAuthenticating(false);
+    }
+  };
+
+  // Access requires a verified @kct.ac.in Firebase account with the admin role or valid password.
   const verifyDeveloperAccess = async (opts: { silent?: boolean } = {}) => {
     setCheckingAccess(true);
     try {
@@ -123,10 +158,25 @@ function WafMonitorDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    // Remove the plaintext passkey and flags stored by the retired passkey gate.
-    clearLegacyDeveloperStorage();
     setEdgeWafActive(true);
     setWafOffline(false);
+
+    if (typeof window !== "undefined") {
+      const isAuth =
+        sessionStorage.getItem("kct_waf_auth") === "true" ||
+        sessionStorage.getItem("kct_dev_auth") === "true";
+      const authTime = Number(
+        sessionStorage.getItem("kct_waf_auth_time") ||
+          sessionStorage.getItem("kct_dev_auth_time") ||
+          "0",
+      );
+      if (isAuth && authTime > 0 && Date.now() - authTime < 1800000) {
+        setIsAuthenticated(true);
+        const storedPass = sessionStorage.getItem("kct_dev_passkey");
+        if (storedPass) setPasskey(storedPass);
+      }
+    }
+
     const unsubscribe = auth.onAuthStateChanged(() => {
       void verifyDeveloperAccess({ silent: true });
     });
@@ -286,31 +336,66 @@ function WafMonitorDashboard() {
             </p>
           </div>
 
-          <div className="space-y-4 text-left">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center justify-center gap-1.5 text-center">
-              <Lock className="h-3.5 w-3.5" /> Requires a verified @kct.ac.in administrator account
-            </p>
-            {errorMsg && (
-              <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
-                {errorMsg}
-              </p>
-            )}
+          <form onSubmit={handleAuthenticate} className="space-y-4 text-left">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-red-400" /> Administrator Password Required
+              </label>
+              <Input
+                type="password"
+                placeholder="Enter Developer / Admin Password"
+                value={passkey}
+                onChange={(e) => {
+                  setPasskey(e.target.value);
+                  if (errorMsg) setErrorMsg("");
+                }}
+                className="h-11 bg-card/50 border-border text-center font-mono tracking-widest focus-visible:ring-red-500"
+              />
+              {errorMsg && (
+                <p className="text-xs font-semibold text-destructive mt-1 text-center animate-shake">
+                  {errorMsg}
+                </p>
+              )}
+            </div>
+
             <Button
-              type="button"
-              onClick={() => verifyDeveloperAccess()}
-              disabled={checkingAccess}
+              type="submit"
+              disabled={authenticating}
               className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
             >
               <Key className="h-4 w-4" />{" "}
-              {checkingAccess ? "Verifying Access..." : "Verify Administrator Access"}
+              {authenticating ? "Authenticating..." : "Authenticate Administrator Access"}
             </Button>
-            <a
-              href="/auth"
-              className="block text-center text-xs font-semibold text-primary hover:underline"
+
+            <div className="relative my-3">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/40" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-[#0f172a] px-2 text-muted-foreground font-semibold">
+                  Or verify with institutional role
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => verifyDeveloperAccess()}
+              disabled={checkingAccess}
+              className="w-full h-10 border-red-500/30 text-red-400 hover:bg-red-500/10 font-semibold gap-2 text-xs"
             >
-              Not signed in? Sign in with your KCT account, then return to this page.
-            </a>
-          </div>
+              <ShieldCheck className="h-4 w-4 text-red-500" />{" "}
+              {checkingAccess ? "Verifying Access..." : "Verify Administrator Role"}
+            </Button>
+
+            <Link
+              to="/dashboard"
+              className="block text-center text-xs font-semibold text-primary hover:underline pt-1"
+            >
+              Return to Faculty Dashboard
+            </Link>
+          </form>
 
           <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1">
             <Shield className="h-3.5 w-3.5 text-red-500" /> Authorized Admin & Developer Use Only
