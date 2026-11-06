@@ -146,3 +146,4 @@ CREATE INDEX IF NOT EXISTS idx_responses_question ON public.responses(question_i
 CREATE INDEX IF NOT EXISTS idx_responses_participant ON public.responses(participant_id);
 CREATE INDEX IF NOT EXISTS idx_participants_session ON public.participants(session_id);
 CREATE INDEX IF NOT EXISTS idx_integrity_session ON public.exam_integrity_events(session_id);
+
