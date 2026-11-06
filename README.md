@@ -92,14 +92,16 @@ The project includes thorough technical and governance documentation located in 
 - **Statistical Insufficient Sample Guard:** Built-in sample thresholding (`N < 5`) with neutral pedagogical alerts to prevent premature classification before statistically reliable observations are recorded.
 - **Participant Identity & Roll Number Badging:** Automatic extraction of institutional roll numbers (e.g., `25BIT057`) rendered in highlighted badge chips alongside deterministic color-coded initials avatars.
 
-### 🛡️ 6. Security Intelligence & WAF Telemetry (`/dashboard/security`)
+### 🛡️ 6. Security Intelligence & WAF Telemetry (`/dashboard/security` & `/developer-waf`)
+- **KCT SHIELD WAF Console (`/developer-waf`):** Dedicated security monitoring console with authorized developer authentication, Token Bucket rate limiting, packet inspection, and real-time threat telemetry.
 - **Layered Defense Telemetry:** Behavioral anomaly detection, rapid response velocity traps, and rate limiting metrics.
 - **Edge Security Headers:** Strict CSP, HSTS, X-Content-Type-Options, and frame ancestor restrictions.
 
 ### 👨‍💻 7. Developer Telemetry & Faculty Monitoring (`/developer`)
-- **Password-Gated Access:** Protected by institutional passkey and role verification.
+- **Gated Access:** Protected by authorized developer credential verification and `public.is_platform_admin()` database role verification.
 - **Real-Time Login Telemetry:** Comprehensive audit trail of faculty logins, devices, browsers, and session durations.
 - **System Health Diagnostics:** Live Supabase database ping latencies, channel subscription metrics, and authentication breakdown.
+- **Failed Access Telemetry & Safe Purge:** Tracks failed developer portal access attempts with concurrency-safe advisory lock rate limiting, and an admin-only purge action compatible with PostgreSQL `safeupdate` guards.
 - **Faculty Session Drill-Down & Reports:** Clickable faculty profiles that dynamically open complete session archives, student headcounts, question inventories, and direct report download capabilities.
 - **Global Multi-Entity Search:** Unified search bar instantly filtering across lecture titles, session shortcodes, faculty names, and student query strings.
 
@@ -146,8 +148,15 @@ graph LR
     Fallback3 --> Result[Structured Output]
 ```
 
-- **AI Question Generator:** Auto-generates high-level Bloom's Taxonomy questions across four complexity levels with automated distractors.
-- **In-App AI Classroom Assistant (`<ChatBot />`):** Floating conversational bot offering real-time faculty assistance and lecture guidance.
+- **AI Question Generator:** Auto-generates high-level Bloom's Taxonomy questions across four complexity levels with automated distractors from course PDF/DOCX uploads.
+
+### 📚 Local Repository Knowledge-Based Chatbot (`<ChatBot />`)
+KCT PULSE replaces external third-party chatbot APIs with an entirely self-contained, locally indexed knowledge engine (`src/lib/chatbot/knowledge-engine.ts`) operating directly over 16 repository-maintained knowledge modules (`src/data/chatbot/knowledge/`):
+- **100% Repository-Maintained Knowledge:** Answers questions exclusively from verified code paths, routes, scoring formulas, and platform policies.
+- **Zero External AI Calls:** Executes with zero network calls to Gemini, Groq, OpenAI, or external embedding servers—ensuring zero API billing, zero latency (<5ms), complete privacy, and offline operational capability.
+- **In-Memory Search Engine:** Client-side inverted index featuring term tokenization, suffix normalization, stop-word elimination, semantic synonym expansion, and multi-tiered relevance scoring.
+- **Strict Fallback Safeguard:** Unambiguously returns the standardized institutional fallback message whenever relevance confidence is insufficient, preventing AI hallucinations.
+- **Interactive Assistant UI:** Suggested prompt chips, source reference tags (`📚 Sources: [Title]`), one-click answer clipboard copy, typing indicators, and conversation history clearing.
 
 ### Exam Integrity & Proctoring (`src/hooks/use-exam-integrity.ts`)
 - **Tab Switching Detection:** Logs and counts student backgrounding and tab departure events.
