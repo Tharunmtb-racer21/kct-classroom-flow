@@ -35,3 +35,4 @@ export const reportsAnalyticsKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-faculty-workflows", "kb-intelligence-overview"],
   },
 ];
+

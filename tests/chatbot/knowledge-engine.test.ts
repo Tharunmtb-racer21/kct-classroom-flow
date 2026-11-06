@@ -34,10 +34,10 @@ describe("KCT PULSE Local Knowledge Chatbot Engine", () => {
     const query = "How do students join a live classroom session?";
     const res = queryKnowledgeBase(query);
     expect(res.confidence).toBeGreaterThan(2.0);
-    expect(res.answer).toContain("6-Character Shortcode");
-    expect(res.answer).toContain("QR Code");
+    expect(res.answer).toContain("alphanumeric session code");
+    expect(res.answer).toContain("QR code");
     expect(res.sources.length).toBeGreaterThan(0);
-    expect(res.sources[0].title).toContain("Session Codes & Student Joining");
+    expect(res.sources[0].title).toContain("Student Portal");
   });
 
   // Test 3: Different ways of asking the same question
@@ -134,6 +134,81 @@ describe("KCT PULSE Local Knowledge Chatbot Engine", () => {
       expect(response).toContain("Navneeth V");
     } finally {
       globalThis.fetch = globalFetch;
+    }
+  });
+
+  // Test 11: 30+ Realistic Questions Suite covering all core domains
+  test("11. accurately evaluates 30+ realistic classroom and administrative queries", () => {
+    const testCases: Array<{
+      query: string;
+      expectedKeywordOrSource?: string;
+      mustContainInAnswer?: string;
+      expectFallback?: boolean;
+    }> = [
+      // Students (5)
+      { query: "Do students need to create an account?", mustContainInAnswer: "No Login Required" },
+      { query: "How do students submit their answers on mobile?", mustContainInAnswer: "mobile" },
+      { query: "What happens if a student switches tabs in exam mode?", mustContainInAnswer: "Tab Departure" },
+      { query: "How is student roll number parsed?", mustContainInAnswer: "Roll Number" },
+      { query: "Can students join by scanning a QR code?", mustContainInAnswer: "QR" },
+
+      // Faculty (5)
+      { query: "What can faculty do on the dashboard?", mustContainInAnswer: "Faculty Command Center" },
+      { query: "How do I create a new lecture session?", mustContainInAnswer: "Session" },
+      { query: "Can multiple faculty teach together?", mustContainInAnswer: "Co-Host" },
+      { query: "Can I upload a PDF to generate questions?", mustContainInAnswer: "PDF" },
+      { query: "How do I embed KCT PULSE in Google Slides?", mustContainInAnswer: "Google Slides" },
+
+      // Sessions (5)
+      { query: "What are the session statuses?", mustContainInAnswer: "Draft" },
+      { query: "What are department templates?", mustContainInAnswer: "Department Templates" },
+      { query: "Why did my session revert to draft?", mustContainInAnswer: "1-hour" },
+      { query: "Can I reopen an expired session?", mustContainInAnswer: "reactivate" },
+      { query: "How do I delete or rename a session?", mustContainInAnswer: "renaming" },
+
+      // Reports (3)
+      { query: "How do I download a PDF report of my class?", mustContainInAnswer: "PDF" },
+      { query: "Can I export student scores to Excel?", mustContainInAnswer: "Excel" },
+      { query: "Is CSV format supported for reports?", mustContainInAnswer: "CSV" },
+
+      // Intelligence & Analytics (4)
+      { query: "How is the student engagement score calculated?", mustContainInAnswer: "35%" },
+      { query: "What are the three engagement tiers?", mustContainInAnswer: "Highly Engaged" },
+      { query: "How are weak topics identified?", mustContainInAnswer: "topic" },
+      { query: "What do the sample sufficiency badges mean?", mustContainInAnswer: "Reliable" },
+
+      // Authentication (3)
+      { query: "Who can create a faculty account?", mustContainInAnswer: "@kct.ac.in" },
+      { query: "Can I sign in with a personal Gmail account?", mustContainInAnswer: "rejected" },
+      { query: "Why was I logged out after 30 minutes?", mustContainInAnswer: "30-Minute" },
+
+      // Troubleshooting (3)
+      { query: "What should I do if students see session ended?", mustContainInAnswer: "Live" },
+      { query: "How do students join if the QR code won't scan?", mustContainInAnswer: "homepage" },
+      { query: "How can faculty reset their password?", mustContainInAnswer: "password" },
+
+      // Unsupported, Ambiguous, and Misspelled queries (5)
+      { query: "What is the capital of France?", expectFallback: true },
+      { query: "How to book train tickets?", expectFallback: true },
+      { query: "qizzes and pols", mustContainInAnswer: "Poll" },
+      { query: "where do i see the attendence?", mustContainInAnswer: "attendance" },
+      { query: "how do i...", expectFallback: true },
+    ];
+
+    const fallbackExpected =
+      "I couldn't find reliable information about that in the KCT PULSE knowledge base. Please contact the appropriate faculty or support team for assistance.";
+
+    for (const tc of testCases) {
+      const res = queryKnowledgeBase(tc.query);
+      if (tc.expectFallback) {
+        expect(res.answer).toBe(fallbackExpected);
+        expect(res.confidence).toBeLessThan(2.0);
+      } else {
+        expect(res.confidence).toBeGreaterThanOrEqual(1.5);
+        if (tc.mustContainInAnswer) {
+          expect(res.answer.toLowerCase()).toContain(tc.mustContainInAnswer.toLowerCase());
+        }
+      }
     }
   });
 });

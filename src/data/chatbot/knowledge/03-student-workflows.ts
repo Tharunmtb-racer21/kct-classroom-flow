@@ -6,12 +6,12 @@ export const studentWorkflowsKnowledge: KnowledgeItem[] = [
     title: "Student Portal & Answering Experience (/join/$code)",
     category: "Student",
     summary:
-      "Zero-friction student participation: no account creation, no password, instant joining via 6-character shortcode or QR code.",
+      "Zero-friction student participation: no account creation, no password, instant joining via session code or QR code.",
     content:
       "Students interact with KCT PULSE through a streamlined mobile-first interface:\n" +
       "1. No Login Required: Students never need to register an account or download an app. They simply navigate to the join URL.\n" +
       "2. Entering Details: Students provide their Name and optional institutional Roll Number (e.g. 'Navneeth V 25BIT057').\n" +
-      "3. Live Synchronization: Questions appear on student screens instantly over Supabase WebSocket channels (<50ms latency).\n" +
+      "3. Live Synchronization: Questions appear on student screens instantly over Supabase WebSocket channels.\n" +
       "4. Interactive Formats: Students answer single-choice/multi-choice polls, timed graded quizzes, and submit keywords to dynamic word clouds.\n" +
       "5. Response Confirmation & Haptics: Confirms successful submission with color-coded feedback and mobile vibration/haptic cues.\n" +
       "6. Connection Quality Indicator: A real-time ping indicator in the mobile header informs students of their connection latency (e.g., 42ms 🟢).",
@@ -68,3 +68,4 @@ export const studentWorkflowsKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-student-experience", "kb-question-types"],
   },
 ];
+

@@ -11,7 +11,7 @@ export const kctPulseFeaturesKnowledge: KnowledgeItem[] = [
       "KCT PULSE includes eight core functional modules:\n" +
       "1. Faculty Command Center (/dashboard): Live statistics, real-time sync indicator, active session controls, and quick creation.\n" +
       "2. Classroom Sessions & Templates (/dashboard/sessions): Personal lectures and curated departmental question banks (CSE, EEE, Maths, Chemistry).\n" +
-      "3. Zero-Friction Student Portal (/join/$code): Instant mobile connectivity via Supabase WebSockets (<50ms latency) without logins.\n" +
+      "3. Zero-Friction Student Portal (/join/$code): Instant mobile connectivity via Supabase WebSockets with real-time sync without logins.\n" +
       "4. Presentation Embed Engine (/embed/$code): Frameless layout with projector QR code designed for PowerPoint and Google Slides iframes.\n" +
       "5. Classroom Intelligence & ML (/dashboard/intelligence): 0–100 formula engagement scoring, concept accuracy tracking, and weak topic alerts.\n" +
       "6. Analytical Reports (/dashboard/reports): Exportable lecture archives in PDF, Excel (.xlsx), and CSV formats.\n" +
@@ -49,7 +49,7 @@ export const kctPulseFeaturesKnowledge: KnowledgeItem[] = [
       "Faculty can integrate live session results directly into PowerPoint and Google Slides using the embed view at `/embed/$code`:\n" +
       "• Frameless Projection Layout: Removes unnecessary navigation bars, headers, and dashboard clutter for clean auditorium display.\n" +
       "• High-Contrast Projector QR Code: Automatically generated for students in back-row auditorium seats to scan with their phones.\n" +
-      "• Live Real-Time Synchronized Visualizations: Bar charts and animated word clouds update instantly (<50ms) as student votes arrive.\n" +
+      "• Live Real-Time Synchronized Visualizations: Bar charts and animated word clouds update in real time as student votes arrive.\n" +
       "• How to use: In Google Slides or PowerPoint, insert an iframe web object pointing to `https://kct-classroom-flow.vercel.app/embed/YOUR_SESSION_CODE`.",
     keywords: [
       "embed",
@@ -71,3 +71,4 @@ export const kctPulseFeaturesKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-pulse-features", "kb-session-joining"],
   },
 ];
+

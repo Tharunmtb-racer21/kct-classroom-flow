@@ -11,10 +11,10 @@ export const troubleshootingKnowledge: KnowledgeItem[] = [
       "Quick fixes for common classroom scenarios:\n" +
       "1. 'Session Not Found' or 'Session Ended':\n" +
       "   - Check that the instructor has toggled the session to `🟢 Live` status in their control room.\n" +
-      "   - Check if the 6-character code was entered correctly (case-insensitive).\n" +
+      "   - Check if the session code was entered correctly (case-insensitive).\n" +
       "   - Note: Sessions automatically revert to `draft` after 1 hour of inactivity. Faculty can re-activate the session with one click.\n" +
       "2. Student Cannot Scan Projector QR Code:\n" +
-      "   - Students in back rows can simply type the 6-character code on the homepage (`/`) instead of scanning.\n" +
+      "   - Students in back rows can simply type the session code on the homepage (`/`) instead of scanning.\n" +
       "   - Faculty can also share the direct join URL in Google Classroom or Teams.\n" +
       "3. High Network Latency in Large Auditoriums:\n" +
       "   - The mobile header includes a color-coded latency indicator (🟢 <100ms, 🟡 100-300ms, 🔴 >300ms).\n" +
@@ -42,3 +42,4 @@ export const troubleshootingKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-session-joining", "kb-auto-draft-policy", "kb-login-auth"],
   },
 ];
+

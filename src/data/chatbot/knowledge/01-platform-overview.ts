@@ -63,3 +63,4 @@ export const platformOverviewKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-platform-overview", "kb-developer-portal"],
   },
 ];
+

@@ -21,3 +21,4 @@ export interface ChatbotAnswer {
   confidence: number;
   suggestedFollowUps?: string[];
 }
+

@@ -163,6 +163,14 @@ const STOP_WORDS = new Set([
 const SYNONYMS: Record<string, string[]> = {
   create: ["author", "make", "generate", "build", "launch"],
   test: ["quiz", "exam", "assessment"],
+  quiz: ["question", "test", "mcq"],
+  qiz: ["quiz"],
+  qizz: ["quiz"],
+  qizzes: ["quiz"],
+  poll: ["voting", "survey", "mcq"],
+  pol: ["poll"],
+  pols: ["poll"],
+  attendence: ["attendance", "presence"],
   exam: ["quiz", "integrity", "proctoring", "lockdown"],
   cheat: ["integrity", "proctoring", "fullscreen", "tab"],
   join: ["enter", "participate", "connect", "access"],
@@ -447,3 +455,4 @@ export function queryKnowledgeBase(
     suggestedFollowUps: followUps.slice(0, 3),
   };
 }
+

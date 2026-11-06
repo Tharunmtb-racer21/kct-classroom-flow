@@ -97,3 +97,4 @@ export const sessionManagementKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-session-management", "kb-troubleshooting"],
   },
 ];
+

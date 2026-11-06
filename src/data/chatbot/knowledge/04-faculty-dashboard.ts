@@ -11,7 +11,7 @@ export const facultyDashboardKnowledge: KnowledgeItem[] = [
       "The Faculty Command Center (`/dashboard`) provides instructors with a complete administrative interface:\n" +
       "• Real-Time KPI Suite: Live counters displaying total active sessions, current listeners in lecture halls, questions authored, and overall classroom engagement velocity.\n" +
       "• Live Database Sync Badge: Color-coded WebSocket health pill showing real-time connectivity to Supabase channels.\n" +
-      "• One-Click Session Creator: Rapid modal to launch a new lecture session with an auto-generated 6-character shortcode.\n" +
+      "• One-Click Session Creator: Rapid modal to launch a new lecture session with an auto-generated alphanumeric session code.\n" +
       "• Sidebar Navigation:\n" +
       "  - Dashboard (/dashboard): Main overview & KPI counters.\n" +
       "  - Sessions (/dashboard/sessions): Session management & departmental templates.\n" +
@@ -51,7 +51,7 @@ export const facultyDashboardKnowledge: KnowledgeItem[] = [
       "2. Create session: Create a lecture from scratch or clone a curated department template.\n" +
       "3. Add questions: Author MCQs, word clouds, or polls with custom time limits and images.\n" +
       "4. AI generate (optional): Upload a lecture PDF/DOCX to auto-generate questions.\n" +
-      "5. Share with students: Project the 6-character code or auditorium QR code.\n" +
+      "5. Share with students: Project the alphanumeric session code or auditorium QR code.\n" +
       "6. Run live: Launch questions individually, activate all at once, or use Auto Play.\n" +
       "7. Review responses: Watch student submissions morph live on animated charts.\n" +
       "8. Export report: Download official PDF/Excel archives for academic accreditation and records.",
@@ -74,3 +74,4 @@ export const facultyDashboardKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-faculty-workflows", "kb-session-management"],
   },
 ];
+

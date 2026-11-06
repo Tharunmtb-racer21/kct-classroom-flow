@@ -37,3 +37,4 @@ export const faqsKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-platform-overview", "kb-pulse-features", "kb-student-experience"],
   },
 ];
+

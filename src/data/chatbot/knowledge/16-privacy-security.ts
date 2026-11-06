@@ -35,3 +35,4 @@ export const privacySecurityKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-login-auth", "kb-kct-shield-waf", "kb-developer-portal"],
   },
 ];
+

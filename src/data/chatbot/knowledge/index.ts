@@ -47,3 +47,4 @@ export const ALL_KNOWLEDGE_ITEMS: KnowledgeItem[] = [
 export const KNOWLEDGE_BY_ID = new Map<string, KnowledgeItem>(
   ALL_KNOWLEDGE_ITEMS.map((item) => [item.id, item]),
 );
+

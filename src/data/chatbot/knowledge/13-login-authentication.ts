@@ -20,6 +20,9 @@ export const loginAuthenticationKnowledge: KnowledgeItem[] = [
       "sign in",
       "signup",
       "register",
+      "create account",
+      "faculty account",
+      "who can create",
       "domain restriction",
       "kct.ac.in",
       "firebase auth",
@@ -35,3 +38,4 @@ export const loginAuthenticationKnowledge: KnowledgeItem[] = [
     relatedTopics: ["kb-privacy-security", "kb-faculty-workflows", "kb-developer-portal"],
   },
 ];
+
