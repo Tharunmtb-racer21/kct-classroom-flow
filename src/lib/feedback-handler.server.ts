@@ -307,7 +307,9 @@ export async function handleFeedbackSubmission(
   }
 
   // 6. Invoke Web3Forms Notification Provider (Server-Side Only)
-  const web3FormsKey = deps.getEnvKey ? deps.getEnvKey() : process.env.WEB3FORMS_ACCESS_KEY;
+  const web3FormsKey = deps.getEnvKey
+    ? deps.getEnvKey()
+    : process.env.WEB3FORMS_ACCESS_KEY || process.env.VITE_WEB3FORMS_ACCESS_KEY;
 
   let delivered = false;
 

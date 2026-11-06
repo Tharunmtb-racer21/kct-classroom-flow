@@ -122,6 +122,34 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
         throw new Error(res.message || "Failed to submit feedback.");
       }
 
+      // If server could not deliver via Web3Forms (e.g. serverless IP blocked by Cloudflare),
+      // execute direct client-side delivery from the browser as resilient fallback
+      if (!res.delivered && typeof window !== "undefined") {
+        const clientKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
+        if (clientKey) {
+          try {
+            await fetch("https://api.web3forms.com/submit", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                access_key: clientKey,
+                name: safeNme,
+                email: safeEmail,
+                subject: `[KCT PULSE Contact] ${subject} - from ${safeNme}`,
+                message: safeMsg,
+                replyto: safeEmail,
+                from_name: "KCT PULSE Feedback System",
+              }),
+            });
+          } catch (clientDeliveryErr) {
+            console.warn("[ContactUs] Browser fallback delivery to Web3Forms failed:", clientDeliveryErr);
+          }
+        }
+      }
+
       setStatus("success");
       toast.success("Message submitted successfully!");
     } catch (err: unknown) {

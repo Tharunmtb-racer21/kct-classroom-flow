@@ -41,6 +41,7 @@ export const PUBLIC_CLIENT_ENV = new Set([
   "VITE_VERCEL_PROJECT_PRODUCTION_URL",
   "VITE_VERCEL_URL",
   "VITE_WEB3FORMS_ACCESS_KEY",
+  "WEB3FORMS_ACCESS_KEY",
 ]);
 
 // Values shorter than this are too generic to search for without false positives.
