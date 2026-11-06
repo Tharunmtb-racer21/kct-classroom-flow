@@ -10,6 +10,7 @@
 
 import { generateQuestionsLocally } from "./local-question-generator";
 import { recordTokenUsage } from "./token-tracker";
+import { queryKnowledgeBase } from "./chatbot/knowledge-engine";
 import {
   AI_LIMITS,
   type AiKeyDiagnosticStatus,
@@ -20,7 +21,6 @@ import {
   type QType,
 } from "./ai-schemas";
 import {
-  generateChatServerFn,
   generateIntegritySummaryServerFn,
   generateQuestionsServerFn,
   getAiKeyInventoryServerFn,
@@ -28,6 +28,8 @@ import {
 } from "./ai-server";
 
 export type { ChatMessage, GeneratedQuestion, QType, AiKeyProvider } from "./ai-schemas";
+export { queryKnowledgeBase } from "./chatbot/knowledge-engine";
+export type { ChatbotAnswer } from "@/data/chatbot/knowledge";
 
 export interface GenerateQuestionsOptions {
   text: string;
@@ -80,34 +82,19 @@ export async function generateQuestionsFromText(
 }
 
 /**
- * Chat reply from the dashboard assistant. Only user and assistant turns are sent;
- * the system prompt is built on the server.
+ * Chat reply from the dashboard assistant.
+ * Powered 100% locally by the in-repository KCT PULSE Knowledge Engine.
+ * ABSOLUTELY ZERO external AI API calls (no Gemini, Groq, or OpenAI).
  */
 export async function generateChatResponse(messages: ChatMessage[]): Promise<string> {
-  const turns = messages
+  const lastUserTurn = [...messages].reverse().find((m) => m.role === "user");
+  const query = lastUserTurn?.content || "";
+  const history = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: m.content.slice(0, AI_LIMITS.maxChatMessageChars) }))
-    .filter((m) => m.content.trim().length > 0)
-    .slice(-AI_LIMITS.maxChatMessages);
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  const start = typeof performance !== "undefined" ? performance.now() : Date.now();
-  const result = await generateChatServerFn({ data: { messages: turns } });
-
-  if (!result.fallback && result.usage) {
-    const end = typeof performance !== "undefined" ? performance.now() : Date.now();
-    recordTokenUsage({
-      provider: result.provider ?? "ai_server",
-      model: result.model ?? "unknown",
-      keySignature: result.provider ?? "ai_server",
-      feature: "chatbot",
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      totalTokens: result.usage.totalTokens,
-      latencyMs: Math.round(end - start),
-      success: true,
-    });
-  }
-  return result.content;
+  const result = queryKnowledgeBase(query, history);
+  return result.answer;
 }
 
 /** AI proctoring summary of a student's integrity events, generated on the server. */
