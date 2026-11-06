@@ -37,6 +37,7 @@ import {
   DEVELOPER_ACCESS_MESSAGES,
 } from "@/lib/developer-access";
 import { verifyDevPassword } from "@/lib/dev-auth";
+import { logDeveloperAccessEvent, closeDeveloperAccessLog } from "@/lib/login-logger";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -103,6 +104,7 @@ function WafMonitorDashboard() {
 
   const handleLockWaf = () => {
     if (typeof window !== "undefined") {
+      void closeDeveloperAccessLog(undefined, "WAF Console");
       sessionStorage.removeItem("kct_waf_auth");
       sessionStorage.removeItem("kct_waf_auth_time");
       sessionStorage.removeItem("kct_dev_auth");
@@ -130,6 +132,7 @@ function WafMonitorDashboard() {
           sessionStorage.setItem("kct_dev_auth_time", Date.now().toString());
           sessionStorage.setItem("kct_dev_passkey", cleanPasskey);
         }
+        await logDeveloperAccessEvent("WAF Console", "developer");
         toast.success("Administrator access granted.");
       } else {
         setErrorMsg("Access Denied: Incorrect administrator password.");

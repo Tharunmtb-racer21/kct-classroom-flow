@@ -91,6 +91,7 @@ import {
 import { cn, formatDisplayName } from "@/lib/utils";
 import { verifyDevPassword } from "@/lib/dev-auth";
 import { checkDeveloperAccess } from "@/lib/developer-access";
+import { logDeveloperAccessEvent, closeDeveloperAccessLog } from "@/lib/login-logger";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import {
@@ -271,6 +272,7 @@ function DeveloperDashboard() {
 
   const handleLockDeveloper = () => {
     if (typeof window !== "undefined") {
+      void closeDeveloperAccessLog(undefined, "Developer Portal");
       sessionStorage.removeItem("kct_dev_auth");
       sessionStorage.removeItem("kct_dev_auth_time");
       sessionStorage.removeItem("kct_dev_passkey");
@@ -1046,6 +1048,7 @@ function DeveloperDashboard() {
           sessionStorage.setItem("kct_dev_auth_time", Date.now().toString());
           sessionStorage.setItem("kct_dev_passkey", cleanPasskey);
         }
+        await logDeveloperAccessEvent("Developer Portal", "developer");
         loadData(cleanPasskey);
       } else {
         setErrorMsg("Access Denied: Incorrect developer password.");
@@ -4522,7 +4525,7 @@ function DeveloperDashboard() {
                       <table className="w-full text-left text-xs">
                         <thead className="bg-card/80 border-b border-border/60 text-muted-foreground font-extrabold uppercase tracking-wider">
                           <tr>
-                            <th className="px-4 py-3">Faculty / User Email</th>
+                            <th className="px-4 py-3">Faculty / User</th>
                             <th className="px-4 py-3">Role</th>
                             <th className="px-4 py-3">Login Time</th>
                             <th className="px-4 py-3">Logout Time</th>
@@ -4555,22 +4558,60 @@ function DeveloperDashboard() {
                                     ? "Active"
                                     : "< 1m";
 
+                              const matchedProfile = profiles.find(
+                                (p) =>
+                                  p.id === log.user_id ||
+                                  (p.email && log.email && p.email.toLowerCase() === log.email.toLowerCase()),
+                              );
+                              const resolvedName = formatDisplayName(
+                                matchedProfile?.full_name,
+                                log.email,
+                                log.user_id,
+                              );
+
                               return (
                                 <tr key={log.id} className="hover:bg-accent/40 transition">
                                   <td className="px-4 py-3 font-semibold text-foreground">
-                                    {log.email || `User ${log.user_id.slice(0, 8)}`}
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                                        {resolvedName}
+                                        {log.role === "developer" && (
+                                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                                            Dev Access
+                                          </span>
+                                        )}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground font-mono font-normal">
+                                        {log.email || `User ${log.user_id.slice(0, 8)}`}
+                                      </span>
+                                    </div>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                    <span
+                                      className={cn(
+                                        "capitalize px-2 py-0.5 rounded text-[10px] font-bold border",
+                                        log.role === "developer"
+                                          ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                          : log.role === "waf_admin"
+                                            ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
+                                            : "bg-primary/10 text-primary border-primary/20",
+                                      )}
+                                    >
                                       {log.role}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-muted-foreground font-mono">
-                                    {new Date(log.login_time).toLocaleString()}
+                                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
+                                    {new Date(log.login_time).toLocaleString(undefined, {
+                                      dateStyle: "medium",
+                                      timeStyle: "medium",
+                                    })}
                                   </td>
-                                  <td className="px-4 py-3 text-muted-foreground font-mono">
+                                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
                                     {log.logout_time
-                                      ? new Date(log.logout_time).toLocaleString()
+                                      ? new Date(log.logout_time).toLocaleString(undefined, {
+                                          dateStyle: "medium",
+                                          timeStyle: "medium",
+                                        })
                                       : "Active Session"}
                                   </td>
                                   <td className="px-4 py-3 font-mono font-semibold text-foreground">
