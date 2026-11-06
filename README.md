@@ -226,13 +226,23 @@ graph TD
 
 | Table Name | Primary Key | Key Columns | Purpose |
 | :--------- | :---------- | :---------- | :------ |
-| **`sessions`** | `id` (UUID) | `title`, `code`, `status`, `creator_id`, `expires_at` | Stores lecture sessions, unique shortcodes, and auto-draft timestamps. |
-| **`questions`** | `id` (UUID) | `session_id`, `type`, `title`, `options`, `correct_answer`, `order_index` | Questions associated with each session (polls, word clouds, quizzes). |
-| **`participants`** | `id` (UUID) | `session_id`, `name`, `joined_at` | Student join records per session. |
-| **`responses`** | `id` (UUID) | `question_id`, `participant_id`, `answer`, `created_at` | Individual student answer submissions. |
+| **`sessions`** | `id` (UUID) | `title`, `code`, `status`, `creator_id`, `created_at` | Stores lecture sessions, unique shortcodes, and lecture states (1,228+ records). |
+| **`questions`** | `id` (UUID) | `session_id`, `type`, `title`, `options`, `correct_answer`, `marks` | Active classroom question bank (polls, word clouds, quizzes — 4,410+ records). |
+| **`participants`** | `id` (UUID) | `session_id`, `name`, `joined_at`, `risk_score` | Real-time student session attendees (36,497+ records). |
+| **`responses`** | `id` (UUID) | `question_id`, `participant_id`, `answer`, `created_at` | Student interaction responses & quiz answers (141,236+ records). |
+| **`exam_integrity_events`** | `id` (UUID) | `session_id`, `participant_id`, `event_type`, `duration_seconds` | Proctoring violation logs (fullscreen exits, tab blurs — 13,359+ records). |
+| **`ml_training_records`** | `(student_id_hash, session_id)` | `quiz_accuracy_pct`, `avg_response_time_ms`, `total_blur_duration_seconds`, `target_engagement_score`, `target_engagement_class` | High-dimensional ML training dataset feature vectors for pedagogical model training. |
+| **`ml_student_analytics`** | `id` (UUID) | `participant_id`, `session_id`, `engagement_score`, `engagement_level`, `performance_trend` | Real-time student engagement scores (0–100) and cohort tracking. |
+| **`ml_topic_performance`** | `id` (UUID) | `session_id`, `topic_name`, `accuracy_percentage`, `status`, `recommendation` | Automated topic error clustering & weakness detection. |
 | **`profiles`** | `id` (Text) | `email`, `full_name`, `avatar_url` | Faculty identity profiles keyed by Firebase string UID. |
 | **`user_roles`** | `id` (UUID) | `user_id`, `role` (`faculty` / `admin` / `developer`) | Role-based authorization mappings. |
 | **`login_logs`** | `id` (UUID) | `user_id`, `email`, `browser`, `device`, `operating_system`, `status`, `session_duration` | Telemetry audit trail for logins and session durations. |
+
+### 🤖 Secondary Machine Learning & Telemetry Data Lake
+To preserve operational stability and prevent live classroom sessions from consuming primary database quotas, KCT PULSE incorporates an isolated **Secondary ML Database**:
+- **Endpoint**: `https://enssdnjdgoyotgronelk.supabase.co`
+- **Schema Migration**: [`supabase/migrations/20261106194000_secondary_ml_dataset_tables.sql`](./supabase/migrations/20261106194000_secondary_ml_dataset_tables.sql)
+- **Data Offload Pipeline**: Syncs anonymized feature vectors directly via the Developer Command Center or CLI (`scripts/sync-all-to-ml-db.mjs`), fully decoupled from student WebSocket traffic.
 
 ### Row Level Security (RLS)
 All database tables have Row Level Security enabled (`ENABLE ROW LEVEL SECURITY`). Policies for third-party Firebase requests are defined `TO public` and evaluate identity using the PostgreSQL function:
@@ -287,11 +297,15 @@ npm install
 Create a `.env` file in the root directory:
 
 ```env
-# Supabase Configuration
+# Supabase Configuration (Primary Production DB)
 VITE_SUPABASE_URL="https://your-project.supabase.co"
-VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
 SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_PUBLISHABLE_KEY="your-supabase-anon-key"
+SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
+
+# Secondary Supabase Database (Dedicated ML Training & Analytics Data Lake)
+VITE_ML_SUPABASE_URL="https://your-ml-project.supabase.co"
+VITE_ML_SUPABASE_ANON_KEY="your-ml-anon-key"
 
 # Firebase Authentication (@kct.ac.in restricted)
 VITE_FIREBASE_API_KEY="AIzaSy..."

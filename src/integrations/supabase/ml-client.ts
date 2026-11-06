@@ -16,3 +16,4 @@ export const mlSupabase: SupabaseClient = createClient(ML_SUPABASE_URL, ML_SUPAB
     autoRefreshToken: false,
   },
 });
+
