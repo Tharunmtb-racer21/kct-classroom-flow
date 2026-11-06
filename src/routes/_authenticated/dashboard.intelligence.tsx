@@ -658,10 +658,10 @@ export default function ClassroomIntelligenceDashboard() {
       </Card>
 
       {/* Topic Performance & Learning Trend Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
         {/* Question Concept Performance */}
-        <Card className="shadow-md">
-          <CardHeader>
+        <Card className="shadow-md flex flex-col h-full min-h-0">
+          <CardHeader className="shrink-0 pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-primary" />
@@ -677,11 +677,11 @@ export default function ClassroomIntelligenceDashboard() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 flex flex-col min-h-0 pt-0">
             {weakTopicData?.topics && weakTopicData.topics.length > 0 ? (
-              <div className="space-y-4">
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 {/* Visual Topic Accuracy Bar Chart */}
-                <div className="rounded-xl border border-border/60 bg-accent/20 p-3">
+                <div className="rounded-xl border border-border/60 bg-accent/20 p-3 shrink-0">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <BarChart3 className="h-3.5 w-3.5 text-primary" /> Concept Accuracy Comparison (%)
@@ -721,69 +721,78 @@ export default function ClassroomIntelligenceDashboard() {
                   </div>
                 </div>
 
-                {weakTopicData.topics.map((t) => (
-                  <div
-                    key={t.topicName}
-                    className="p-3.5 rounded-xl border border-border/60 bg-card hover:bg-accent/40 transition space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-semibold text-sm">
-                        <span>{t.statusBadge}</span>
-                        <span>{t.topicName}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            t.attemptedCount === 0
-                              ? "border-border text-muted-foreground bg-muted/40 text-[10px]"
-                              : t.sampleSufficiency === "reliable"
-                                ? "border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 text-[10px]"
-                                : t.sampleSufficiency === "preliminary"
-                                  ? "border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/20 text-[10px]"
-                                  : "border-border text-muted-foreground text-[10px]"
-                          }
-                        >
-                          {t.attemptedCount === 0 ? "Not Attempted" : t.sampleSufficiencyLabel}
-                        </Badge>
-                        <span
-                          className={`text-sm font-extrabold ${
-                            t.attemptedCount === 0
-                              ? "text-muted-foreground"
-                              : !t.isReliable
+                {/* Independent Scrollable Concept Cards List */}
+                <div
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Concept accuracy and error patterns list"
+                  className="space-y-3 min-h-[280px] max-h-[460px] overflow-y-auto pr-3 overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 rounded-lg"
+                  style={{ scrollbarGutter: "stable" }}
+                >
+                  {weakTopicData.topics.map((t) => (
+                    <div
+                      key={t.topicName}
+                      className="p-3.5 rounded-xl border border-border/60 bg-card hover:bg-accent/40 transition space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                          <span>{t.statusBadge}</span>
+                          <span>{t.topicName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              t.attemptedCount === 0
+                                ? "border-border text-muted-foreground bg-muted/40 text-[10px]"
+                                : t.sampleSufficiency === "reliable"
+                                  ? "border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 text-[10px]"
+                                  : t.sampleSufficiency === "preliminary"
+                                    ? "border-amber-500/40 text-amber-600 bg-amber-50 dark:bg-amber-950/20 text-[10px]"
+                                    : "border-border text-muted-foreground text-[10px]"
+                            }
+                          >
+                            {t.attemptedCount === 0 ? "Not Attempted" : t.sampleSufficiencyLabel}
+                          </Badge>
+                          <span
+                            className={`text-sm font-extrabold ${
+                              t.attemptedCount === 0
                                 ? "text-muted-foreground"
-                                : t.status === "weak"
-                                  ? "text-rose-500"
-                                  : t.status === "moderate"
-                                    ? "text-amber-500"
-                                    : "text-emerald-500"
-                          }`}
-                        >
-                          {t.attemptedCount === 0 ? "—" : `${t.accuracyPercentage}%`}
-                        </span>
+                                : !t.isReliable
+                                  ? "text-muted-foreground"
+                                  : t.status === "weak"
+                                    ? "text-rose-500"
+                                    : t.status === "moderate"
+                                      ? "text-amber-500"
+                                      : "text-emerald-500"
+                            }`}
+                          >
+                            {t.attemptedCount === 0 ? "—" : `${t.accuracyPercentage}%`}
+                          </span>
+                        </div>
+                      </div>
+                      <Progress
+                        value={t.attemptedCount === 0 ? 0 : t.accuracyPercentage}
+                        className={`h-2 ${
+                          t.attemptedCount === 0
+                            ? "[&>div]:bg-muted/40"
+                            : !t.isReliable
+                              ? "[&>div]:bg-slate-400/40"
+                              : t.status === "weak"
+                                ? "[&>div]:bg-rose-500"
+                                : t.status === "moderate"
+                                  ? "[&>div]:bg-amber-500"
+                                  : "[&>div]:bg-emerald-500"
+                        }`}
+                      />
+                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                        <span>Questions: {t.questionCount}</span>
+                        <span>Attempted: {t.attemptedCount}</span>
+                        <span>Response Coverage: {t.responseCoveragePercentage}%</span>
                       </div>
                     </div>
-                    <Progress
-                      value={t.attemptedCount === 0 ? 0 : t.accuracyPercentage}
-                      className={`h-2 ${
-                        t.attemptedCount === 0
-                          ? "[&>div]:bg-muted/40"
-                          : !t.isReliable
-                            ? "[&>div]:bg-slate-400/40"
-                            : t.status === "weak"
-                              ? "[&>div]:bg-rose-500"
-                              : t.status === "moderate"
-                                ? "[&>div]:bg-amber-500"
-                                : "[&>div]:bg-emerald-500"
-                      }`}
-                    />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                      <span>Questions: {t.questionCount}</span>
-                      <span>Attempted: {t.attemptedCount}</span>
-                      <span>Response Coverage: {t.responseCoveragePercentage}%</span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground space-y-2">
@@ -796,8 +805,8 @@ export default function ClassroomIntelligenceDashboard() {
         </Card>
 
         {/* Participant Learning Scores & Distribution */}
-        <Card className="shadow-md">
-          <CardHeader>
+        <Card className="shadow-md flex flex-col h-full min-h-0">
+          <CardHeader className="shrink-0 pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
@@ -811,20 +820,20 @@ export default function ClassroomIntelligenceDashboard() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 flex flex-col min-h-0 pt-0">
             {studentAnalyses.length > 0 ? (
-              <div className="space-y-4">
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 {/* Visual Score Spectrum Area Chart */}
-                <div className="rounded-xl border border-border/60 bg-accent/20 p-3">
+                <div className="rounded-xl border border-border/60 bg-accent/20 p-3 shrink-0">
                   <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
                     <span className="flex items-center gap-1.5">
                       <TrendingUp className="h-3.5 w-3.5 text-primary" /> Class Score Distribution Curve
                     </span>
                     <span className="font-mono text-primary font-bold">{studentAnalyses.length} Participants</span>
                   </div>
-                  <div className="h-36 w-full">
+                  <div className="h-44 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={scoreSpectrumData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                      <AreaChart data={scoreSpectrumData} margin={{ top: 10, right: 10, left: -25, bottom: 20 }}>
                         <defs>
                           <linearGradient id="scoreCurveGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.6} />
@@ -858,7 +867,14 @@ export default function ClassroomIntelligenceDashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                {/* Independent Scrollable Student Cards List */}
+                <div
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Participant engagement breakdown list"
+                  className="space-y-3 min-h-[280px] max-h-[460px] overflow-y-auto pr-3 overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 rounded-lg"
+                  style={{ scrollbarGutter: "stable" }}
+                >
                   {studentAnalyses.map((s) => {
                     const { displayName, rollNumber, initials } = parseParticipantName(
                       s.name,
@@ -976,7 +992,13 @@ export default function ClassroomIntelligenceDashboard() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
+              <div
+                tabIndex={0}
+                role="region"
+                aria-label="Observed question performance grid"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-3 overscroll-contain focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 rounded-lg"
+                style={{ scrollbarGutter: "stable" }}
+              >
                 {observedQuestions.map((q) => (
                   <div
                     key={q.questionId}
