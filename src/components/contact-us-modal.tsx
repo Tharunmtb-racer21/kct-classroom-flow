@@ -107,6 +107,32 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
     const safeMsg = result.normalisedMessage!;
 
     try {
+      const clientKey =
+        (import.meta.env.VITE_WEB3FORMS_ACCESS_KEY as string | undefined) ||
+        "82d71e4b-1a8d-4aa4-8170-db1899442e91";
+
+      // 1. Direct browser delivery to Web3Forms (required by Web3Forms free tier)
+      if (typeof window !== "undefined" && clientKey) {
+        try {
+          const formData = new FormData();
+          formData.append("access_key", clientKey);
+          formData.append("name", safeNme);
+          formData.append("email", safeEmail);
+          formData.append("subject", `[KCT PULSE Contact] ${subject} - from ${safeNme}`);
+          formData.append("message", safeMsg);
+          formData.append("replyto", safeEmail);
+          formData.append("from_name", "KCT PULSE Feedback System");
+
+          await fetch("https://api.web3forms.com/submit", {
+            method: "POST",
+            body: formData,
+          });
+        } catch (clientDeliveryErr) {
+          console.warn("[ContactUs] Browser delivery to Web3Forms failed:", clientDeliveryErr);
+        }
+      }
+
+      // 2. Persist message to database via serverless function
       const { submitFeedbackServerFn } = await import("@/lib/feedback-server");
       const res = await submitFeedbackServerFn({
         data: {
@@ -120,31 +146,6 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
 
       if (!res.success) {
         throw new Error(res.message || "Failed to submit feedback.");
-      }
-
-      // If server could not deliver via Web3Forms (e.g. serverless IP blocked by Cloudflare),
-      // execute direct client-side delivery from the browser as resilient fallback
-      if (!res.delivered && typeof window !== "undefined") {
-        const clientKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
-        if (clientKey) {
-          try {
-            const formData = new FormData();
-            formData.append("access_key", clientKey);
-            formData.append("name", safeNme);
-            formData.append("email", safeEmail);
-            formData.append("subject", `[KCT PULSE Contact] ${subject} - from ${safeNme}`);
-            formData.append("message", safeMsg);
-            formData.append("replyto", safeEmail);
-            formData.append("from_name", "KCT PULSE Feedback System");
-
-            await fetch("https://api.web3forms.com/submit", {
-              method: "POST",
-              body: formData,
-            });
-          } catch (clientDeliveryErr) {
-            console.warn("[ContactUs] Browser fallback delivery to Web3Forms failed:", clientDeliveryErr);
-          }
-        }
       }
 
       setStatus("success");
