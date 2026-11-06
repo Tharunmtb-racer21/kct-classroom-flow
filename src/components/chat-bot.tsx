@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, X, Send, Bot, Loader2, Sparkles } from "lucide-react";
-import { generateChatResponse, type ChatMessage } from "@/lib/ai-service";
+import {
+  MessageSquare,
+  X,
+  Send,
+  Bot,
+  Loader2,
+  Sparkles,
+  Copy,
+  Check,
+  Trash2,
+  BookOpen,
+} from "lucide-react";
+import { queryKnowledgeBase } from "@/lib/chatbot/knowledge-engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VoiceInputButton } from "@/components/voice-input-button";
@@ -8,25 +19,54 @@ import { VoiceWaveform } from "@/components/voice/voice-waveform";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+interface BotMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources?: Array<{ id: string; title: string; category: string }>;
+  timestamp: string;
+}
+
+const DEFAULT_SUGGESTIONS = [
+  "How do students join?",
+  "How do quizzes work?",
+  "What is the engagement formula?",
+  "How to export PDF reports?",
+];
+
 export function ChatBot() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<BotMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load welcome message on mount
+  // Initialize welcome message on mount
   useEffect(() => {
+    resetConversation();
+  }, []);
+
+  const resetConversation = () => {
     setMessages([
       {
+        id: "msg-welcome",
         role: "assistant",
         content:
-          "Hello! I am PULSE AI, your virtual assistant for KCT PULSE. How can I assist you with hosting sessions, managing polls, quizzes, word clouds, or securing your application today?",
+          "Hello! I am PULSE Assistant, your in-repository knowledge assistant for KCT PULSE. How can I help you with hosting sessions, managing polls, quizzes, word clouds, or reports today?",
+        sources: [
+          {
+            id: "kb-platform-overview",
+            title: "Platform Overview",
+            category: "General",
+          },
+        ],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
-  }, []);
+  };
 
   // Scroll to bottom of message thread
   const scrollToBottom = () => {
@@ -46,38 +86,73 @@ export function ChatBot() {
     }
   }, [messages.length, isOpen]);
 
-  const handleSend = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || loading) return;
+  const handleCopy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      toast.success("Answer copied to clipboard!");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard.");
+    }
+  };
 
-    const userText = input.trim();
+  const executeQuery = (queryText: string) => {
+    const userText = queryText.trim();
+    if (!userText || loading) return;
+
+    const userMsg: BotMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: userText,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInput("");
-
-    // Add user message
-    const updatedMessages: ChatMessage[] = [...messages, { role: "user", content: userText }];
-    setMessages(updatedMessages);
     setLoading(true);
 
-    try {
-      // The server builds the system prompt and knowledge-base context.
-      // Only user and assistant turns are sent, limited to recent history.
-      const payload: ChatMessage[] = updatedMessages.slice(-6);
+    // Natural fluid response delay (200ms) with zero network calls
+    setTimeout(() => {
+      try {
+        const historyForEngine = nextMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
-      const reply = await generateChatResponse(payload);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch (err: unknown) {
-      console.error("[KCT Chatbot] Reply failure:", err);
-      toast.error("Failed to receive reply from PULSE AI.");
-      setMessages((prev) => [
-        ...prev,
-        {
+        const result = queryKnowledgeBase(userText, historyForEngine);
+
+        const aiMsg: BotMessage = {
+          id: `ai-${Date.now()}`,
           role: "assistant",
-          content: "I encountered a minor network error. Could you try sending that again?",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+          content: result.answer,
+          sources: result.sources,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+
+        setMessages((prev) => [...prev, aiMsg]);
+      } catch (err: unknown) {
+        console.error("[KCT Chatbot] Knowledge query failure:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: "assistant",
+            content:
+              "I encountered an error querying the local knowledge base. Please try rephrasing your question.",
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+  };
+
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    executeQuery(input);
   };
 
   return (
@@ -88,6 +163,7 @@ export function ChatBot() {
           setIsOpen(!isOpen);
           setHasNewMessage(false);
         }}
+        aria-label={isOpen ? "Close PULSE Assistant" : "Open PULSE Assistant"}
         className={cn(
           "h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer relative",
           isOpen
@@ -114,69 +190,143 @@ export function ChatBot() {
 
       {/* Chat Window Dialog */}
       {isOpen && (
-        <div className="absolute bottom-16 sm:bottom-18 right-0 w-[calc(100vw-2rem)] sm:w-[360px] max-w-[360px] h-[min(500px,calc(100dvh-150px))] rounded-3xl overflow-hidden glass border border-border/80 shadow-2xl flex flex-col animate-in fade-in slide-in-from-bottom-6 duration-300">
+        <div className="absolute bottom-16 sm:bottom-18 right-0 w-[calc(100vw-2rem)] sm:w-[380px] max-w-[380px] h-[min(540px,calc(100dvh-140px))] rounded-3xl overflow-hidden glass border border-border/80 shadow-2xl flex flex-col animate-in fade-in slide-in-from-bottom-6 duration-300">
           {/* Header */}
-          <div className="gradient-bg p-4 flex items-center justify-between text-white border-b border-white/5">
+          <div className="gradient-bg p-3.5 sm:p-4 flex items-center justify-between text-white border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-xl bg-white/10 border border-white/20 grid place-items-center text-white">
                 <Bot className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="font-extrabold text-sm tracking-tight flex items-center gap-1">
-                  PULSE AI Assistant <Sparkles className="h-3.5 w-3.5 text-yellow-300" />
+                <h4 className="font-extrabold text-sm tracking-tight flex items-center gap-1.5">
+                  PULSE Assistant <Sparkles className="h-3.5 w-3.5 text-yellow-300" />
                 </h4>
-                <p className="text-[10px] text-white/70 flex items-center gap-1">
+                <p className="text-[10px] text-white/80 flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>{" "}
-                  Online • Nvidia / Groq powered
+                  Knowledge Base • Instant & Private
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-white/70 hover:text-white transition cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={resetConversation}
+                title="Clear conversation"
+                aria-label="Clear conversation"
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                aria-label="Close"
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Messages Thread Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background/40">
-            {messages.map((msg, index) => {
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-background/50">
+            {messages.map((msg) => {
               const isAi = msg.role === "assistant";
               return (
-                <div
-                  key={index}
-                  className={cn(
-                    "flex items-start gap-2 max-w-[85%] text-xs leading-relaxed animate-in fade-in duration-200",
-                    isAi ? "mr-auto flex-row" : "ml-auto flex-row-reverse",
-                  )}
-                >
-                  {isAi && (
-                    <div className="h-6 w-6 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center text-primary shrink-0">
-                      <Bot className="h-3.5 w-3.5" />
-                    </div>
-                  )}
+                <div key={msg.id} className="space-y-1.5">
                   <div
                     className={cn(
-                      "p-3 rounded-2xl border",
-                      isAi
-                        ? "bg-card border-border/50 text-foreground rounded-tl-none"
-                        : "gradient-bg text-white border-primary/30 rounded-tr-none shadow-md",
+                      "flex items-start gap-2 max-w-[88%] text-xs leading-relaxed animate-in fade-in duration-200",
+                      isAi ? "mr-auto flex-row" : "ml-auto flex-row-reverse",
                     )}
                   >
-                    {msg.content}
+                    {isAi && (
+                      <div className="h-6 w-6 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center text-primary shrink-0 mt-0.5">
+                        <Bot className="h-3.5 w-3.5" />
+                      </div>
+                    )}
+                    <div className="space-y-1.5 w-full">
+                      <div
+                        className={cn(
+                          "p-3 rounded-2xl border text-left whitespace-pre-line group relative",
+                          isAi
+                            ? "bg-card border-border/60 text-foreground rounded-tl-none shadow-sm"
+                            : "gradient-bg text-white border-primary/30 rounded-tr-none shadow-md",
+                        )}
+                      >
+                        {msg.content}
+
+                        {/* Copy Button for Assistant Message */}
+                        {isAi && (
+                          <div className="flex justify-end pt-2 border-t border-border/30 mt-2">
+                            <button
+                              onClick={() => handleCopy(msg.id, msg.content)}
+                              className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 font-medium transition cursor-pointer bg-accent/40 px-2 py-0.5 rounded-md"
+                            >
+                              {copiedId === msg.id ? (
+                                <>
+                                  <Check className="h-3 w-3 text-emerald-400" /> Copied!
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3" /> Copy Answer
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Source Citations */}
+                      {isAi && msg.sources && msg.sources.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 px-1">
+                          <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                            <BookOpen className="h-2.5 w-2.5 text-primary" /> Sources:
+                          </span>
+                          {msg.sources.map((src) => (
+                            <span
+                              key={src.id}
+                              className="text-[9px] font-medium bg-primary/10 border border-primary/20 text-primary px-1.5 py-0.5 rounded"
+                            >
+                              {src.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
+
+            {/* Suggested Question Chips (displayed when only welcome message is present) */}
+            {messages.length === 1 && (
+              <div className="pt-2 pb-1 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">
+                  Suggested Questions:
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  {DEFAULT_SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => executeQuery(suggestion)}
+                      className="text-left text-xs bg-card/80 hover:bg-accent/60 border border-border/60 hover:border-primary/40 text-foreground p-2 rounded-xl transition cursor-pointer flex items-center justify-between group"
+                    >
+                      <span>{suggestion}</span>
+                      <span className="text-primary text-xs opacity-0 group-hover:opacity-100 transition">
+                        →
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {loading && (
               <div className="flex items-start gap-2 max-w-[85%] text-xs mr-auto animate-pulse">
                 <div className="h-6 w-6 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center text-primary shrink-0">
                   <Bot className="h-3.5 w-3.5" />
                 </div>
-                <div className="p-3 rounded-2xl bg-card border border-border/50 text-muted-foreground rounded-tl-none flex items-center gap-1.5">
-                  <Loader2 className="h-3 w-3 animate-spin text-primary" /> Analysing query...
+                <div className="p-2.5 rounded-2xl bg-card border border-border/50 text-muted-foreground rounded-tl-none flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" /> Searching repository knowledge...
                 </div>
               </div>
             )}
@@ -207,19 +357,19 @@ export function ChatBot() {
           {/* Send Input Area */}
           <form
             onSubmit={handleSend}
-            className="p-3 bg-card/60 border-t border-border/60 flex items-center gap-1.5"
+            className="p-3 bg-card/80 border-t border-border/60 flex items-center gap-1.5 shrink-0"
           >
             <Input
               type="text"
-              placeholder="Ask PULSE AI or speak..."
+              placeholder="Ask about KCT PULSE or speak..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="flex-1 h-9 text-xs bg-background/50 border-border focus-visible:ring-primary"
+              className="flex-1 h-9 text-xs bg-background/60 border-border focus-visible:ring-primary"
               disabled={loading}
             />
             <VoiceInputButton
               currentValue={input}
-              onTranscriptFinal={(txt) => setInput(txt)}
+              onTranscriptFinal={(txt) => executeQuery(txt)}
               onListeningChange={setIsVoiceListening}
               size="icon"
               variant="ghost"
