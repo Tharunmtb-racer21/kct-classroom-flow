@@ -6,6 +6,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { mlSupabase } from "@/integrations/supabase/ml-client";
 import { calculateStudentEngagement, type StudentEngagementAnalysis } from "@/lib/ml-engine";
 import { isAnswerCorrect } from "@/lib/answer-evaluator";
 
@@ -200,4 +201,61 @@ export async function downloadMLDatasetCSV(): Promise<void> {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export interface MLSyncResult {
+  totalExtracted: number;
+  synced: number;
+  error?: string;
+}
+
+/**
+ * Synchronizes the extracted and anonymized ML training records directly into the
+ * secondary ML Supabase database (table: ml_training_records).
+ */
+export async function syncMLDatasetToDatabase(): Promise<MLSyncResult> {
+  const records = await extractMLTrainingDataset();
+  if (records.length === 0) {
+    return {
+      totalExtracted: 0,
+      synced: 0,
+      error: "No student interaction records available to sync.",
+    };
+  }
+
+  const payload = records.map((r) => ({
+    student_id_hash: r.student_id_hash,
+    session_id: r.session_id,
+    total_questions: r.total_questions,
+    attempted_questions: r.attempted_questions,
+    skipped_questions: r.skipped_questions,
+    quiz_accuracy_pct: r.quiz_accuracy_pct,
+    poll_participation_count: r.poll_participation_count,
+    wordcloud_participation_count: r.wordcloud_participation_count,
+    avg_response_time_ms: r.avg_response_time_ms,
+    integrity_events_count: r.integrity_events_count,
+    fullscreen_exits_count: r.fullscreen_exits_count,
+    total_blur_duration_seconds: r.total_blur_duration_seconds,
+    target_engagement_score: r.target_engagement_score,
+    target_engagement_class: r.target_engagement_class,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await mlSupabase.from("ml_training_records").upsert(payload, {
+    onConflict: "student_id_hash,session_id",
+  });
+
+  if (error) {
+    console.error("Secondary ML Database sync error:", error);
+    return {
+      totalExtracted: records.length,
+      synced: 0,
+      error: error.message,
+    };
+  }
+
+  return {
+    totalExtracted: records.length,
+    synced: records.length,
+  };
 }

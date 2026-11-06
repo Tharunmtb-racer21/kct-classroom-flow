@@ -110,7 +110,7 @@ import {
   TokenUsageRecord,
   AIProvider,
 } from "@/lib/token-tracker";
-import { downloadMLDatasetCSV } from "@/lib/ml-dataset-exporter";
+import { downloadMLDatasetCSV, syncMLDatasetToDatabase } from "@/lib/ml-dataset-exporter";
 import { isSupabaseServerDown, setSupabaseServerDown } from "@/lib/server-down-guard";
 import {
   AdminSection,
@@ -5997,23 +5997,46 @@ function DeveloperDashboard() {
                       Exports anonymized question and response telemetry formatted for training institutional educational models.
                     </p>
                   </div>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        toast.info("Extracting and anonymizing ML training dataset...");
-                        await downloadMLDatasetCSV();
-                        toast.success("ML Training Dataset exported successfully (CSV)!");
-                      } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : String(err);
-                        toast.error(`Export failed: ${msg}`);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs font-bold rounded-xl h-9 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10"
-                  >
-                    Export ML Training Dataset (CSV)
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                    <Button
+                      onClick={async () => {
+                        try {
+                          toast.info("Extracting and anonymizing ML training dataset...");
+                          await downloadMLDatasetCSV();
+                          toast.success("ML Training Dataset exported successfully (CSV)!");
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : String(err);
+                          toast.error(`Export failed: ${msg}`);
+                        }
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs font-bold rounded-xl h-9 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10"
+                    >
+                      Export CSV
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          toast.info("Extracting and syncing telemetry to ML Database...");
+                          const res = await syncMLDatasetToDatabase();
+                          if (res.error) {
+                            toast.error(`Sync error: ${res.error}`);
+                          } else {
+                            toast.success(`Successfully synced ${res.synced} records to secondary ML Database!`);
+                          }
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : String(err);
+                          toast.error(`ML Database Sync failed: ${msg}`);
+                        }
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs font-bold rounded-xl h-9 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      Sync to ML Database
+                    </Button>
+                  </div>
                 </div>
               </div>
 
