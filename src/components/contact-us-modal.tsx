@@ -118,15 +118,19 @@ export function ContactUsModal({ children }: ContactUsModalProps) {
           formData.append("access_key", clientKey);
           formData.append("name", safeNme);
           formData.append("email", safeEmail);
-          formData.append("subject", `[KCT PULSE Contact] ${subject} - from ${safeNme}`);
+          formData.append("subject", `[KCT PULSE] ${subject || "General Feedback"} from ${safeNme}`);
           formData.append("message", safeMsg);
-          formData.append("replyto", safeEmail);
-          formData.append("from_name", "KCT PULSE Feedback System");
 
-          await fetch("https://api.web3forms.com/submit", {
+          const web3Res = await fetch("https://api.web3forms.com/submit", {
             method: "POST",
             body: formData,
           });
+          const web3Data = await web3Res.json().catch(() => null);
+          if (web3Data?.success) {
+            console.log("[ContactUs] Web3Forms message dispatched successfully:", web3Data);
+          } else {
+            console.warn("[ContactUs] Web3Forms response status:", web3Data);
+          }
         } catch (clientDeliveryErr) {
           console.warn("[ContactUs] Browser delivery to Web3Forms failed:", clientDeliveryErr);
         }
