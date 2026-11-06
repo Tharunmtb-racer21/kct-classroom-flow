@@ -78,7 +78,9 @@ describe("developer access evaluation policy", () => {
       isAdmin: false,
     });
     expect(decision).toEqual({ allowed: false, reason: "signed_out" });
-    expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toContain("Sign in");
+    if (!decision.allowed) {
+      expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toContain("Sign in");
+    }
   });
 
   test("authenticated non-admin faculty member is denied with not_admin", () => {
@@ -89,9 +91,11 @@ describe("developer access evaluation policy", () => {
       isAdmin: false,
     });
     expect(decision).toEqual({ allowed: false, reason: "not_admin" });
-    expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toBe(
-      "Your account does not have the administrator role.",
-    );
+    if (!decision.allowed) {
+      expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toBe(
+        "Your account does not have the administrator role.",
+      );
+    }
   });
 
   test("authenticated user with external or student email is denied with email_domain", () => {
@@ -120,7 +124,9 @@ describe("developer access evaluation policy", () => {
       isAdmin: true,
     });
     expect(decision).toEqual({ allowed: false, reason: "email_unverified" });
-    expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toContain("Verify your @kct.ac.in email");
+    if (!decision.allowed) {
+      expect(DEVELOPER_ACCESS_MESSAGES[decision.reason]).toContain("Verify your @kct.ac.in email");
+    }
   });
 
   test("verified admin with @kct.ac.in email is granted access", () => {

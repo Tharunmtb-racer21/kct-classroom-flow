@@ -71,7 +71,7 @@ describe("evaluateDeveloperAccess", () => {
   });
 
   test("clears every storage key used by the retired passkey gate", () => {
-    expect([...LEGACY_DEVELOPER_STORAGE_KEYS].sort()).toEqual(
+    expect(([...LEGACY_DEVELOPER_STORAGE_KEYS] as string[]).sort()).toEqual(
       ["kct_dev_auth", "kct_dev_auth_hash", "kct_dev_auth_time", "kct_dev_passkey"].sort(),
     );
   });

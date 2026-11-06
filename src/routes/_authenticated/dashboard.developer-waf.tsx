@@ -830,3 +830,4 @@ function WafMonitorDashboard() {
     </div>
   );
 }
+
